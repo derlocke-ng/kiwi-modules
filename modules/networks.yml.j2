@@ -1,0 +1,14 @@
+# Shared network definition — rendered once per host and merged into the compose file.
+networks:
+  {{ network_name }}:
+    name: {{ network_name }}
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: "false"
+      com.docker.network.bridge.name: {{ network_name }}
+      com.docker.network.driver.mtu: "{{ mtu }}"
+    ipam:
+      driver: default
+      config:
+        - subnet: {{ docker_subnet }}
+          gateway: {{ docker_gateway }}

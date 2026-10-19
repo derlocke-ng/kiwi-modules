@@ -1,0 +1,28 @@
+name: ci
+on: [push, pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q shellcheck python3-yaml python3-jinja2
+      - name: shellcheck
+        run: shellcheck -S warning bin/kiwi-modules install.sh
+      - name: python compiles
+        run: python3 -m py_compile lib/kiwimodules/*.py tests/*.py
+      - name: unit tests (sh3 against kiwi-server's golden bundle, every preset, errors)
+        run: python3 -m unittest discover -s tests -v
+      - name: install and render the examples
+        run: |
+          KIWI_PREFIX=$HOME/km bash install.sh install
+          mkdir -p ex/secrets && cp examples/*.yaml ex/ && head -c 32 /dev/urandom > ex/secrets/seed
+          printf -- '-----BEGIN CERTIFICATE-----\nAA==\n-----END CERTIFICATE-----\n' > ex/ca.pem
+          for f in sh3-fullchain sh3-privkey gate-fullchain gate-privkey; do echo x > ex/secrets/$f.pem; done
+          printf '[Interface]\nPrivateKey = x\nAddress = 10.8.0.25/24\n[Peer]\nPublicKey = y\nEndpoint = e:1\nAllowedIPs = 0.0.0.0/0\n' > ex/secrets/sh3.home.conf
+          $HOME/km/bin/kiwi-modules render ex/sh3.yaml -o ex/sh3.bundle
+          $HOME/km/bin/kiwi-modules render ex/master.yaml -o ex/gate.bundle
+          test -f ex/sh3.bundle/stack.sh && test -f ex/gate.bundle/quadlets/kiwi-stack.target

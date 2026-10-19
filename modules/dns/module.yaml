@@ -1,0 +1,187 @@
+schema_version: "1.0"
+
+module:
+  name: dns
+  title: DNS (Pi-hole)
+  version: 1.2.0
+  description: "Pi-hole v6 — ad-blocking resolver for the mesh or the LAN, forwarding to the VPN client's DNS-over-TLS; serves the fleet's own names and, optionally, the Mullvad SOCKS5 proxies'"
+  category: core
+
+dependencies:
+  required: []
+  optional: [vpn-client, vpn-server, reverse-proxy]
+
+# Pi-hole's web server listens on web_port_effective; in a shared namespace
+# the reverse proxy owns 80 and 443, so the effective port moves to 8081
+derived:
+  shares_proxy_namespace: "{{ 'yes' if network_mode and module_config.get('reverse-proxy', {}).get('network_mode') == network_mode else '' }}"
+  web_port_effective: "{{ web_port or (8081 if (network_mode and module_config.get('reverse-proxy', {}).get('network_mode') == network_mode) else 80) }}"
+
+network:
+  listen_ports: ["53/tcp", "53/udp", "{{ web_port_effective }}/tcp"]
+  needs_vpn_dnat: false
+  # on the host only when Pi-hole has its own address; inside another
+  # container's network (the master) clients reach it through the tunnel
+  open_ports: ["{% if not network_mode %}53/tcp{% endif %}", "{% if not network_mode %}53/udp{% endif %}"]
+
+firewall:
+  scope: self
+  rules: []
+
+validate:
+  - when: "mullvad_socks and not mullvad_socks_url"
+    error: "mullvad_socks_url is required while mullvad_socks is on"
+
+templates:
+  compose: docker-compose.yml.j2
+  mullvad_socks_script: mullvad-socks.sh.j2
+  mullvad_socks_service: mullvad-socks.service.j2
+  mullvad_socks_timer: mullvad-socks.timer.j2
+  mullvad_socks_about: mullvad-socks.about.j2
+
+# the fleet's DNS records go in as FTLCONF_dns_hosts (pihole.toml dns.hosts):
+# Pi-hole 6 regenerates hosts/custom.list itself, a file put there is ignored.
+# The Mullvad SOCKS5 records change without a render, so they live in a hosts
+# file of their own that a host timer refreshes; dnsmasq watches its directory
+# (hostsdir) and reloads it by itself. The directory is root's and mounted
+# read-only: root writes there every 6 hours, so nothing in the container may
+# (a rendered file in it keeps it root's, not the service user's).
+outputs:
+  mullvad_socks_script: { path: "kiwi/mullvad-socks.sh", mode: 0755, when: mullvad_socks }
+  mullvad_socks_service: { kind: host_unit, name: "{{ container_prefix }}-mullvad-socks.service", when: mullvad_socks }
+  mullvad_socks_timer: { kind: host_unit, name: "{{ container_prefix }}-mullvad-socks.timer", when: mullvad_socks }
+  mullvad_socks_about: { path: "{{ container_prefix }}-pihole/mullvad-socks/.kiwi-server", mode: 0644, when: mullvad_socks }
+
+storage:
+  bind_mounts:
+    - { host: "${DOCKERDIR}/{{ container_prefix }}-pihole/etc-pihole", type: dir, required: true }
+    - { host: "${DOCKERDIR}/{{ container_prefix }}-pihole/etc-dnsmasq.d", type: dir, required: true }
+    # exists before Pi-hole starts: dnsmasq only watches a hostsdir it found at startup
+    - { host: "${DOCKERDIR}/{{ container_prefix }}-pihole/mullvad-socks", type: dir, required: true, when: mullvad_socks }
+
+host_integration:
+  # Fedora CoreOS / uCore run systemd-resolved's stub on 127.0.0.53:53
+  disable_resolved_stub: true
+
+urls:
+  - "Pi-hole admin: https://{{ pihole_hostname or 'pihole.' ~ hostname }}/admin (through the reverse proxy){% if expose_web_ui %}, http://{{ web_ui_bind or '<this host>' }}:{{ web_ui_port }}/admin{% endif %}"
+
+nginx:
+  servers:
+    - server_name: "{{ pihole_hostname or 'pihole.' ~ hostname }}"
+      # inside the WireGuard server's namespace Pi-hole has no name of its own: nginx
+      # in the same namespace reaches it at localhost, from outside through the server
+      proxy_pass: "http://{% if network_mode %}{{ '127.0.0.1' if module_config.get('reverse-proxy', {}).get('network_mode') == network_mode else container_prefix ~ '-' ~ network_mode }}{% else %}{{ container_prefix }}-pihole{% endif %}:{{ web_port_effective }}"
+      when: has_reverse_proxy
+      comment: Pi-hole admin
+
+settings:
+  - key: pihole_password
+    type: secret
+    required: true
+    label: Admin password
+  - key: upstream_dns
+    label: Upstream resolvers
+    help: "Semicolon separated, overrides the chain. Empty: on a node the master's Pi-hole (stack setting master_ip), so the whole network shares one blocklist and leaves through the master's exit; on a master the VPN client's DNS-over-TLS resolver. Names under the fleet's domain always go to the master and never leave it."
+    default: ""
+  - key: fallback_dns
+    label: Fallback resolvers
+    help: "Semicolon separated, tried in strict order after the first upstream. Reached directly, not through the tunnel (which is down whenever the master is), so only ever used while the master is unreachable. Empty: none."
+    default: 9.9.9.9;149.112.112.112
+  - key: network_mode
+    label: Share a container's network
+    help: "Empty: own address with ports 53 published on the host (a node). vpn-server: run inside the WireGuard server's network stack, reachable for clients at the server's mesh address (the master)."
+    default: ""
+  - key: expose_web_ui
+    type: bool
+    label: Publish the web UI on the host
+    help: "Plain HTTP on web_ui_bind:web_ui_port. The reverse proxy serves the admin page over TLS at pihole.<hostname> anyway."
+    default: false
+  - key: web_ui_bind
+    label: Web UI bind address
+    help: "127.0.0.1 (reach it with ssh -L), or 0.0.0.0 for the whole LAN."
+    default: 127.0.0.1
+  - key: web_ui_port
+    type: int
+    default: 8080
+  - key: web_port
+    type: int
+    group: Advanced
+    label: Web server port inside the container
+    help: "Empty: 80, or 8081 when Pi-hole shares the WireGuard server's network namespace with the reverse proxy (the master), which owns 80 and 443 there."
+    default: 0
+  - key: dhcp_enabled
+    type: bool
+    group: DHCP
+    label: Be the LAN's DHCP server
+    help: "Pi-hole hands out the leases (with the dhcp-relay module, since Pi-hole sits in a bridge network). Turn the router's DHCP server off."
+    default: false
+  - key: dhcp_start
+    group: DHCP
+    label: First address
+    placeholder: 192.168.1.100
+    default: ""
+  - key: dhcp_end
+    group: DHCP
+    label: Last address
+    placeholder: 192.168.1.250
+    default: ""
+  - key: dhcp_router
+    group: DHCP
+    label: Gateway handed to clients
+    help: "The LAN router, or this machine's LAN address when the gateway module routes the LAN through the VPN."
+    placeholder: 192.168.1.1
+    default: ""
+  - key: dhcp_lease_time
+    group: DHCP
+    label: Lease time
+    default: 24h
+  - key: pihole_hostname
+    label: Admin hostname
+    help: "Empty: pihole.<hostname>. Served by the reverse proxy when there is one."
+    default: ""
+  - key: fleet_records
+    type: bool
+    label: Serve the fleet's names
+    help: "Local DNS records for every host and service in the fleet, at their mesh addresses (split-horizon DNS)."
+    default: true
+  - key: extra_records
+    type: map
+    label: Extra local records
+    help: name=address, added to the fleet's records.
+    default: {}
+  - key: mullvad_socks
+    type: bool
+    group: Mullvad SOCKS5
+    label: Serve the Mullvad SOCKS5 proxies' names
+    help: "Local records for every Mullvad SOCKS5 proxy — de-fra-wg-socks5-001.relays.mullvad.net and the short de-fra-001.mullvad.<domain> — refreshed every 6 hours by a host timer. The VPN client refuses these private-range answers (DNS rebinding protection), so without the records the names only resolve through the fallback resolvers. The proxies answer through a Mullvad connection: on by default on a master, whose exit is Mullvad; nodes ask the master."
+    default: false
+  - key: mullvad_socks_url
+    group: Mullvad SOCKS5
+    label: Proxy list
+    help: "https:// (or a file:// on the machine). One IPv4 address and one name per line, comment lines allowed; any other line rejects the whole download and the current records stay. Only *.relays.mullvad.net names at 10.x.x.x addresses are taken from it, so the list can never redirect another name."
+    pattern: '(https|file)://\S+'
+    placeholder: https://raw.githubusercontent.com/derlocke-ng/mullvad-socks5/list/mullvad-socks.hosts
+    default: https://raw.githubusercontent.com/derlocke-ng/mullvad-socks5/list/mullvad-socks.hosts
+  - key: mullvad_socks_domain
+    group: Mullvad SOCKS5
+    label: Short names under
+    help: "The short names are <cc>-<city>-<n>.<this>. Empty: mullvad.<the fleet's domain>, or no short names without a fleet domain."
+    pattern: '[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)*\.?'
+    placeholder: socks.home
+    default: ""
+  - key: legacy_env
+    type: bool
+    group: Advanced
+    label: Pi-hole 5 variables
+    help: Emit WEBPASSWORD / PIHOLE_DNS_ / DNSMASQ_LISTENING for a pre-6 image.
+    default: false
+  - key: extra_env
+    type: map
+    group: Advanced
+    label: Extra environment variables
+    help: "KEY=value, e.g. FTLCONF_dns_domainNeeded=true — any Pi-hole 6 setting as FTLCONF_<section>_<key>. FTLCONF_misc_dnsmasq_lines (';' between lines) is added to the module's own dnsmasq lines instead of replacing them."
+    default: {}
+  - key: image
+    group: Advanced
+    default: docker.io/pihole/pihole:latest

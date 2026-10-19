@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.swp
+*.bundle/
+secrets/
+examples/secrets/
+CLAUDE.md
+.claude/

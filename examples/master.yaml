@@ -1,0 +1,24 @@
+# A kiwi-master: WireGuard entry point (wg-easy) whose default route is the
+# VPN client (gluetun — Mullvad or any provider: the double hop), Pi-hole DNS
+# and a Tor SOCKS proxy for the mesh.
+name: gate
+domain: home
+target: debian
+timezone: Europe/Berlin
+admin: { user: admin }
+role: master
+master:
+  vpn-client:
+    vpn_provider: mullvad
+    wireguard_private_key: "<from the provider's WireGuard config>"
+    wireguard_addresses: 10.66.1.2/32
+    server_countries: Germany
+  vpn-server:
+    wg_host: vpn.example.org     # what the clients connect to
+    wg_password: change-me       # wg-easy's web UI
+  dns:
+    pihole_password: change-me
+  reverse-proxy:
+    tls_fullchain: secrets/gate-fullchain.pem
+    tls_privkey: secrets/gate-privkey.pem
+seed: secrets/seed

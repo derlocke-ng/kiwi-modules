@@ -1,0 +1,28 @@
+# A cloud node: Nextcloud and Vaultwarden behind nginx, Portainer, behind the
+# VPN client. Render:  kiwi-modules render examples/sh3.yaml -o sh3.bundle
+# The WireGuard config comes from secrets/sh3.home.conf (the master's wg-easy
+# exports one), the fleet CA from ca.pem — both next to this file.
+name: sh3
+domain: home
+target: ucore                   # coreos | ucore | debian — what the stack runs on
+timezone: Europe/Berlin
+admin: { user: core }           # the service user default (uid 1000 on a fresh install)
+role: node
+node:
+  preset: cloud
+  cloud:
+    admin_password: change-me
+    collabora: true
+    talk: true
+  reverse-proxy:
+    tls_fullchain: secrets/sh3-fullchain.pem
+    tls_privkey: secrets/sh3-privkey.pem
+dns_records:                    # the network's names, served inside the containers
+  - [10.8.0.1, gate.home]
+  - [10.8.0.1, pihole.gate.home]
+  - [10.8.0.25, sh3.home]
+  - [10.8.0.25, cloud.sh3.home]
+  - [10.8.0.25, vault.sh3.home]
+master_ip: 10.8.0.1             # the nodes' DNS upstream and the mesh route
+ca_cert: ca.pem                 # trusted inside the containers (Nextcloud talks to itself over TLS)
+seed: secrets/seed              # head -c 32 /dev/urandom > secrets/seed — generated secrets derive from it

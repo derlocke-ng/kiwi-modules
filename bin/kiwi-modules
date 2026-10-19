@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# kiwi-modules — render one machine's kiwi stack into a bundle directory.
+#
+# A launcher: the work is in the kiwimodules Python package (a checkout:
+# ../lib/kiwimodules; installed: ../lib/kiwi-modules/lib/kiwimodules).
+# It needs python3 with PyYAML and Jinja2.
+set -euo pipefail
+
+here="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")" && pwd)"
+if [[ -d "$here/../lib/kiwi-modules/lib/kiwimodules" ]]; then
+    home="$(cd "$here/../lib/kiwi-modules" && pwd)"      # installed by kiwi / install.sh
+elif [[ -d "$here/../lib/kiwimodules" ]]; then
+    home="$(cd "$here/.." && pwd)"                       # a git checkout
+else
+    echo "error: kiwi-modules' library is missing next to $here" >&2
+    exit 1
+fi
+
+export PYTHONPATH="$home/lib${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONDONTWRITEBYTECODE=1
+exec python3 -m kiwimodules "$@"

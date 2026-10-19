@@ -1,0 +1,18 @@
+# kiwi.manifest — see https://github.com/derlocke-ng/kiwi-updater
+NAME=kiwi-modules
+DESCRIPTION=The kiwi-network's modules and their renderer — one machine file in, a stack bundle (quadlets, configs, stack.sh) out, for kiwi-stack apply on the machine
+VERSION=0.1.0
+AUTHOR=derlocke-ng
+HOMEPAGE=https://github.com/derlocke-ng/kiwi-modules
+LICENSE=GPL-3.0-or-later
+
+COMPONENTS=cli
+CATEGORY=System
+TAGS=podman quadlet wireguard pihole nextcloud kiwi-node kiwi-master render
+
+SCOPES=user system
+
+ABOUT=README.md
+DEPENDS=python3
+
+INSTALLER=install.sh
