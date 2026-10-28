@@ -96,7 +96,7 @@ directory, `KIWI_MODULES_PROFILES` at other profiles.
 
 ## Status
 
-0.1.0: the renderer carved out of kiwi-server 2.5.0, unchanged in what it
+0.1.0: the renderer carved out of kiwi-server 2.6.0, unchanged in what it
 renders (tests/golden/sh3 is kiwi-server's golden bundle, matched byte for
 byte). kiwi-server is still the place the modules and the renderer are
 developed; its `tools/split-sync.sh` copies them here and checks for drift,
