@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 — a group's clients get their answers
+
+- **vpn-server**: inside the WireGuard server the whole mesh is routed into
+  `wg0`; before, only the server's own /24 was, and wg-easy adds no route for
+  the peers it creates — a device in the `devices` group received nothing
+  back (kiwi-server 2.7.1, problem 56, found with the first device).
+
 ## 0.2.0 — what the first hardware round found
 
 The modules and the renderer as kiwi-server 2.7.0 has them. Every fix below
