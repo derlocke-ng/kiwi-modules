@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2 — Portainer reachable from the mesh
+
+- **portainer**: `needs_vpn_dnat: true` — a node whose only web service is
+  Portainer behind the reverse proxy had no mesh DNAT at all (kiwi-server
+  2.7.1, problem 58, found with the first device).
+
 ## 0.2.1 — a group's clients get their answers
 
 - **vpn-server**: inside the WireGuard server the whole mesh is routed into

@@ -1,7 +1,7 @@
 # kiwi.manifest — see https://github.com/derlocke-ng/kiwi-updater
 NAME=kiwi-modules
 DESCRIPTION=The kiwi-network's modules and their renderer — one machine file in, a stack bundle (quadlets, configs, stack.sh) out, for kiwi-stack apply on the machine
-VERSION=0.2.1
+VERSION=0.2.2
 AUTHOR=derlocke-ng
 HOMEPAGE=https://github.com/derlocke-ng/kiwi-modules
 LICENSE=GPL-3.0-or-later
