@@ -99,9 +99,9 @@ directory, `KIWI_MODULES_PROFILES` at other profiles.
 0.2.0: the renderer as kiwi-server 2.7.0 has it, with the fixes of the first
 hardware round (CHANGELOG.md); the stacks it renders run on a master and two
 nodes. tests/golden/sh3 is kiwi-server's golden bundle, matched byte for
-byte. kiwi-server is still the place the modules and the renderer are
-developed; its `tools/split-sync.sh` copies them here and checks for drift,
-until this repository is vendored back.
+byte. The modules and the renderer are developed here and released by tag;
+kiwi-server carries each release as a vendored copy pinned in its `VENDORED`
+file (`tools/vendor.sh` there).
 
 ## License
 
