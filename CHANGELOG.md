@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.3 — the gateway's masquerade leaves the mesh alone
+
+- **gateway**: the `-o bridge MASQUERADE` for LAN clients excludes the stack
+  network and the mesh; with bridged traffic tracked by the host (kiwi-stack
+  0.2.2) it had caught the containers' and the mesh clients' traffic too, and
+  nginx logged every mesh client as the host (kiwi-server 2.7.1, problem 57).
+
 ## 0.2.2 — Portainer reachable from the mesh
 
 - **portainer**: `needs_vpn_dnat: true` — a node whose only web service is
