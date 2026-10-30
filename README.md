@@ -96,12 +96,12 @@ directory, `KIWI_MODULES_PROFILES` at other profiles.
 
 ## Status
 
-0.1.0: the renderer carved out of kiwi-server 2.6.0, unchanged in what it
-renders (tests/golden/sh3 is kiwi-server's golden bundle, matched byte for
-byte). kiwi-server is still the place the modules and the renderer are
+0.2.0: the renderer as kiwi-server 2.7.0 has it, with the fixes of the first
+hardware round (CHANGELOG.md); the stacks it renders run on a master and two
+nodes. tests/golden/sh3 is kiwi-server's golden bundle, matched byte for
+byte. kiwi-server is still the place the modules and the renderer are
 developed; its `tools/split-sync.sh` copies them here and checks for drift,
-until this repository is tagged and vendored back. Nothing rendered by this
-version has run on hardware yet.
+until this repository is vendored back.
 
 ## License
 
