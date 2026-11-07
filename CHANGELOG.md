@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.3.0 — the stack network and the tunnels get an MTU each
+
+- **`bridge_mtu` and `wg_mtu`** replace the one stack setting `mtu`
+  (kiwi-server problem 40). `bridge_mtu` (1500) is the stack's bridge,
+  `wg_mtu` (1380) gluetun's `WIREGUARD_MTU`, wg-easy's `WG_MTU` and the
+  server's own `wg0`. One 1412 for all three split every full-size tunnel
+  packet in two on the bridge, which carries the encrypted packet, 60 bytes
+  bigger over IPv4 (80 over IPv6): TLS stalls and stuttering streams through
+  the VPN on the v1 fleet. 1380 fits a WireGuard packet into a 1460-byte path
+  (DS-Lite, PPPoE). StackSpec refuses `wg_mtu` above `bridge_mtu - 80` or
+  below 1280. A machine that still sets `mtu` gets it as `wg_mtu`, the bridge
+  at 1500, and a warning; `mtu` and `wg_mtu` together are an error. The
+  template context has `bridge_mtu` and `wg_mtu` instead of `mtu`.
+- **vpn-server**: `start.sh` sets `wg0` to `wg_mtu` before the MSS clamp;
+  wg-quick sized it from the bridge (1332 under a 1412 bridge) while the
+  clients were told another MTU.
+- **vpn-client**: `mss_clamp` defaults to true on a node with the gateway
+  module, below the profile's and the machine's own setting: LAN clients
+  routed through it advertise MSS 1460, more than the tunnel carries.
+- tests/golden/sh3: the MTU lines.
+
 ## 0.2.3 — the gateway's masquerade leaves the mesh alone
 
 - **gateway**: the `-o bridge MASQUERADE` for LAN clients excludes the stack

@@ -158,6 +158,34 @@ class TestRender(unittest.TestCase):
         self.render("sh3", SH3)
         self.assertEqual(cli.main(["render", self.write("sh3", SH3), "-o", os.path.join(self.tmp, "sh3.bundle")]), 1)
 
+    def test_the_bridge_and_the_tunnels_have_an_mtu_each(self):
+        def read(out, rel):
+            with open(os.path.join(out, rel)) as f:
+                return f.read()
+        # defaults: the bridge at 1500 carries the 1380 tunnels with their headers; wg0 set before the clamp
+        out = self.render("gate", MACHINES["gate"])
+        self.assertIn("Options=mtu=1500", read(out, "quadlets/knet-master.network"))
+        self.assertIn("Environment=WG_MTU=1380", read(out, "quadlets/km-vpn-server.container"))
+        start = read(out, "km-vpn-server/start.sh")
+        self.assertLess(start.index("ip link set dev wg0 mtu 1380"), start.index("--clamp-mss-to-pmtu"))
+        # a gateway node clamps the MSS in its VPN client: LAN clients advertise 1460
+        out = self.render("m1", MACHINES["m1"])
+        self.assertIn("--clamp-mss-to-pmtu", read(out, "kn-vpn-client/post-rules.txt"))
+        # the old single `mtu` is the tunnels' MTU, with a warning; the bridge keeps 1500
+        old = dict(SH3, node=dict(SH3["node"], mtu=1412))
+        from io import StringIO
+        import contextlib
+        err = StringIO()
+        with contextlib.redirect_stderr(err):
+            out = self.render("old", old)
+        self.assertIn("node.mtu is the old name of wg_mtu", err.getvalue())
+        self.assertIn("Options=mtu=1500", read(out, "quadlets/knet-node.network"))
+        self.assertIn("Environment=WIREGUARD_MTU=1412", read(out, "quadlets/kn-vpn-client.container"))
+        # a tunnel that does not fit the bridge with its headers is refused
+        big = dict(SH3, node=dict(SH3["node"], wg_mtu=1421))
+        with contextlib.redirect_stderr(StringIO()):
+            self.assertEqual(cli.main(["render", self.write("big", big), "-o", os.path.join(self.tmp, "big.bundle")]), 1)
+
     def test_secret_derivation_is_frozen(self):
         # kiwi-server derives the same values: a change here rotates every generated secret
         self.assertEqual(machine.derive_secret(SEED, "sh3.home", "cloud", "redis_password"),
