@@ -162,17 +162,20 @@ class TestRender(unittest.TestCase):
         def read(out, rel):
             with open(os.path.join(out, rel)) as f:
                 return f.read()
-        # defaults: the bridge at 1500 carries the 1380 tunnels with their headers; wg0 set before the clamp
+        # defaults: the bridge at 1500 carries the 1376 tunnels with their headers; wg0 set before the
+        # MSS rule, which is the tunnels' MTU less 40 both ways, not the interface a SYN leaves by
         out = self.render("gate", MACHINES["gate"])
         self.assertIn("Options=mtu=1500", read(out, "quadlets/knet-master.network"))
-        self.assertIn("Environment=WG_MTU=1380", read(out, "quadlets/km-vpn-server.container"))
+        self.assertIn("Environment=WG_MTU=1376", read(out, "quadlets/km-vpn-server.container"))
         start = read(out, "km-vpn-server/start.sh")
-        self.assertLess(start.index("ip link set dev wg0 mtu 1380"), start.index("--clamp-mss-to-pmtu"))
-        # a gateway node clamps the MSS in its VPN client: LAN clients advertise 1460
+        self.assertLess(start.index("ip link set dev wg0 mtu 1376"), start.index("TCPMSS --set-mss 1336"))
+        self.assertNotIn("-j TCPMSS --clamp-mss-to-pmtu", start)
+        self.assertIn("TCPMSS --set-mss 1336", read(out, "km-vpn-client/post-rules.txt"))
+        # a gateway node sets the MSS in its VPN client: LAN clients advertise 1460
         out = self.render("m1", MACHINES["m1"])
-        self.assertIn("--clamp-mss-to-pmtu", read(out, "kn-vpn-client/post-rules.txt"))
+        self.assertIn("TCPMSS --set-mss 1336", read(out, "kn-vpn-client/post-rules.txt"))
         # the old single `mtu` is the tunnels' MTU, with a warning; the bridge keeps 1500
-        old = dict(SH3, node=dict(SH3["node"], mtu=1412))
+        old = dict(SH3, node=dict(SH3["node"], mtu=1360))
         from io import StringIO
         import contextlib
         err = StringIO()
@@ -180,11 +183,19 @@ class TestRender(unittest.TestCase):
             out = self.render("old", old)
         self.assertIn("node.mtu is the old name of wg_mtu", err.getvalue())
         self.assertIn("Options=mtu=1500", read(out, "quadlets/knet-node.network"))
-        self.assertIn("Environment=WIREGUARD_MTU=1412", read(out, "quadlets/kn-vpn-client.container"))
-        # a tunnel that does not fit the bridge with its headers is refused
-        big = dict(SH3, node=dict(SH3["node"], wg_mtu=1421))
-        with contextlib.redirect_stderr(StringIO()):
-            self.assertEqual(cli.main(["render", self.write("big", big), "-o", os.path.join(self.tmp, "big.bundle")]), 1)
+        self.assertIn("Environment=WIREGUARD_MTU=1360", read(out, "quadlets/kn-vpn-client.container"))
+        # the 1412 fleets set does not fit as the tunnels' MTU: padded to 1424, plus 80, over 1500
+        err = StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(cli.main(["render", self.write("old1412", dict(SH3, node=dict(SH3["node"], mtu=1412))),
+                                       "-o", os.path.join(self.tmp, "old1412.bundle")]), 1)
+        self.assertIn("mtu 1412 is the old name of wg_mtu", err.getvalue())
+        # a tunnel whose padded packets do not fit the bridge with their headers is refused
+        for wg, ok in ((1408, True), (1409, False)):
+            data = dict(SH3, node=dict(SH3["node"], wg_mtu=wg))
+            with contextlib.redirect_stderr(StringIO()), contextlib.redirect_stdout(StringIO()):
+                code = cli.main(["render", self.write("w%d" % wg, data), "-o", os.path.join(self.tmp, "w%d.bundle" % wg)])
+            self.assertEqual(code, 0 if ok else 1, wg)
 
     def test_secret_derivation_is_frozen(self):
         # kiwi-server derives the same values: a change here rotates every generated secret
