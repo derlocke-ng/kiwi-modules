@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.3.0 — the stack network and the tunnels get an MTU each
+
+- **`bridge_mtu` and `wg_mtu`** replace the one stack setting `mtu`
+  (kiwi-server problem 40). `bridge_mtu` (1500) is the stack's bridge,
+  `wg_mtu` (1376) gluetun's `WIREGUARD_MTU`, wg-easy's `WG_MTU` and the
+  server's own `wg0`. One 1412 for all three split every full-size tunnel
+  packet in two on the bridge, which carries the encrypted packet, 60 bytes
+  bigger over IPv4 (80 over IPv6): TLS stalls and stuttering streams through
+  the VPN on the v1 fleet. The template context has `bridge_mtu` and
+  `wg_mtu` instead of `mtu`.
+- **WireGuard's padding counts**: a packet is padded to a multiple of 16 as
+  far as the *sending* peer's MTU allows, so a peer with a bigger MTU (the
+  commercial exit) grows a 1352-byte packet to 1360 — on the v1 master that
+  made 1420-byte packets on a 1412 bridge, about 40 000 split per 50 MB.
+  StackSpec refuses a `wg_mtu` whose padded packets plus 80 bytes do not fit
+  `bridge_mtu` (at most 1408 under 1500), or below 1280. The default 1376 is
+  a multiple of 16 and never grows: 1436 bytes over IPv4 fits a 1452-byte
+  DS-Lite path, 1456 over IPv6 a 1460 one (1380 grew to 1392, exactly 1452).
+- **The old `mtu`**: a machine that still sets it gets it as `wg_mtu`, the
+  bridge at 1500, and a warning; `mtu` and `wg_mtu` together are an error,
+  and so is the usual 1412, which no longer fits once padded (1424 + 80).
+- **The MSS is set, not clamped to the path**: the vpn-server's `start.sh`
+  and the vpn-client's post-rules (`mss_clamp`) set every forwarded SYN to
+  `wg_mtu - 40` with `--set-mss`, which never raises a smaller one.
+  `--clamp-mss-to-pmtu` reads only the interface a SYN leaves by: on the v1
+  master the way back (wg0, 1352) was wider than the exit (1344), clients got
+  MSS 1312, and every connection's first full-size upload segment bounced.
+- **vpn-server**: `start.sh` sets `wg0` to `wg_mtu` before the MSS rule;
+  wg-quick sized it from the bridge (1332 under a 1412 bridge) while the
+  clients were told another MTU.
+- **vpn-client**: `mss_clamp` defaults to true on a node with the gateway
+  module, below the profile's and the machine's own setting: LAN clients
+  routed through it advertise MSS 1460, more than the tunnel carries.
+- tests/golden/sh3: the MTU lines.
+
 ## 0.2.3 — the gateway's masquerade leaves the mesh alone
 
 - **gateway**: the `-o bridge MASQUERADE` for LAN clients excludes the stack
