@@ -49,8 +49,14 @@ MACHINES = {
            "master_ip": "10.8.0.1", "seed": "secrets/seed"},
     "min": {"name": "min", "domain": "home", "target": "coreos", "role": "node",
             "node": {"preset": "minimal", "reverse-proxy": dict(TLS)}, "seed": "secrets/seed"},
+    # a semi-public hub: the node's relay for the hub, Armory's chat on public relays
+    "hub1": {"name": "hub1", "domain": "home", "target": "ucore", "role": "node",
+             "node": {"preset": "hub", "vpn_ip": "10.8.0.30", "reverse-proxy": dict(TLS),
+                      "nostr-relay": {"relay_name": "Golden relay"},
+                      "hub": {"public_relays": ["wss://nos.lol"], "public_mounts": ["uplink"]}},
+             "master_ip": "10.8.0.1", "seed": "secrets/seed"},
 }
-ADDRESSES = {"m1": "10.8.0.6", "sh3": "10.8.0.25", "min": "10.8.0.9"}
+ADDRESSES = {"m1": "10.8.0.6", "sh3": "10.8.0.25", "min": "10.8.0.9", "hub1": "10.8.0.30"}
 
 
 def as_text(data):
@@ -145,6 +151,28 @@ class TestRender(unittest.TestCase):
                 for fn in fns:
                     with open(os.path.join(dp, fn)) as f:
                         self.assertTrue(f.readline().startswith("# kiwi-server stack"), "%s/%s: no marker" % (name, fn))
+
+    def test_the_hub_preset_wires_the_hub_to_the_nodes_relay(self):
+        out = self.render("hub1", MACHINES["hub1"])
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            compose = f.read()
+        self.assertIn("HUB_RELAYS=wss://relay.hub1.home", compose)
+        self.assertIn("HUB_PUBLIC_RELAYS=wss://nos.lol", compose)
+        self.assertIn("HUB_PUBLIC_MOUNTS=uplink", compose)
+        self.assertIn("HUB_RELAYS_LOCKED=true", compose)
+        self.assertIn("HUB_REQUIRE_HUB=true", compose)
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        self.assertIn("server_name relay.hub1.home;", nginx)
+        self.assertIn("server_name hub.hub1.home;", nginx)
+        with open(os.path.join(out, "kn-nostr-relay", "strfry.conf")) as f:
+            strfry = f.read()
+        self.assertIn('name = "Golden relay"', strfry)
+        self.assertIn("maxEventSize = 262144", strfry)
+        # a hub with nothing to name as its relay, and public mounts without public relays, are refused
+        bad = dict(MACHINES["hub1"], node={"preset": "hub", "vpn_ip": "10.8.0.30", "reverse-proxy": dict(TLS),
+                                           "modules": ["vpn-client", "reverse-proxy", "hub"]})
+        self.assertNotEqual(cli.main(["render", self.write("hub1-norelay", bad), "-o", os.path.join(self.tmp, "norelay.bundle")]), 0)
 
     def test_errors_are_messages_not_tracebacks(self):
         out = os.path.join(self.tmp, "x.bundle")

@@ -82,6 +82,19 @@ it and reads only `KS_*` variables. Every file's mode is in `KS_STACK_FILES`
 (`path:0600` for the secrets); directories, ports, sysctls, kernel modules,
 images and the URLs to print after the start are lists of their own.
 
+## A hub
+
+A node that hosts a hub built on [kiwi-framework](https://github.com/derlocke-ng/kiwi-framework)
+is the `hub` preset: the VPN client, the reverse proxy, `nostr-relay` (strfry
+at `relay.<hostname>`, through the mesh) and `hub` (the distribution's
+container at `hub.<hostname>`, its relays and policy set from the module's
+settings). As it comes this is a private hub: its pages work from inside the
+VPN, with the node's relay, and nowhere else. `public_relays` and
+`public_mounts` under `hub` open a public area (a chat on public relays, so
+the people inside talk to outsiders); `relays` naming public relays and
+`relays_locked: false` make a public hub. `examples/hub.yaml` is the
+semi-public one.
+
 ## Modules and profiles
 
 `modules/<name>/module.yaml` declares a module's settings, its compose

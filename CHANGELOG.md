@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.4.0 — a hub and its relay
+
+- **`nostr-relay`**: strfry behind the reverse proxy at `relay.<hostname>`,
+  the relay a hub built on kiwi-framework keeps its events on. A mesh name
+  (the fleet's DNS resolves it, the fleet CA signs it), so the relay is
+  reachable through the VPN alone; a public relay is a public name in
+  `relay_domain`, the host's 443 published and a certificate for the name
+  under reverse-proxy. NIP-11 info and the limits are settings; the
+  database lives in `<prefix>-nostr-relay/db`.
+- **`hub`**: a distribution built with kiwi-framework's `container/Dockerfile`
+  (Armory's image `ghcr.io/derlocke-ng/armory` by default, a fork's own
+  otherwise) behind the proxy at `hub.<hostname>`. Its `HUB_*` environment
+  comes from the module's settings and the container writes it to
+  `hub.local.json`, which the page reads before it connects: `relays` (empty:
+  this host's nostr-relay), `relays_locked`, `require_hub`, `public_relays`
+  and `public_mounts` for a semi-public hub. The render refuses a hub with
+  no relay to name, and public mounts without public relays.
+- **The node profile's `hub` preset**: vpn-client, reverse-proxy,
+  nostr-relay, hub — a private hub as it comes. `examples/hub.yaml` is a
+  semi-public one (Armory's chat on public relays).
+
 ## 0.3.0 — the stack network and the tunnels get an MTU each
 
 - **`bridge_mtu` and `wg_mtu`** replace the one stack setting `mtu`
