@@ -402,6 +402,21 @@ class TestRender(unittest.TestCase):
         self.assertNotEqual(cli.main(["render", self.write("badkey", dict(MACHINES["hub1"], master=master)),
                                       "-o", os.path.join(self.tmp, "bk.bundle")]), 0)
 
+    def test_a_node_on_this_lan_answers_with_its_lan_address(self):
+        data = dict(MACHINES["m1"], dns_records=[["10.8.0.1", "gate.home"], ["10.8.0.25", "sh3.home"], ["10.8.0.25", "cloud.sh3.home"]],
+                    lan_addresses={"10.8.0.25": "192.168.1.25"})
+        out = self.render("lan1", data)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            compose = f.read()
+        self.assertIn("192.168.1.25 sh3.home", compose)
+        self.assertIn("192.168.1.25 cloud.sh3.home", compose)
+        self.assertIn("10.8.0.1 gate.home", compose)          # not on this LAN: still the mesh
+        self.assertNotIn("10.8.0.25 sh3.home", compose)
+        with open(os.path.join(out, "stack.sh")) as f:
+            stack = f.read()
+        self.assertIn("192.168.1.25 sh3.home", stack)         # the host's own /etc/hosts
+        self.assertIn("10.8.0.1 gate.home", stack)
+
     def test_a_gateway_lets_its_lan_clients_through(self):
         out = self.render("gw1", MACHINES["m1"])
         path = next(os.path.join(d, "gw.sh") for d, _s, files in os.walk(out) if "gw.sh" in files)
