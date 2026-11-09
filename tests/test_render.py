@@ -4,6 +4,7 @@ fleet there and from a machine file here, must give the same bytes (the
 secrets derive from the same seed). Run: python3 -m unittest discover -s tests
 """
 import difflib
+import json
 import os
 import shutil
 import subprocess
@@ -256,6 +257,57 @@ class TestRender(unittest.TestCase):
         node = {"name": "n2", "domain": "home", "role": "node", "seed": "secrets/seed", "master_ip": "10.8.0.1",
                 "node": {"preset": "minimal", "vpn_ip": "10.8.0.31", "reverse-proxy": dict(TLS, public=True)}}
         self.assertNotEqual(cli.main(["render", self.write("n2", node), "-o", os.path.join(self.tmp, "n2.bundle")]), 0)
+
+    def relay_files(self, name, **relay):
+        master = dict(MACHINES["hub1"]["master"])
+        master["nostr-relay"] = dict(master["nostr-relay"], **relay)
+        out = self.render(name, dict(MACHINES["hub1"], master=master))
+        with open(os.path.join(out, "km-nostr-relay", "strfry.conf")) as f:
+            conf = f.read()
+        return out, conf
+
+    def ask_policy(self, out, requests):
+        """The rendered write policy, run the way strfry runs it."""
+        r = subprocess.run([sys.executable, os.path.join(out, "km-nostr-relay", "write-policy.py")],
+                           input="\n".join(requests) + "\n", capture_output=True, text=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return [json.loads(line) for line in r.stdout.splitlines()]
+
+    @staticmethod
+    def post(pubkey, source, content="hello", kind="new", source_type="IP4"):
+        return json.dumps({"type": kind, "sourceType": source_type, "sourceInfo": source, "receivedAt": 1,
+                           "event": {"id": "e" * 64, "pubkey": pubkey, "kind": 1, "tags": [], "content": content}})
+
+    def test_the_relay_takes_posts_from_the_mesh_and_listed_keys(self):
+        listed = "a" * 64
+        out, conf = self.relay_files("hub5", write_pubkeys=[listed])
+        self.assertIn('plugin = "/app/kiwi-write-policy.py"', conf)
+        self.assertIn('realIpHeader = "x-real-ip"', conf)     # nginx overwrites this one; a client can pre-fill the other
+        answers = self.ask_policy(out, [
+            self.post("b" * 64, "10.8.3.5"),                  # the mesh
+            self.post(listed, "203.0.113.9"),                 # a listed key, from anywhere
+            self.post("b" * 64, "203.0.113.9"),               # a stranger
+            # a stranger hiding a listed key in the content: only a parser tells them apart
+            self.post("b" * 64, "203.0.113.9", content='"pubkey":"%s"' % listed),
+            self.post("b" * 64, "wss://other.example", source_type="Stream"),
+            "this is not json",
+            '{"type":"new"}'])
+        self.assertEqual([a["action"] for a in answers], ["accept", "accept", "reject", "reject", "reject", "reject", "reject"])
+        self.assertIn("blocked:", answers[2]["msg"])
+        self.assertEqual(answers[2]["id"], "e" * 64)
+
+    def test_open_writes_is_asked_for_by_name(self):
+        out, conf = self.relay_files("hub6", open_writes=True)
+        self.assertIn('plugin = ""', conf)
+        self.assertFalse(os.path.exists(os.path.join(out, "km-nostr-relay", "write-policy.py")))
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            self.assertNotIn("kiwi-write-policy", f.read())
+
+    def test_a_key_in_the_wrong_form_is_refused(self):
+        master = dict(MACHINES["hub1"]["master"])
+        master["nostr-relay"] = dict(master["nostr-relay"], write_pubkeys=["npub1abc"])
+        self.assertNotEqual(cli.main(["render", self.write("badkey", dict(MACHINES["hub1"], master=master)),
+                                      "-o", os.path.join(self.tmp, "bk.bundle")]), 0)
 
     def test_a_node_cannot_carry_a_hub(self):
         for modules in (["vpn-client", "reverse-proxy", "hub"], ["vpn-client", "reverse-proxy", "nostr-relay"]):
