@@ -6,6 +6,8 @@
   thawed nothing, and left a database paused and looking like it was running.
 - With the backup server gone a run stops there, instead of freezing each module in its
   turn through restic's fifteen minutes of retries.
+- A run that failed tries again an hour later, up to six times: a backup server rebooting at
+  three in the morning no longer costs the night.
 - The certificate job names the ACME account to use. certbot refuses to choose when it finds
   several, which a restored machine can have, so no certificate would ever have been renewed
   there. A failed renewal no longer blames the name's DNS record.

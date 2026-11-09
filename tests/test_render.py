@@ -609,6 +609,7 @@ class TestRender(unittest.TestCase):
         self.assertIn("OnCalendar=*-*-* 04:30:00", read(out, "host-units/kn-backup.timer"))
         self.assertIn("backup.sh due", read(out, "host-units/kn-backup.service"))
         self.assertIn("backup.sh thaw", read(out, "host-units/kn-backup.service"))
+        self.assertIn("Restart=on-failure", read(out, "host-units/kn-backup.service"))
 
     def test_a_backup_needs_a_server_it_can_name(self):
         data = dict(SH3, node=dict(SH3["node"], modules=["vpn-client", "reverse-proxy", "backup"],
