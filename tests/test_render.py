@@ -49,15 +49,18 @@ MACHINES = {
            "master_ip": "10.8.0.1", "seed": "secrets/seed"},
     "min": {"name": "min", "domain": "home", "target": "coreos", "role": "node",
             "node": {"preset": "minimal", "reverse-proxy": dict(TLS)}, "seed": "secrets/seed"},
-    # a semi-public hub: the node's relay for the hub, Armory's chat on public relays
-    "hub1": {"name": "hub1", "domain": "home", "target": "ucore", "role": "node",
-             "node": {"preset": "hub", "vpn_ip": "10.8.0.30", "reverse-proxy": dict(TLS),
-                      "nostr-relay": {"relay_name": "Golden relay"},
-                      "hub": {"public_relays": ["wss://nos.lol"], "public_mounts": ["uplink"], "account_mounts": ["tradingpost"],
-                             "space_relays": ["outpost=wss://relay.hub1.home"]}},
-             "master_ip": "10.8.0.1", "seed": "secrets/seed"},
+    # a semi-public hub on a master: its own relay for the hub, Armory's chat on public relays
+    "hub1": {"name": "hub1", "domain": "home", "target": "debian", "role": "master", "master": {
+                 "modules": ["vpn-client", "vpn-server", "dns", "tor", "reverse-proxy", "nostr-relay", "hub"],
+                 "vpn-client": {"vpn_provider": "mullvad", "wireguard_private_key": "golden-mullvad-key",
+                                "wireguard_addresses": "10.66.1.2/32", "server_countries": "Germany"},
+                 "vpn-server": {"wg_host": "vpn.example.org"}, "reverse-proxy": dict(TLS),
+                 "nostr-relay": {"relay_name": "Golden relay"},
+                 "hub": {"public_relays": ["wss://nos.lol"], "public_mounts": ["uplink"], "account_mounts": ["tradingpost"],
+                         "space_relays": ["outpost=wss://relay.hub1.home"]}},
+             "seed": "secrets/seed"},
 }
-ADDRESSES = {"m1": "10.8.0.6", "sh3": "10.8.0.25", "min": "10.8.0.9", "hub1": "10.8.0.30"}
+ADDRESSES = {"m1": "10.8.0.6", "sh3": "10.8.0.25", "min": "10.8.0.9"}
 
 
 def as_text(data):
@@ -153,7 +156,7 @@ class TestRender(unittest.TestCase):
                     with open(os.path.join(dp, fn)) as f:
                         self.assertTrue(f.readline().startswith("# kiwi-server stack"), "%s/%s: no marker" % (name, fn))
 
-    def test_the_hub_preset_wires_the_hub_to_the_nodes_relay(self):
+    def test_a_hub_on_a_master_uses_its_own_relay(self):
         out = self.render("hub1", MACHINES["hub1"])
         with open(os.path.join(out, "docker-compose.yml")) as f:
             compose = f.read()
@@ -165,21 +168,29 @@ class TestRender(unittest.TestCase):
         self.assertIn("HUB_PUBLIC_MOUNTS=uplink", compose)
         self.assertIn("HUB_RELAYS_LOCKED=true", compose)
         self.assertIn("HUB_REQUIRE_HUB=true", compose)
-        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+        with open(os.path.join(out, "km-nginx", "nginx.conf")) as f:
             nginx = f.read()
         self.assertIn("server_name relay.hub1.home;", nginx)
         self.assertIn("server_name hub.hub1.home;", nginx)
-        with open(os.path.join(out, "kn-nostr-relay", "strfry.conf")) as f:
+        with open(os.path.join(out, "km-nostr-relay", "strfry.conf")) as f:
             strfry = f.read()
         self.assertIn('name = "Golden relay"', strfry)
         self.assertIn("maxEventSize = 262144", strfry)
         # a hub with nothing to name as its relay, and public mounts without public relays, are refused
-        bad = dict(MACHINES["hub1"], node={"preset": "hub", "vpn_ip": "10.8.0.30", "reverse-proxy": dict(TLS),
-                                           "modules": ["vpn-client", "reverse-proxy", "hub"]})
-        self.assertNotEqual(cli.main(["render", self.write("hub1-norelay", bad), "-o", os.path.join(self.tmp, "norelay.bundle")]), 0)
+        master = MACHINES["hub1"]["master"]
+        norelay = {k: v for k, v in master.items() if k != "nostr-relay"}
+        norelay["modules"] = [m for m in master["modules"] if m != "nostr-relay"]
+        self.assertNotEqual(cli.main(["render", self.write("hub1-norelay", dict(MACHINES["hub1"], master=norelay)),
+                                      "-o", os.path.join(self.tmp, "norelay.bundle")]), 0)
         # and so is a space's relays line without the space's id
-        odd = dict(MACHINES["hub1"], node=dict(MACHINES["hub1"]["node"], hub={"space_relays": ["wss://relay.hub1.home"]}))
+        odd = dict(MACHINES["hub1"], master=dict(master, hub={"space_relays": ["wss://relay.hub1.home"]}))
         self.assertNotEqual(cli.main(["render", self.write("hub1-oddspace", odd), "-o", os.path.join(self.tmp, "oddspace.bundle")]), 0)
+
+    def test_a_node_cannot_carry_a_hub(self):
+        for modules in (["vpn-client", "reverse-proxy", "hub"], ["vpn-client", "reverse-proxy", "nostr-relay"]):
+            node = {"name": "n1", "domain": "home", "role": "node", "seed": "secrets/seed",
+                    "node": {"modules": modules, "reverse-proxy": dict(TLS)}}
+            self.assertNotEqual(cli.main(["render", self.write("n1", node), "-o", os.path.join(self.tmp, "n1.bundle")]), 0)
 
     def test_errors_are_messages_not_tracebacks(self):
         out = os.path.join(self.tmp, "x.bundle")
