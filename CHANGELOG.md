@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.19.0 — a dying backup lets go
+
+- `kn-backup.service` thaws what a run left frozen, after every run. A run killed outright
+  thawed nothing, and left a database paused and looking like it was running.
+- A database is frozen for at most 30 minutes. A backup server that hung rather than refused
+  kept one frozen for as long as it hung, 40 minutes in the test and with no end in sight.
+- With the backup server gone a run stops there, instead of freezing each module in its turn.
+- A run removes the locks of dead restic processes first: one left by an interrupted prune
+  would have stopped every backup after it.
+- A run that failed tries again an hour later, up to six times: a backup server rebooting at
+  three in the morning no longer costs the night.
+- The certificate job names the ACME account to use. certbot refuses to choose when it finds
+  several, which a restored machine can have, so no certificate would ever have been renewed
+  there. A failed renewal no longer blames the name's DNS record.
+
 ## 0.18.0 — the certificates come back too
 
 - The backup holds a public site's Let's Encrypt certificates and ACME account, so a
