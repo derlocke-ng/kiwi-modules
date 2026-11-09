@@ -38,7 +38,7 @@ role: node                      # the profile: master, or node with a preset
 node:
   preset: cloud                 # gateway | cloud | minimal; or modules: [...] outright
   vpn_ip: 10.8.0.25             # or taken from the WireGuard config's Address
-  cloud: { admin_password: ... }
+  cloud: { collabora: true }    # passwords left out are generated from the seed
   reverse-proxy: { tls_fullchain: secrets/sh3-fullchain.pem, tls_privkey: secrets/sh3-privkey.pem }
 dns_records: [[10.8.0.1, gate.home], [10.8.0.25, sh3.home]]   # optional: the network's names
 master_ip: 10.8.0.1             # optional: the DNS upstream and the mesh route

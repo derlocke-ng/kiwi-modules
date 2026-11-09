@@ -15,9 +15,6 @@ master:
     server_countries: Germany
   vpn-server:
     wg_host: vpn.example.org     # what the clients connect to
-    wg_password: change-me       # wg-easy's web UI
-  dns:
-    pihole_password: change-me
   reverse-proxy:
     tls_fullchain: secrets/gate-fullchain.pem
     tls_privkey: secrets/gate-privkey.pem
