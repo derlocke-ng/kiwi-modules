@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.19.0 — a dying backup lets go
+
+- `kn-backup.service` thaws what a run left frozen, after every run. A run killed outright
+  thawed nothing, and left a database paused and looking like it was running.
+- With the backup server gone a run stops there, instead of freezing each module in its
+  turn through restic's fifteen minutes of retries.
+- The certificate job names the ACME account to use. certbot refuses to choose when it finds
+  several, which a restored machine can have, so no certificate would ever have been renewed
+  there. A failed renewal no longer blames the name's DNS record.
+
 ## 0.18.0 — the certificates come back too
 
 - The backup holds a public site's Let's Encrypt certificates and ACME account, so a

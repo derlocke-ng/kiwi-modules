@@ -13,5 +13,6 @@ Wants=network-online.target
 Type=oneshot
 ExecCondition=/usr/bin/bash {{ docker_dir }}/kiwi/backup.sh due
 ExecStart=/usr/bin/bash {{ docker_dir }}/kiwi/backup.sh backup
+ExecStopPost=/usr/bin/bash {{ docker_dir }}/kiwi/backup.sh thaw
 Nice=10
 IOSchedulingClass=idle

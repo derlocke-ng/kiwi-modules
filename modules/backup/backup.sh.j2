@@ -67,10 +67,30 @@ thaw() {
 trap thaw EXIT
 trap 'exit 143' TERM INT
 
+# A run killed outright thaws nothing, and a paused container looks like a running one:
+# kn-backup.service does this after every run.
+thaw_left() {
+    local m c list
+    for m in "${MODULES[@]}"; do
+        read -ra list <<<"${FREEZE[$m]}"
+        for c in "${list[@]}"; do
+            [[ $({{ runtime }} inspect --format '{% raw %}{{.State.Status}}{% endraw %}' "$c" 2>/dev/null) == paused ]] || continue
+            echo "backup: $c was left frozen" >&2
+            {{ runtime }} unpause "$c" >/dev/null || echo "backup: $c could not be unpaused" >&2
+        done
+    done
+}
+
 backup() {
     local m c list ok failed=()
     restic -- cat config >/dev/null 2>&1 || restic -- init || return 1
     for m in "${MODULES[@]}"; do
+        # the server gone, each module would sit frozen through restic's retries in its turn
+        if [[ -n ${failed[*]:-} ]] && ! restic -- cat config >/dev/null 2>&1; then
+            echo "backup: {{ server }} no longer answers, stopping here" >&2
+            failed+=("$m and those after it")
+            break
+        fi
         ok=1
         read -ra list <<<"${FREEZE[$m]}"
         for c in "${list[@]}"; do
@@ -142,6 +162,7 @@ due() {
 exec 9>"$DIR/lock"
 case "${1:-}" in
     due)        due ;;
+    thaw)       flock -w 120 9 || exit 0; thaw_left ;;
     backup)     flock -n 9 || { echo "backup: one is running already" >&2; exit 1; }; backup ;;
     snapshots)  restic -- snapshots --host "$HOST" ;;
     restore)    shift; flock -n 9 || { echo "backup: one is running already" >&2; exit 1; }; restore "$@" ;;

@@ -229,6 +229,7 @@ class TestRender(unittest.TestCase):
         self.assertNotIn("--staging", acme)
         self.assertIn("acme-staging", acme)                  # a test certificate does not survive leaving the test service
         self.assertIn("--register-unsafely-without-email", acme)
+        self.assertIn('${account:+--account "$account"}', acme)   # certbot refuses to choose among several
         self.assertTrue(os.path.isfile(os.path.join(out, "host-units", "km-acme.timer")))
         with open(os.path.join(out, "stack.sh")) as f:
             self.assertRegex(f.read(), r"KS_STACK_PORTS=\([^)]*443/tcp")
@@ -257,7 +258,7 @@ class TestRender(unittest.TestCase):
         with open(os.path.join(out, "kiwi", "acme.sh")) as f:
             acme = f.read()
         self.assertIn("--staging", acme)
-        self.assertNotIn("acme-staging", acme)
+        self.assertNotIn("grep -qs 'acme-staging'", acme)
         self.assertIn("--email a@example.org", acme)
 
     def test_public_needs_a_master_and_a_public_name(self):
@@ -607,6 +608,7 @@ class TestRender(unittest.TestCase):
         out = self.backup_node("backup5", backup={"server": "https://backup.lychee.home", "at": "04:30"})
         self.assertIn("OnCalendar=*-*-* 04:30:00", read(out, "host-units/kn-backup.timer"))
         self.assertIn("backup.sh due", read(out, "host-units/kn-backup.service"))
+        self.assertIn("backup.sh thaw", read(out, "host-units/kn-backup.service"))
 
     def test_a_backup_needs_a_server_it_can_name(self):
         data = dict(SH3, node=dict(SH3["node"], modules=["vpn-client", "reverse-proxy", "backup"],
