@@ -448,6 +448,12 @@ class TestRender(unittest.TestCase):
         self.assertNotIn("$request_method = OPTIONS", conf)
         self.assertNotIn("/remote.php/dav/ {", read(self.render("cors2", SH3), "kn-nginx/nginx.conf"))
 
+    def test_nextcloud_reads_the_address_nginx_saw(self):
+        out = self.render("addr1", SH3)
+        self.assertIn("'forwarded_for_headers' => ['HTTP_X_REAL_IP']", read(out, "nextcloud-aio-nextcloud/kiwi.config.php"))
+        self.assertIn("/var/www/html/config/kiwi.config.php:ro", read(out, "docker-compose.yml"))
+        self.assertIn("proxy_set_header X-Real-IP $remote_addr;", read(out, "kn-nginx/nginx.conf"))
+
     def test_a_cors_origin_must_be_only_an_origin(self):
         for bad in ("https://x.example/path", "http://x.example", 'https://x.example" $http_origin; #'):
             self.assertNotEqual(cli.main(["render", self.write("cors3", self.cloud_with("cors3", cors_origins=[bad])),
@@ -478,6 +484,7 @@ class TestRender(unittest.TestCase):
         self.assertNotIn("--ctstatus", text)
         self.assertNotRegex(text, r"! -s \S+ ! -s")
         self.assertIn("-j KIWI_GW_NAT", text)
+        self.assertLess(text.index("--ctstate DNAT -j RETURN"), text.index("-A KIWI_GW_NAT -j MASQUERADE"))    # nginx sees who the LAN client is
         # firewalld refuses forwarded LAN traffic without a policy, and a reload must not untrust the stack
         self.assertIn("--policy=kiwi-lan-gateway --set-target=ACCEPT", text)
         self.assertLess(text.index('--permanent --zone=trusted --add-source="$DOCKER_SUBNET"'), text.index("firewall-cmd -q --reload"))

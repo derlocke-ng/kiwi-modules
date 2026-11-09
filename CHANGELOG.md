@@ -11,6 +11,11 @@
   `DAV:` header from it.
 - A master's containers and host can reach the mesh: the masquerade was there, but the
   rule keeping mesh clients off the container network dropped the answers too.
+- **Nextcloud sees who its clients are.** It recorded every client as `127.0.0.1`, so
+  brute-force protection counted nothing and its logs named nobody. AIO's Caddy replaces
+  `X-Forwarded-For` from a proxy outside private address space, which the stack network
+  is, so Nextcloud now reads `X-Real-IP`. And the gateway's masquerade no longer hides LAN
+  clients of published ports behind the bridge address.
 - `pattern` on a list setting now checks every item.
 
 ## 0.10.0 — local traffic stays local

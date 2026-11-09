@@ -23,6 +23,10 @@ firewall:
 
 templates:
   compose: docker-compose.yml.j2
+  kiwi_config: kiwi.config.php.j2
+
+outputs:
+  kiwi_config: { path: "nextcloud-aio-nextcloud/kiwi.config.php", mode: 0644 }
 
 storage:
   volumes: [nextcloud_aio_nextcloud, nextcloud_aio_apache, nextcloud_aio_database, nextcloud_aio_database_dump, nextcloud_aio_redis]
