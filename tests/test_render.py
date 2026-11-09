@@ -186,6 +186,75 @@ class TestRender(unittest.TestCase):
         odd = dict(MACHINES["hub1"], master=dict(master, hub={"space_relays": ["wss://relay.hub1.home"]}))
         self.assertNotEqual(cli.main(["render", self.write("hub1-oddspace", odd), "-o", os.path.join(self.tmp, "oddspace.bundle")]), 0)
 
+    def public_hub(self, **proxy):
+        master = dict(MACHINES["hub1"]["master"], **{"reverse-proxy": dict(TLS, public=True, **proxy)})
+        master["hub"] = dict(master["hub"], hub_domain="hub.example.org")
+        master["nostr-relay"] = dict(master["nostr-relay"], relay_domain="relay.example.org")
+        return dict(MACHINES["hub1"], master=master)
+
+    def test_a_public_hub_opens_only_its_own_sites(self):
+        out = self.render("hub2", self.public_hub())
+        with open(os.path.join(out, "km-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        blocks = {b.split("server_name ", 1)[1].split(";", 1)[0]: b for b in nginx.split("    server {") if "server_name " in b}
+        for name in ("hub.example.org", "relay.example.org"):
+            self.assertIn("/etc/nginx/acme/%s/fullchain.pem" % name, blocks[name])
+            self.assertNotIn("deny all", blocks[name])
+        self.assertIn("location /.well-known/acme-challenge/", nginx)
+        mesh_only = [n for n in blocks if n.endswith(".home")]
+        self.assertTrue(any(n.startswith("wg.") for n in mesh_only), mesh_only)
+        for name in mesh_only:
+            self.assertIn("allow 10.8.0.0/16;", blocks[name], name)
+            self.assertIn("deny all;", blocks[name], name)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            compose = yaml.safe_load(f)["services"]
+        self.assertIn("443:443/tcp", compose["km-vpn-server"]["ports"])
+        self.assertIn("80:80/tcp", compose["km-vpn-server"]["ports"])
+        self.assertEqual(compose["km-nginx"]["command"], "/bin/sh /etc/nginx/start.sh")
+        with open(os.path.join(out, "km-vpn-server", "start.sh")) as f:
+            self.assertIn("--sport 443 ! -d 10.8.0.0/16 -j MARK", f.read())
+        with open(os.path.join(out, "kiwi", "acme.sh")) as f:
+            acme = f.read()
+        self.assertRegex(acme, r"for name in (hub|relay)\.example\.org (hub|relay)\.example\.org; do")
+        self.assertNotIn("--staging", acme)
+        self.assertIn("--register-unsafely-without-email", acme)
+        self.assertTrue(os.path.isfile(os.path.join(out, "host-units", "km-acme.timer")))
+        with open(os.path.join(out, "stack.sh")) as f:
+            self.assertRegex(f.read(), r"KS_STACK_PORTS=\([^)]*443/tcp")
+        if shutil.which("shellcheck"):
+            r = subprocess.run(["shellcheck", "-S", "warning", os.path.join(out, "kiwi", "acme.sh"),
+                                os.path.join(out, "km-nginx", "start.sh")], capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_a_private_hub_publishes_nothing(self):
+        out = self.render("hub3", MACHINES["hub1"])
+        with open(os.path.join(out, "km-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        self.assertNotIn("deny all", nginx)
+        self.assertNotIn("acme", nginx)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            compose = yaml.safe_load(f)["services"]
+        self.assertFalse([p for p in compose["km-vpn-server"]["ports"] if p.split("/")[0].endswith((":80", ":443"))])
+        self.assertFalse(os.path.exists(os.path.join(out, "kiwi", "acme.sh")))
+
+    def test_staging_certificates_get_no_hsts(self):
+        out = self.render("hub4", self.public_hub(acme_staging=True, acme_email="a@example.org"))
+        with open(os.path.join(out, "km-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        block = next(b for b in nginx.split("    server {") if "server_name hub.example.org;" in b)
+        self.assertNotIn("Strict-Transport-Security", block)
+        with open(os.path.join(out, "kiwi", "acme.sh")) as f:
+            acme = f.read()
+        self.assertIn("--staging", acme)
+        self.assertIn("--email a@example.org", acme)
+
+    def test_public_needs_a_master_and_a_public_name(self):
+        nameless = dict(MACHINES["hub1"], master=dict(MACHINES["hub1"]["master"], **{"reverse-proxy": dict(TLS, public=True)}))
+        self.assertNotEqual(cli.main(["render", self.write("nameless", nameless), "-o", os.path.join(self.tmp, "nl.bundle")]), 0)
+        node = {"name": "n2", "domain": "home", "role": "node", "seed": "secrets/seed", "master_ip": "10.8.0.1",
+                "node": {"preset": "minimal", "vpn_ip": "10.8.0.31", "reverse-proxy": dict(TLS, public=True)}}
+        self.assertNotEqual(cli.main(["render", self.write("n2", node), "-o", os.path.join(self.tmp, "n2.bundle")]), 0)
+
     def test_a_node_cannot_carry_a_hub(self):
         for modules in (["vpn-client", "reverse-proxy", "hub"], ["vpn-client", "reverse-proxy", "nostr-relay"]):
             node = {"name": "n1", "domain": "home", "role": "node", "seed": "secrets/seed",
