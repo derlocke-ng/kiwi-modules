@@ -3,8 +3,10 @@ under tests/golden/sh3 is kiwi-server's: the same machine, rendered from a
 fleet there and from a machine file here, must give the same bytes (the
 secrets derive from the same seed). Run: python3 -m unittest discover -s tests
 """
+import base64
 import contextlib
 import difflib
+import hashlib
 import io
 import json
 import os
@@ -562,6 +564,64 @@ class TestRender(unittest.TestCase):
         self.assertIn("USERMAP_GID=33", compose)
         self.assertIn("PAPERLESS_FILENAME_FORMAT={{created_year}}/{{title}}", compose)
         self.assertIn("{{created_year}}/{{title}}", read(out, "quadlets/kn-paperless.container"))
+
+    def backup_node(self, name, modules=("vault", "paperless"), **settings):
+        node = {k: v for k, v in SH3["node"].items() if k in ("vpn_ip", "vpn-client", "reverse-proxy", "pub_iface")}
+        node["modules"] = ["vpn-client", "reverse-proxy", *modules, "backup"]
+        node["backup"] = {"server": "https://backup.lychee.home"}
+        node.update(settings)
+        return self.render(name, dict(SH3, node=node))
+
+    def test_a_backup_holds_what_the_modules_declare(self):
+        script = read(self.backup_node("backup1"), "kiwi/backup.sh")
+        self.assertIn('FREEZE[vault]="kn-vault"', script)
+        self.assertIn('FROZEN[vault]="/home/user/docker/kn-vault:/source/home/user/docker/kn-vault"', script)
+        self.assertIn('FREEZE[paperless]="kn-paperless-db"', script)
+        self.assertIn('FROZEN[paperless]="paperless_db:/volume/paperless_db"', script)
+        self.assertIn('EXCLUDE[paperless]="/source/home/user/docker/kn-paperless/data/log"', script)
+        self.assertIn('SERVICES[vault]="kn-vault"', script)
+
+    def test_a_backup_leaves_out_what_is_not_set_here(self):
+        out = self.backup_node("backup2", modules=("sftp",), sftp={"sftp_password": "x"})
+        self.assertIn('BULK[sftp]=""', read(out, "kiwi/backup.sh"))
+
+    def test_a_restore_can_only_empty_the_folders_it_puts_back(self):
+        script = read(self.backup_node("backup3"), "kiwi/backup.sh")
+        self.assertIn("--target /restore --delete", script)
+        self.assertNotIn("--target / ", script)
+
+    def test_a_backup_keeps_its_passwords_in_a_file_only_root_reads(self):
+        out = self.backup_node("backup4")
+        env = read(out, "kiwi/backup/restic.env")
+        self.assertIn("RESTIC_REPOSITORY=rest:https://backup.lychee.home/sh3.home/", env)
+        self.assertEqual(os.stat(os.path.join(out, "kiwi/backup/restic.env")).st_mode & 0o777, 0o600)
+        secret = dict(line.split("=", 1) for line in env.splitlines())["RESTIC_PASSWORD"]
+        self.assertNotIn(secret, read(out, "kiwi/backup.sh"))
+
+    def test_a_backup_runs_at_night_and_not_at_every_apply(self):
+        out = self.backup_node("backup5", backup={"server": "https://backup.lychee.home", "at": "04:30"})
+        self.assertIn("OnCalendar=*-*-* 04:30:00", read(out, "host-units/kn-backup.timer"))
+        self.assertIn("backup.sh due", read(out, "host-units/kn-backup.service"))
+
+    def test_a_backup_needs_a_server_it_can_name(self):
+        data = dict(SH3, node=dict(SH3["node"], modules=["vpn-client", "reverse-proxy", "backup"],
+                                   backup={"server": "http://nope"}))
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            self.assertEqual(cli.main(["render", self.write("b6", data), "-o", os.path.join(self.tmp, "b6.bundle")]), 1)
+        self.assertIn("is not a valid value", err.getvalue())
+
+    def test_a_backup_server_knows_each_client_by_the_password_it_derives(self):
+        client = dict(line.split("=", 1) for line in read(self.backup_node("backup7"), "kiwi/backup/restic.env").splitlines())
+        node = {k: v for k, v in SH3["node"].items() if k in ("vpn_ip", "vpn-client", "reverse-proxy", "pub_iface")}
+        node["modules"] = ["vpn-client", "reverse-proxy", "backup-server"]
+        node["backup-server"] = {"clients": ["sh3.home", "other.home"]}
+        out = self.render("backup8", dict(SH3, node=node))
+        lines = dict(line.split(":", 1) for line in read(out, "kn-backup-server/htpasswd").splitlines())
+        want = "{SHA}" + base64.b64encode(hashlib.sha1(client["RESTIC_REST_PASSWORD"].encode()).digest()).decode()
+        self.assertEqual(lines["sh3.home"], want)
+        self.assertNotEqual(lines["other.home"], want)
+        self.assertNotIn(client["RESTIC_REST_PASSWORD"], read(out, "kn-backup-server/htpasswd"))
+        self.assertIn("--private-repos --append-only", read(out, "docker-compose.yml"))
 
     def test_the_extra_containers_can_be_left_out(self):
         compose = read(self.apps_node("apps3", immich={"machine_learning": False}, paperless={"office_documents": False}),

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.14.0 — backups of a machine's data
+
+- The module `backup` keeps a machine's data with restic, encrypted, on a node running
+  the new module `backup-server`: every night, and with `kiwi-stack backup`.
+  `kiwi-stack restore MODULE...` puts the newest back, and only those modules stop.
+  Passwords come from the seed, one set per machine.
+- A module says what it wants kept in a `backup:` block: `frozen` (containers held still
+  while their files are read, for databases) and `paths`, `volumes`, `exclude` (read with
+  everything running). Vaultwarden, Portainer, Nextcloud, Immich, Paperless, OpenCloud,
+  the WireGuard server, the relay, Tor and an sftp folder of its own have one.
+- The server gives every machine its own repository and lets it add but not delete, so a
+  machine that is taken over cannot destroy its own backups.
+- A map setting can hold password hashes of what other machines derive for themselves
+  (`generate_each`, `generate_hash_of`).
+
 ## 0.13.0 — folders the apps share
 
 - Nextcloud can show folders every user sees and other apps on the host can use:
