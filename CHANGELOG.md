@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.7.0 — a public hub, and nothing else public with it
+
+- **`reverse-proxy.public`**, for a master: publishes 80 and 443 from the
+  WireGuard server's namespace. A site whose name is outside the fleet's domain
+  (`hub_domain`, `relay_domain`) is public; **every other site, the admin pages
+  among them, answers the mesh only**, enforced in nginx per site. Without
+  `public` nothing changes.
+- **Let's Encrypt for the public names**: a host timer asks for a certificate
+  when one is missing or within 30 days of expiring, over HTTP-01, and has nginx
+  reload when one changed. nginx starts on the fleet's certificate until then.
+  `acme_email` is optional; `acme_staging` uses the test service, and leaves
+  HSTS off so a test certificate cannot stick in a browser.
+- A public site's replies to the internet leave by the real interface on a
+  double-hop master; its replies to the mesh stay on `wg0`.
+
 ## 0.6.0 — hubs live on masters
 
 - **`hub` and `nostr-relay` are for masters now.** A hub may be public, and a
