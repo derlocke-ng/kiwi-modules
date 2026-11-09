@@ -56,9 +56,9 @@ jobs:
                       bad=1
                   fi
               fi
-              for f in src/*/__init__.py; do
+              for f in src/*/__init__.py lib/*/__init__.py; do
                   [[ -f $f ]] || continue
-                  p="$(sed -n 's/^__version__ *= *"\(.*\)"/\1/p' "$f" | head -1)"
+                  p="$(sed -nE 's/^(__version__|VERSION) *= *"(.*)"/\2/p' "$f" | head -1)"
                   if [[ -n $p && $p != "$version" ]]; then
                       echo "::error file=$f::__version__ is $p, kiwi.manifest says $version"
                       bad=1
