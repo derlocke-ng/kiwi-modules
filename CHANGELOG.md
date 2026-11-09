@@ -1,7 +1,13 @@
 # Changelog
 
-## 0.4.1 — account-only mounts and a space's relays
 
+## 0.4.1 — the package says the release
+
+- `lib/kiwimodules/__init__.py` still said 0.3.0 in the 0.4.0 release, whose
+  `kiwi.manifest` said 0.4.0, so the package reported the old number. Both
+  say 0.4.1 now; there is no other change from 0.4.0.
+- A test compares the manifest, the package and the changelog's top entry, so
+  a release cannot go out with them disagreeing.
 - **`hub`**: `account_mounts` (the mounts that ask for an account, a
   username and password for the key, not a key alone; anyone else is told
   why, registers or signs in, and comes back; no age is asked),
