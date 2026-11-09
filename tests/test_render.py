@@ -485,6 +485,13 @@ class TestRender(unittest.TestCase):
         for line in unit.splitlines():
             self.assertFalse(line.startswith("Environment=") and "IDM_ADMIN_PASSWORD" in line, line)
 
+    def test_paperless_can_take_a_login_form(self):
+        conf = read(self.apps_node("apps4"), "kn-nginx/nginx.conf")
+        site = conf[conf.index("server_name paperless.sh3.home;"):]
+        self.assertIn('add_header Referrer-Policy "same-origin" always;', site[:900])
+        other = conf[conf.index("server_name immich.sh3.home;"):]
+        self.assertIn('add_header Referrer-Policy "no-referrer" always;', other[:900])
+
     def test_the_big_data_can_live_on_another_disk(self):
         out = self.apps_node("apps2", opencloud={"data_dir": "/mnt/data/oc"}, immich={"library_dir": "/mnt/data/im"},
                              paperless={"store_dir": "/mnt/data/pl", "consume_dir": "/mnt/scans"})
