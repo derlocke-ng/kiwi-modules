@@ -1,6 +1,6 @@
 # kiwi stack bundle for sh3.home — sourced by `kiwi-stack apply DIR`; generated, do not edit
 # shellcheck disable=SC2034
-KS_VERSION='kiwi-modules 0.11.0'
+KS_VERSION='VERSION'
 KS_HOST='sh3'
 KS_HOSTNAME='sh3.home'
 KS_DOMAIN='home'

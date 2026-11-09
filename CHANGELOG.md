@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.1 — the golden bundle again
+
+- Tests only: the golden `stack.sh` carried a real version number and `meta.txt` lacked a
+  directory, so kiwi-server's check that it carries this release failed. Nothing rendered
+  changes.
+
 ## 0.11.0 — a calendar's way to Nextcloud
 
 - **`hub.caldav`**: the hub forwards `/remote.php/dav/` to a Nextcloud, so its calendar
