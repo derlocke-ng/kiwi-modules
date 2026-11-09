@@ -53,7 +53,8 @@ MACHINES = {
     "hub1": {"name": "hub1", "domain": "home", "target": "ucore", "role": "node",
              "node": {"preset": "hub", "vpn_ip": "10.8.0.30", "reverse-proxy": dict(TLS),
                       "nostr-relay": {"relay_name": "Golden relay"},
-                      "hub": {"public_relays": ["wss://nos.lol"], "public_mounts": ["uplink"]}},
+                      "hub": {"public_relays": ["wss://nos.lol"], "public_mounts": ["uplink"], "account_mounts": ["tradingpost"],
+                             "space_relays": ["outpost=wss://relay.hub1.home"]}},
              "master_ip": "10.8.0.1", "seed": "secrets/seed"},
 }
 ADDRESSES = {"m1": "10.8.0.6", "sh3": "10.8.0.25", "min": "10.8.0.9", "hub1": "10.8.0.30"}
@@ -157,6 +158,9 @@ class TestRender(unittest.TestCase):
         with open(os.path.join(out, "docker-compose.yml")) as f:
             compose = f.read()
         self.assertIn("HUB_RELAYS=wss://relay.hub1.home", compose)
+        self.assertIn("HUB_ACCOUNT_MOUNTS=tradingpost", compose)
+        self.assertNotIn("HUB_REQUIRE_ACCOUNT", compose, "not said: the distribution's own policy stands")
+        self.assertIn("HUB_SPACE_RELAYS=outpost=wss://relay.hub1.home", compose)
         self.assertIn("HUB_PUBLIC_RELAYS=wss://nos.lol", compose)
         self.assertIn("HUB_PUBLIC_MOUNTS=uplink", compose)
         self.assertIn("HUB_RELAYS_LOCKED=true", compose)
@@ -173,6 +177,9 @@ class TestRender(unittest.TestCase):
         bad = dict(MACHINES["hub1"], node={"preset": "hub", "vpn_ip": "10.8.0.30", "reverse-proxy": dict(TLS),
                                            "modules": ["vpn-client", "reverse-proxy", "hub"]})
         self.assertNotEqual(cli.main(["render", self.write("hub1-norelay", bad), "-o", os.path.join(self.tmp, "norelay.bundle")]), 0)
+        # and so is a space's relays line without the space's id
+        odd = dict(MACHINES["hub1"], node=dict(MACHINES["hub1"]["node"], hub={"space_relays": ["wss://relay.hub1.home"]}))
+        self.assertNotEqual(cli.main(["render", self.write("hub1-oddspace", odd), "-o", os.path.join(self.tmp, "oddspace.bundle")]), 0)
 
     def test_errors_are_messages_not_tracebacks(self):
         out = os.path.join(self.tmp, "x.bundle")

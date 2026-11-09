@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.1 — account-only mounts and a space's relays
+
+- **`hub`**: `account_mounts` (the mounts that ask for an account, a
+  username and password for the key, not a key alone; anyone else is told
+  why, registers or signs in, and comes back; no age is asked),
+  `require_account` (every mount), and `space_relays` (`<space id>=<relays>`
+  per line: a space's own relays, the network its mount reads and writes).
+  They become `HUB_ACCOUNT_MOUNTS`, `HUB_REQUIRE_ACCOUNT` and
+  `HUB_SPACE_RELAYS` for kiwi-framework 0.19's container.
+
 ## 0.4.0 — a hub and its relay
 
 - **`nostr-relay`**: strfry behind the reverse proxy at `relay.<hostname>`,
