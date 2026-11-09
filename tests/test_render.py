@@ -72,6 +72,11 @@ def as_text(data):
         return "base64:" + base64.b64encode(data).decode()
 
 
+def read(out, rel):
+    with open(os.path.join(out, rel)) as f:
+        return f.read()
+
+
 class TestRender(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="kiwi-modules-")
@@ -401,6 +406,52 @@ class TestRender(unittest.TestCase):
         master["nostr-relay"] = dict(master["nostr-relay"], write_pubkeys=["npub1abc"])
         self.assertNotEqual(cli.main(["render", self.write("badkey", dict(MACHINES["hub1"], master=master)),
                                       "-o", os.path.join(self.tmp, "bk.bundle")]), 0)
+
+    def hub_with(self, name, **hub):
+        master = dict(MACHINES["hub1"]["master"])
+        master["hub"] = dict(master["hub"], **hub)
+        return dict(MACHINES["hub1"], master=master)
+
+    def cloud_with(self, name, **cloud):
+        node = dict(SH3["node"])
+        node["cloud"] = dict(node["cloud"], **cloud)
+        return dict(SH3, node=node)
+
+    def test_the_hub_forwards_the_calendar_to_the_mesh_only(self):
+        out = self.render("cal1", self.hub_with("cal1", caldav="https://cloud.sh3.home"))
+        self.assertIn("HUB_CALDAV=https://cloud.sh3.home", read(out, "docker-compose.yml"))
+        conf = read(out, "km-nginx/nginx.conf")
+        block = conf[conf.index("location ^~ /remote.php/dav/"):]
+        self.assertRegex(block[:400], r"allow 10\.\d+\.0\.0/16; deny all;")
+        self.assertIn("proxy_pass $backend;", block)
+        out = self.render("cal2", self.hub_with("cal2"))
+        self.assertNotIn("HUB_CALDAV", read(out, "docker-compose.yml"))
+        self.assertNotIn("/remote.php/dav/", read(out, "km-nginx/nginx.conf"))
+
+    def test_a_calendar_server_with_a_path_is_refused(self):
+        for bad in ("https://cloud.sh3.home/nextcloud", "cloud.sh3.home", "https://a b"):
+            self.assertNotEqual(cli.main(["render", self.write("cal3", self.hub_with("cal3", caldav=bad)),
+                                          "-o", os.path.join(self.tmp, "c3.bundle")]), 0, bad)
+
+    def test_nextcloud_answers_browsers_only_on_the_listed_origins(self):
+        out = self.render("cors1", self.cloud_with("cors1", cors_origins=["https://derlocke-ng.github.io", "https://hub.example.org:8443"]))
+        conf = read(out, "kn-nginx/nginx.conf")
+        self.assertIn('"https://derlocke-ng.github.io" $http_origin;', conf)
+        self.assertIn('"https://hub.example.org:8443" $http_origin;', conf)
+        block = conf[conf.index("location ^~ /remote.php/dav/"):]
+        self.assertIn("return 204;", block)
+        self.assertIn("always;", block[:200])
+        self.assertIn('add_header X-Frame-Options "SAMEORIGIN" always;', block)      # add_header here drops the server's
+        self.assertIn("proxy_set_header Host $host;", block)
+        # only a browser's preflight: a DAV client's OPTIONS has to reach Nextcloud
+        self.assertIn('"~^OPTIONS:.+" 1;', conf)
+        self.assertNotIn("$request_method = OPTIONS", conf)
+        self.assertNotIn("/remote.php/dav/ {", read(self.render("cors2", SH3), "kn-nginx/nginx.conf"))
+
+    def test_a_cors_origin_must_be_only_an_origin(self):
+        for bad in ("https://x.example/path", "http://x.example", 'https://x.example" $http_origin; #'):
+            self.assertNotEqual(cli.main(["render", self.write("cors3", self.cloud_with("cors3", cors_origins=[bad])),
+                                          "-o", os.path.join(self.tmp, "c.bundle")]), 0, bad)
 
     def test_a_node_on_this_lan_answers_with_its_lan_address(self):
         data = dict(MACHINES["m1"], dns_records=[["10.8.0.1", "gate.home"], ["10.8.0.25", "sh3.home"], ["10.8.0.25", "cloud.sh3.home"]],
