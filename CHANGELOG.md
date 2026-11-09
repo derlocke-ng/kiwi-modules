@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0 — a public relay is not an open one
+
+- **`nostr-relay` now limits who may post.** Anyone may read; the mesh may post;
+  from the internet only the keys in `write_pubkeys` may. `open_writes` is the
+  old behaviour, by name.
+- **The relay reads the client's address from `X-Real-IP`**, not
+  `X-Forwarded-For`. nginx appends to the second, which a client can pre-fill,
+  so a stranger could have claimed a mesh address.
+
 ## 0.7.1 — from a test certificate to a real one
 
 - Turning `acme_staging` off now gets a real certificate at once. certbot keeps
