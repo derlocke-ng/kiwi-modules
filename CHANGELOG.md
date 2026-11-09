@@ -7,6 +7,8 @@
 - A database is frozen for at most 30 minutes. A backup server that hung rather than refused
   kept one frozen for as long as it hung, 40 minutes in the test and with no end in sight.
 - With the backup server gone a run stops there, instead of freezing each module in its turn.
+- A run removes the locks of dead restic processes first: one left by an interrupted prune
+  would have stopped every backup after it.
 - A run that failed tries again an hour later, up to six times: a backup server rebooting at
   three in the morning no longer costs the night.
 - The certificate job names the ACME account to use. certbot refuses to choose when it finds
