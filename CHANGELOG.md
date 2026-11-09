@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.3 — two things a boot got wrong
+
+- **`vpn-client`** sets `net.ipv4.ip_forward=1` itself. A new network
+  namespace copies the host's value when it is made, and at boot on podman the
+  VPN client's is made before the host's forwarding is on. After every reboot
+  nothing could leave through the client, so a master's mesh clients had no
+  internet until the stack was restarted (kiwi-server problem 61).
+- **`vpn-server`**: where Tor shares the WireGuard server's namespace, the
+  namespace gets `net.ipv4.ip_nonlocal_bind=1`. Tor binds the mesh address,
+  which exists only once `start.sh` has brought `wg0` up, so its first start
+  could fail with `Address not available` at a boot or a re-apply (kiwi-server
+  problem 59).
+
 ## 0.4.2 — the package says the release
 
 - `lib/kiwimodules/__init__.py` still said 0.3.0 in the 0.4.0 and 0.4.1
