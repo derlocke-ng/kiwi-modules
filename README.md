@@ -95,6 +95,12 @@ the people inside talk to outsiders); `relays` naming public relays and
 `relays_locked: false` make a public hub. `examples/hub.yaml` is the
 semi-public one.
 
+Three applications can be added to a node's `modules:`, each at its own name behind the
+reverse proxy: `opencloud` (files and sharing), `immich` (photos; `machine_learning: false`
+leaves out the container that wants the most memory) and `paperless` (scanned documents
+with OCR; `office_documents: false` leaves out Tika and Gotenberg). Each has a setting for
+where its data lives, for a node with a big disk.
+
 ## Modules and profiles
 
 `modules/<name>/module.yaml` declares a module's settings, its compose

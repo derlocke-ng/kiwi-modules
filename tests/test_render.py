@@ -459,6 +459,50 @@ class TestRender(unittest.TestCase):
             self.assertNotEqual(cli.main(["render", self.write("cors3", self.cloud_with("cors3", cors_origins=[bad])),
                                           "-o", os.path.join(self.tmp, "c.bundle")]), 0, bad)
 
+    def apps_node(self, name, **settings):
+        node = {k: v for k, v in SH3["node"].items() if k in ("vpn_ip", "vpn-client", "reverse-proxy", "pub_iface")}
+        node["modules"] = ["vpn-client", "reverse-proxy", "opencloud", "immich", "paperless"]
+        node.update(settings)
+        return self.render(name, dict(SH3, node=node))
+
+    def test_the_three_apps_render_as_units_with_their_secrets_kept_out(self):
+        out = self.apps_node("apps1")
+        conf = read(out, "kn-nginx/nginx.conf")
+        for name in ("opencloud", "immich", "paperless"):
+            self.assertIn("server_name %s.sh3.home;" % name, conf)
+        compose = read(out, "docker-compose.yml")
+        self.assertIn("OC_URL=https://opencloud.sh3.home", compose)
+        self.assertIn("IMMICH_MACHINE_LEARNING_URL=http://kn-immich-ml:3003", compose)
+        self.assertIn("PAPERLESS_URL=https://paperless.sh3.home", compose)
+        # an entrypoint of one word becomes the unit's; the script is mounted, with its own line
+        unit = read(out, "quadlets/kn-opencloud.container")
+        self.assertIn("PodmanArgs=--entrypoint=/bin/sh", unit)
+        self.assertIn("Exec=/kiwi-start.sh", unit)
+        self.assertIn("exec opencloud server", read(out, "kn-opencloud/start.sh"))
+        # generated secrets go to the root-only env file, not the unit anyone can read
+        for name in ("kn-opencloud", "kn-immich", "kn-immich-db", "kn-paperless", "kn-paperless-db"):
+            self.assertIn("EnvironmentFile=", read(out, "quadlets/%s.container" % name), name)
+        for line in unit.splitlines():
+            self.assertFalse(line.startswith("Environment=") and "IDM_ADMIN_PASSWORD" in line, line)
+
+    def test_the_big_data_can_live_on_another_disk(self):
+        out = self.apps_node("apps2", opencloud={"data_dir": "/mnt/data/oc"}, immich={"library_dir": "/mnt/data/im"},
+                             paperless={"store_dir": "/mnt/data/pl", "consume_dir": "/mnt/scans"})
+        compose = read(out, "docker-compose.yml")
+        for path in ("/mnt/data/oc:/var/lib/opencloud", "/mnt/data/im:/data", "/mnt/data/pl/media:/usr/src/paperless/media",
+                     "/mnt/scans:/usr/src/paperless/consume"):
+            self.assertIn(path, compose)
+
+    def test_the_extra_containers_can_be_left_out(self):
+        compose = read(self.apps_node("apps3", immich={"machine_learning": False}, paperless={"office_documents": False}),
+                       "docker-compose.yml")
+        self.assertIn("IMMICH_MACHINE_LEARNING_ENABLED=false", compose)
+        for name in ("kn-immich-ml:", "kn-paperless-tika:", "kn-paperless-gotenberg:", "PAPERLESS_TIKA_ENABLED"):
+            self.assertNotIn(name, compose)
+
+    def test_a_new_nextcloud_gets_end_to_end_encryption(self):
+        self.assertIn("end_to_end_encryption", read(self.render("e2e1", SH3), "docker-compose.yml"))
+
     def test_a_node_on_this_lan_answers_with_its_lan_address(self):
         data = dict(MACHINES["m1"], dns_records=[["10.8.0.1", "gate.home"], ["10.8.0.25", "sh3.home"], ["10.8.0.25", "cloud.sh3.home"]],
                     lan_addresses={"10.8.0.25": "192.168.1.25"})

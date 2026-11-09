@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.12.0 — OpenCloud, Immich and Paperless-ngx to try out
+
+- **`opencloud`**, **`immich`** and **`paperless`**: new modules for a node, each at its
+  own name behind the reverse proxy, with generated secrets and a setting for where the
+  data lives. `immich.machine_learning` and `paperless.office_documents` turn their
+  extra containers off. None is in a preset: add them to `modules:`.
+- **Nextcloud installs end-to-end encryption by default** (`cloud.startup_apps`). It takes
+  effect on a new install; encrypted folders are chosen per folder in the desktop and
+  phone clients.
+- The podman runtime translates a compose `entrypoint` of one word.
+
 ## 0.11.1 — the golden bundle again
 
 - Tests only: the golden `stack.sh` carried a real version number and `meta.txt` lacked a
