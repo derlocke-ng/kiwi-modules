@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.1 — Paperless takes a login
+
+- Paperless's login page answered 403. The reverse proxy's `Referrer-Policy: no-referrer`
+  makes a browser send `Origin: null` with a form, and Django's CSRF check refuses that.
+  A site can now set `referrer_policy`; Paperless uses `same-origin`, every other site
+  keeps `no-referrer`.
+
 ## 0.12.0 — OpenCloud, Immich and Paperless-ngx to try out
 
 - **`opencloud`**, **`immich`** and **`paperless`**: new modules for a node, each at its
