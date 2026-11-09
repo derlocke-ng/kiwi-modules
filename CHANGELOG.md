@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.20.0 — a full disk costs one module
+
+- A repository that could not take a frozen database ends the run. A full disk still answers,
+  so each module after it would have sat frozen in its turn, every night.
+- A database is frozen for at most 10 minutes (it was 30), and a failed run tries again three
+  times, not five.
+- A file that goes away while a backup reads it no longer fails the whole run. restic stored
+  the rest, and says so with its exit code 3.
+
 ## 0.19.0 — a dying backup lets go
 
 - `kn-backup.service` thaws what a run left frozen, after every run. A run killed outright
