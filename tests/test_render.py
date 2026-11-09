@@ -667,6 +667,19 @@ class TestRender(unittest.TestCase):
         out = self.relay_master("relay2")
         self.assertNotIn("KIWI_RELAY", read(out, "km-vpn-server/start.sh"))
 
+    def test_the_wireguard_server_is_not_restored_from_over_its_own_mesh(self):
+        data = json.loads(json.dumps(MACHINES["gate"]))
+        data["master"]["modules"] = ["vpn-client", "vpn-server", "dns", "reverse-proxy", "backup"]
+        data["master"]["backup"] = {"server": "https://backup.lychee.home"}
+        script = read(self.render("norestore1", data), "kiwi/backup.sh")
+        self.assertIn('NO_RESTORE[vpn-server]="it carries the mesh', script)
+        self.assertIn("is not restored from here", script)
+        self.assertLess(script.index("is not restored from here"), script.index("service stop"))
+
+    def test_a_restore_brings_back_what_shares_a_network(self):
+        script = read(self.backup_node("norestore2"), "kiwi/backup.sh")
+        self.assertIn("/usr/local/bin/kiwi-stack start", script)
+
     def test_a_relay_needs_a_mesh_address_and_port(self):
         data = json.loads(json.dumps(MACHINES["gate"]))
         data["master"]["vpn-server"]["unlock_relay"] = {"7500": "papaya:7500"}
