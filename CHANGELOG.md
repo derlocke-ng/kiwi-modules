@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.17.0 — a restore that cannot saw off its own branch
+
+- `kiwi-stack restore vpn-server` says why it will not: stopping WireGuard on a master
+  takes away the mesh the restore comes over. kiwi-server keeps that state itself.
+- A restore starts the whole stack again afterwards: a container in another's network
+  namespace stops with it, and nothing else brought it back.
+
 ## 0.16.0 — the relay
 
 - `vpn-server.unlock_relay` lets a machine that cannot reach its Tang ring at boot ask
