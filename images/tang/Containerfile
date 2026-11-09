@@ -1,0 +1,7 @@
+# Tang from Fedora's packages, for the tang module: one container is one ring, its keys in /db.
+FROM quay.io/fedora/fedora-minimal:44
+RUN dnf5 -y install --setopt=install_weak_deps=False tang util-linux && dnf5 clean all
+LABEL org.opencontainers.image.source=https://github.com/derlocke-ng/kiwi-modules
+COPY start.sh /start.sh
+EXPOSE 7500
+ENTRYPOINT ["/bin/sh", "/start.sh"]
