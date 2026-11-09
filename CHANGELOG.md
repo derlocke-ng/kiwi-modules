@@ -4,8 +4,9 @@
 
 - `kn-backup.service` thaws what a run left frozen, after every run. A run killed outright
   thawed nothing, and left a database paused and looking like it was running.
-- With the backup server gone a run stops there, instead of freezing each module in its
-  turn through restic's fifteen minutes of retries.
+- A database is frozen for at most 30 minutes. A backup server that hung rather than refused
+  kept one frozen for as long as it hung, 40 minutes in the test and with no end in sight.
+- With the backup server gone a run stops there, instead of freezing each module in its turn.
 - A run that failed tries again an hour later, up to six times: a backup server rebooting at
   three in the morning no longer costs the night.
 - The certificate job names the ACME account to use. certbot refuses to choose when it finds

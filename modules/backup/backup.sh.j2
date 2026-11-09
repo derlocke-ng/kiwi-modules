@@ -21,11 +21,16 @@ SERVICES[{{ s.name }}]="{{ s.services | join(' ') }}"
 NO_RESTORE[{{ s.name }}]="{{ s.no_restore }}"
 {% endfor %}
 
+# A server that hangs instead of refusing keeps restic waiting for as long as it hangs. That
+# costs the big files nothing. A database frozen meanwhile is down, so LIMIT bounds those calls.
+FREEZE_LIMIT=30m
+ASK_LIMIT=3m
+
 restic() { # MOUNT... -- ARGUMENT...
     local mounts=()
     while [[ $1 != -- ]]; do mounts+=(-v "$1"); shift; done
     shift
-    {{ runtime }} run --rm --network host --security-opt label=disable --env-file "$DIR/restic.env" \
+    ${LIMIT:+timeout -k 60 "$LIMIT"} {{ runtime }} run --rm --network host --security-opt label=disable --env-file "$DIR/restic.env" \
         -v {{ docker_dir }}/kiwi/ca:/kiwi-ca:ro -v kiwi_restic_cache:/cache "${mounts[@]}" \
         "$IMAGE" --cacert /kiwi-ca/kiwiCA.crt --cache-dir /cache "$@"
 }
@@ -83,10 +88,10 @@ thaw_left() {
 
 backup() {
     local m c list ok failed=()
-    restic -- cat config >/dev/null 2>&1 || restic -- init || return 1
+    LIMIT=$ASK_LIMIT restic -- cat config >/dev/null 2>&1 || LIMIT=$ASK_LIMIT restic -- init || return 1
     for m in "${MODULES[@]}"; do
         # the server gone, each module would sit frozen through restic's retries in its turn
-        if [[ -n ${failed[*]:-} ]] && ! restic -- cat config >/dev/null 2>&1; then
+        if [[ -n ${failed[*]:-} ]] && ! LIMIT=$ASK_LIMIT restic -- cat config >/dev/null 2>&1; then
             echo "backup: {{ server }} no longer answers, stopping here" >&2
             failed+=("$m and those after it")
             break
@@ -97,7 +102,7 @@ backup() {
             # not running: its files are not changing either
             if {{ runtime }} pause "$c" >/dev/null 2>&1; then FROZEN_NOW+=("$c"); fi
         done
-        store "$m" frozen "${FROZEN[$m]}" || ok=0
+        LIMIT=$FREEZE_LIMIT store "$m" frozen "${FROZEN[$m]}" || ok=0
         thaw
         store "$m" bulk "${BULK[$m]}" || ok=0
         (( ok )) || failed+=("$m")
