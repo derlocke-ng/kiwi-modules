@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.13.0 — folders the apps share
+
+- Nextcloud can show folders every user sees and other apps on the host can use:
+  `cloud.shared_folders` and, for what another app produces, `cloud.read_only_folders`.
+  `kn-cloud-folders.service` hands the shared ones to Nextcloud's user, sets up the
+  external storage after every start of the stack, and looks through the read-only ones
+  every 15 minutes, so that sync clients get what another app added.
+- Immich can read such a folder: `immich.external_dirs`, mounted read-only for an
+  External Library.
+- Paperless can run as another user (`paperless.user_id`, 33 to share a consume folder
+  with Nextcloud) and name its files (`paperless.filename_format`).
+- A map setting can check its values (`pattern`) and keys (`key_pattern`); a bind mount
+  can stand for every value of a setting (`each`).
+
 ## 0.12.1 — Paperless takes a login
 
 - Paperless's login page answered 403. The reverse proxy's `Referrer-Policy: no-referrer`
