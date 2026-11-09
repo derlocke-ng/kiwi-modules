@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.1 — a health check without a shell
+
+- An exec-style health check (`[CMD, ...]`) now runs directly. It was flattened into
+  a string, which podman runs through `/bin/sh`; Collabora's image has no shell, so
+  it reported unhealthy forever while working fine.
+
 ## 0.9.0 — a public relay knows its members
 
 - **`nostr-relay` authenticates connections (NIP-42).** A key list cannot carry a
