@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.18.0 — the certificates come back too
+
+- The backup holds a public site's Let's Encrypt certificates and ACME account, so a
+  rebuilt machine does not have to ask again, which is limited to a few a week.
+
 ## 0.17.0 — a restore that cannot saw off its own branch
 
 - `kiwi-stack restore vpn-server` says why it will not: stopping WireGuard on a master
