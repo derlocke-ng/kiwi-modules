@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.join(ROOT, "lib"))
 
 import yaml  # noqa: E402
 
-from kiwimodules import VERSION, cli, machine  # noqa: E402
+from kiwimodules import VERSION, cli, machine, quadlet  # noqa: E402
 
 GOLDEN = os.path.join(HERE, "golden")
 SEED = b"kiwi-golden-seed-0123456789abcdef"      # 32 bytes, never used for a real machine
@@ -401,6 +401,31 @@ class TestRender(unittest.TestCase):
         master["nostr-relay"] = dict(master["nostr-relay"], write_pubkeys=["npub1abc"])
         self.assertNotEqual(cli.main(["render", self.write("badkey", dict(MACHINES["hub1"], master=master)),
                                       "-o", os.path.join(self.tmp, "bk.bundle")]), 0)
+
+    def test_a_gateway_lets_its_lan_clients_through(self):
+        out = self.render("gw1", MACHINES["m1"])
+        path = next(os.path.join(d, "gw.sh") for d, _s, files in os.walk(out) if "gw.sh" in files)
+        with open(path) as f:
+            text = f.read()
+        self.assertEqual(subprocess.run(["bash", "-n", path]).returncode, 0)
+        # both of these were refused by iptables at every start, and nobody saw
+        self.assertNotIn("--ctstatus", text)
+        self.assertNotRegex(text, r"! -s \S+ ! -s")
+        self.assertIn("-j KIWI_GW_NAT", text)
+        # firewalld refuses forwarded LAN traffic without a policy, and a reload must not untrust the stack
+        self.assertIn("--policy=kiwi-lan-gateway --set-target=ACCEPT", text)
+        self.assertLess(text.index('--permanent --zone=trusted --add-source="$DOCKER_SUBNET"'), text.index("firewall-cmd -q --reload"))
+        # the node's own mesh address goes straight to its proxy for a LAN client
+        self.assertRegex(text, r'-d "\$OWN_MESH_IP" -p tcp -m multiport --dports 80,443 -j DNAT --to-destination "\$PROXY_IP"')
+
+    def test_an_exec_health_check_needs_no_shell(self):
+        def health(test):
+            unit, _env = quadlet.container_unit("s", {"image": "x", "healthcheck": {"test": test}}, {}, {"s": {}})
+            return [line for line in unit.splitlines() if line.startswith("HealthCmd=")]
+        # quadlet passes the value on as it stands, so the quotes must not be escaped
+        self.assertEqual(health(["CMD", "/usr/bin/coolwsd", "--probe"]), ['HealthCmd=["/usr/bin/coolwsd","--probe"]'])
+        self.assertEqual(health(["CMD-SHELL", "/healthcheck.sh"]), ["HealthCmd=/healthcheck.sh"])
+        self.assertEqual(health("/healthcheck.sh"), ["HealthCmd=/healthcheck.sh"])
 
     def test_a_node_cannot_carry_a_hub(self):
         for modules in (["vpn-client", "reverse-proxy", "hub"], ["vpn-client", "reverse-proxy", "nostr-relay"]):

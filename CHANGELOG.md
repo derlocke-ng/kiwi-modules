@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.1 — a gateway that works, a health check without a shell
+
+- **The `gateway` module works for LAN clients.** Two of its rules were invalid and
+  refused at every start, so LAN clients were not masqueraded into the VPN client and
+  the rule keeping them off the container network was missing. On a firewalld host
+  forwarded LAN traffic was refused as well. A policy now lets it through, and the
+  stack's network is trusted permanently, so the reload that needs cannot cut
+  containers off from each other. Found with the first real LAN client.
+- A LAN client's connection to the gateway node's own mesh address goes straight to
+  its reverse proxy: that address lives inside the VPN client and only takes
+  connections from the tunnel.
+- An exec-style health check (`[CMD, ...]`) now runs directly. It was flattened into
+  a string, which podman runs through `/bin/sh`; Collabora's image has no shell, so
+  it reported unhealthy forever while working fine.
+
 ## 0.9.0 — a public relay knows its members
 
 - **`nostr-relay` authenticates connections (NIP-42).** A key list cannot carry a
