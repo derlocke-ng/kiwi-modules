@@ -1,0 +1,24 @@
+diff --git a/src/apps/relay/RelayIngester.cpp b/src/apps/relay/RelayIngester.cpp
+index e873a21..0a1f1af 100644
+--- a/src/apps/relay/RelayIngester.cpp
++++ b/src/apps/relay/RelayIngester.cpp
+@@ -185,6 +185,19 @@ void RelayServer::ingesterProcessEvent(lmdb::txn &txn, RelayServerCtx &rsctx, ui
+         }
+     }
+ 
++    // kiwi: the write policy plugin may act on who the connection proved to be, for any event,
++    // and a connection that writes is asked to prove it, so that a refusal can be acted on
++    if (authedPubkey.isNull() && cfg().relay__auth__enabled && !cfg().relay__auth__serviceUrl.empty()) {
++        auto it = rsctx.connIdToAuthStatus.find(connId);
++        if (it == rsctx.connIdToAuthStatus.end()) {
++            auto challenge = rsctx.challengeGenerator.get();
++            rsctx.connIdToAuthStatus.emplace(connId, challenge);
++            sendAuthChallenge(connId, challenge);
++        } else if (it->second.isAuthed()) {
++            authedPubkey = it->second.authed;
++        }
++    }
++
+     {
+         auto existing = lookupEventById(txn, packed.id());
+         if (existing) {

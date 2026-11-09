@@ -274,31 +274,124 @@ class TestRender(unittest.TestCase):
         return [json.loads(line) for line in r.stdout.splitlines()]
 
     @staticmethod
-    def post(pubkey, source, content="hello", kind="new", source_type="IP4"):
-        return json.dumps({"type": kind, "sourceType": source_type, "sourceInfo": source, "receivedAt": 1,
-                           "event": {"id": "e" * 64, "pubkey": pubkey, "kind": 1, "tags": [], "content": content}})
+    def post(pubkey, source, content="hello", kind="new", source_type="IP4", authed=None, event_kind=1, tags=(),
+             event_id="e" * 64, created_at=100):
+        request = {"type": kind, "sourceType": source_type, "sourceInfo": source, "receivedAt": 1,
+                   "event": {"id": event_id, "pubkey": pubkey, "kind": event_kind, "tags": list(tags), "content": content,
+                             "created_at": created_at}}
+        if authed:
+            request["authed"] = authed
+        return json.dumps(request)
 
-    def test_the_relay_takes_posts_from_the_mesh_and_listed_keys(self):
-        listed = "a" * 64
-        out, conf = self.relay_files("hub5", write_pubkeys=[listed])
+    OUTSIDE, MESH_ADDRESS = "203.0.113.9", "10.8.3.5"
+    ADMIN, PERSON, OTHER, BOARD = "a" * 64, "b" * 64, "c" * 64, "d" * 64
+    WORKED = "00" + "f" * 62       # 8 bits of proof of work
+
+    def signup(self, key=None, event_id=None, source=None):
+        return self.post(key or self.PERSON, source or self.OUTSIDE, content="sealed", event_kind=30790, tags=[["v", "2"]],
+                         event_id=event_id or self.WORKED)
+
+    def admin_list(self, name, *keys, key=None, created_at=200):
+        return self.post(key or self.ADMIN, self.OUTSIDE, event_kind=30000, created_at=created_at,
+                         tags=[["d", name]] + [["p", k] for k in keys])
+
+    def verdicts(self, answers):
+        return [a["action"] for a in answers]
+
+    def test_the_relay_takes_posts_from_the_mesh_and_admins(self):
+        out, conf = self.relay_files("hub5", write_pubkeys=[self.ADMIN])
         self.assertIn('plugin = "/app/kiwi-write-policy.py"', conf)
         self.assertIn('realIpHeader = "x-real-ip"', conf)     # nginx overwrites this one; a client can pre-fill the other
         answers = self.ask_policy(out, [
-            self.post("b" * 64, "10.8.3.5"),                  # the mesh
-            self.post(listed, "203.0.113.9"),                 # a listed key, from anywhere
-            self.post("b" * 64, "203.0.113.9"),               # a stranger
-            # a stranger hiding a listed key in the content: only a parser tells them apart
-            self.post("b" * 64, "203.0.113.9", content='"pubkey":"%s"' % listed),
-            self.post("b" * 64, "wss://other.example", source_type="Stream"),
+            self.post(self.PERSON, self.MESH_ADDRESS),        # the mesh
+            self.post(self.ADMIN, self.OUTSIDE),              # an admin, from anywhere
+            self.post(self.PERSON, self.OUTSIDE),             # a stranger
+            # a stranger hiding an admin's key in the content: only a parser tells them apart
+            self.post(self.PERSON, self.OUTSIDE, content='"pubkey":"%s"' % self.ADMIN),
+            self.post(self.PERSON, "wss://other.example", source_type="Stream"),
             "this is not json",
             '{"type":"new"}'])
-        self.assertEqual([a["action"] for a in answers], ["accept", "accept", "reject", "reject", "reject", "reject", "reject"])
-        self.assertIn("blocked:", answers[2]["msg"])
+        self.assertEqual(self.verdicts(answers), ["accept", "accept", "reject", "reject", "reject", "reject", "reject"])
+        self.assertIn("auth-required:", answers[2]["msg"])
         self.assertEqual(answers[2]["id"], "e" * 64)
+
+    def test_a_connection_can_prove_its_key(self):
+        _out, conf = self.relay_files("hub7", relay_domain="relay.example.org")
+        self.assertIn('serviceUrl = "wss://relay.example.org"', conf)
+        self.assertRegex(conf, r"auth \{\s+enabled = true")
+
+    def test_a_registered_member_writes_what_others_signed(self):
+        out, _conf = self.relay_files("hub8", members="registered", register_pow=8)
+        answers = self.ask_policy(out, [
+            self.signup(event_id="f" * 64),                                                  # no work done
+            self.signup(),
+            self.post(self.BOARD, self.OUTSIDE, authed=self.PERSON, event_kind=30700),       # a board's own key
+            self.post(self.BOARD, self.OUTSIDE, event_kind=30700),                           # the same, not signed in
+            self.post(self.BOARD, self.OUTSIDE, authed=self.OTHER, event_kind=30700),        # signed in, no account
+            self.post(self.BOARD, self.OUTSIDE, event_kind=1059, tags=[["p", self.PERSON]]), # sealed note to a member
+            self.post(self.BOARD, self.OUTSIDE, event_kind=1059, tags=[["p", self.OTHER]])])  # and to nobody here
+        self.assertEqual(self.verdicts(answers), ["reject", "accept", "accept", "reject", "reject", "accept", "reject"])
+        self.assertIn("pow:", answers[0]["msg"])
+        self.assertIn("auth-required:", answers[3]["msg"])
+        self.assertIn("restricted:", answers[4]["msg"])
+
+    def test_an_approved_relay_reads_only_until_an_admin_says_so(self):
+        out, _conf = self.relay_files("hub9", members="approved", register_pow=8, write_pubkeys=[self.ADMIN])
+        answers = self.ask_policy(out, [
+            self.signup(),                                                                   # still stored: it asks to join
+            self.post(self.PERSON, self.OUTSIDE, authed=self.PERSON),
+            self.admin_list("members", self.PERSON, key=self.OTHER),                         # not an admin: refused and ignored
+            self.post(self.PERSON, self.OUTSIDE, authed=self.PERSON),
+            self.admin_list("members", self.PERSON),
+            self.post(self.PERSON, self.OUTSIDE, authed=self.PERSON),
+            self.admin_list("members", self.OTHER, created_at=150),                          # older than the one that counts
+            self.post(self.PERSON, self.OUTSIDE, authed=self.PERSON),
+            self.admin_list("members", self.OTHER, created_at=300),
+            self.post(self.PERSON, self.OUTSIDE, authed=self.PERSON)])
+        self.assertEqual(self.verdicts(answers),
+                         ["accept", "reject", "reject", "reject", "accept", "accept", "accept", "accept", "accept", "reject"])
+        self.assertIn("restricted:", answers[1]["msg"])
+
+    def test_a_ban_beats_membership(self):
+        out, _conf = self.relay_files("hub10", members="registered", register_pow=8, write_pubkeys=[self.ADMIN])
+        answers = self.ask_policy(out, [
+            self.signup(),
+            self.admin_list("banned", self.PERSON),
+            self.post(self.BOARD, self.OUTSIDE, authed=self.PERSON, event_kind=30700),
+            self.post(self.BOARD, self.OUTSIDE, event_kind=1059, tags=[["p", self.PERSON]]),
+            self.signup(),
+            self.post(self.ADMIN, self.OUTSIDE, authed=self.ADMIN)])
+        self.assertEqual(self.verdicts(answers), ["accept", "accept", "reject", "reject", "reject", "accept"])
+        self.assertIn("banned", answers[2]["msg"])
+
+    def test_a_retired_account_is_no_member(self):
+        out, _conf = self.relay_files("hub11", members="registered", register_pow=8)
+        retired = self.post(self.PERSON, self.OUTSIDE, content="", event_kind=30790, created_at=500, authed=self.PERSON,
+                            tags=[["v", "2"], ["retired", "1"]])
+        answers = self.ask_policy(out, [self.signup(), retired, self.post(self.PERSON, self.OUTSIDE, authed=self.PERSON)])
+        self.assertEqual(self.verdicts(answers), ["accept", "accept", "reject"])
+
+    def test_new_accounts_are_limited_per_address(self):
+        out, _conf = self.relay_files("hub12", members="registered", register_pow=8, register_per_hour=2)
+        answers = self.ask_policy(out, [self.signup(key=k * 64) for k in "123"] + [self.signup(key="4" * 64, source="203.0.113.77")])
+        self.assertEqual(self.verdicts(answers), ["accept", "accept", "reject", "accept"])
+        self.assertIn("rate-limited:", answers[2]["msg"])
+
+    def test_the_hub_is_told_the_work_a_sign_up_costs(self):
+        out, _conf = self.relay_files("hub13", register_pow=17)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            self.assertIn("HUB_REGISTER_POW=17", f.read())
+
+    def test_too_much_work_is_refused(self):
+        master = dict(MACHINES["hub1"]["master"])
+        master["nostr-relay"] = dict(master["nostr-relay"], register_pow=64)
+        self.assertNotEqual(cli.main(["render", self.write("badpow", dict(MACHINES["hub1"], master=master)),
+                                      "-o", os.path.join(self.tmp, "bp.bundle")]), 0)
 
     def test_open_writes_is_asked_for_by_name(self):
         out, conf = self.relay_files("hub6", open_writes=True)
         self.assertIn('plugin = ""', conf)
+        self.assertRegex(conf, r"auth \{\s+enabled = false")
         self.assertFalse(os.path.exists(os.path.join(out, "km-nostr-relay", "write-policy.py")))
         with open(os.path.join(out, "docker-compose.yml")) as f:
             self.assertNotIn("kiwi-write-policy", f.read())

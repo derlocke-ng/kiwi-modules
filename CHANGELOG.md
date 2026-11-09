@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.9.0 — a public relay knows its members
+
+- **`nostr-relay` authenticates connections (NIP-42).** A key list cannot carry a
+  hub: boards, groups and gift wraps are not signed by the person's own key. A
+  connection that has proven a member's key may post everything it sends.
+- **`members: approved | registered`**: the keys on the list an admin signs (kind
+  30000, `d` members), or anyone with an account on this hub. `approved` is the
+  default. `write_pubkeys` are the admins and always write; a ban list (`d`
+  banned) beats membership.
+- From anyone: a gift wrap to a member, and a sign-up (kind 30790) with
+  `register_pow` bits of proof of work and at most `register_per_hour` per
+  address. Refusals start with `auth-required:`, `restricted:`, `pow:` or
+  `rate-limited:`, so a client can act on them.
+- **Our own strfry image**, `ghcr.io/derlocke-ng/strfry:1.1.3-kiwi1` (`images/strfry`):
+  release 1.1.3 with a patch of a few lines and Python for the write policy. Stock
+  strfry tells the policy who a connection is only for a protected event by that
+  same key, and sends a challenge only for one, so a member's boards and groups
+  could not be accepted. With the patch a connection is challenged when it first
+  writes, as NIP-42 clients expect, and the policy sees the key for every event.
+- `hub` passes the relay's `register_pow` on as `HUB_REGISTER_POW`.
+
 ## 0.8.0 — a public relay is not an open one
 
 - **`nostr-relay` now limits who may post.** Anyone may read; the mesh may post;
