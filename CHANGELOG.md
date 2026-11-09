@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.1 — from a test certificate to a real one
+
+- Turning `acme_staging` off now gets a real certificate at once. certbot keeps
+  a certificate that is not due for renewal, test service or not, so `acme.sh`
+  drops one that came from the test service first.
+
 ## 0.7.0 — a public hub, and nothing else public with it
 
 - **`reverse-proxy.public`**, for a master: publishes 80 and 443 from the

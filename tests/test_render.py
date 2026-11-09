@@ -217,6 +217,7 @@ class TestRender(unittest.TestCase):
             acme = f.read()
         self.assertRegex(acme, r"for name in (hub|relay)\.example\.org (hub|relay)\.example\.org; do")
         self.assertNotIn("--staging", acme)
+        self.assertIn("acme-staging", acme)                  # a test certificate does not survive leaving the test service
         self.assertIn("--register-unsafely-without-email", acme)
         self.assertTrue(os.path.isfile(os.path.join(out, "host-units", "km-acme.timer")))
         with open(os.path.join(out, "stack.sh")) as f:
@@ -246,6 +247,7 @@ class TestRender(unittest.TestCase):
         with open(os.path.join(out, "kiwi", "acme.sh")) as f:
             acme = f.read()
         self.assertIn("--staging", acme)
+        self.assertNotIn("acme-staging", acme)
         self.assertIn("--email a@example.org", acme)
 
     def test_public_needs_a_master_and_a_public_name(self):

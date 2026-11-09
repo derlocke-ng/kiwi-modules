@@ -15,6 +15,12 @@ for _ in $(seq 1 30); do
 done
 
 for name in {{ public_names | join(' ') }}; do
+{% if not acme_staging %}
+    # certbot would keep a certificate from the test service until it expires
+    if grep -qs 'acme-staging' "$dir/letsencrypt/renewal/$name.conf"; then
+        rm -rf "$dir/letsencrypt/live/$name" "$dir/letsencrypt/archive/$name" "$dir/letsencrypt/renewal/$name.conf"
+    fi
+{% endif %}
     if ! "$rt" run --rm --network host \
         -v "$dir/letsencrypt:/etc/letsencrypt:z" -v "$dir/www:/var/www/acme:z" {{ acme_image }} \
         certonly --non-interactive --agree-tos --keep-until-expiring \
