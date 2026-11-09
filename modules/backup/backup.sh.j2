@@ -21,10 +21,12 @@ SERVICES[{{ s.name }}]="{{ s.services | join(' ') }}"
 NO_RESTORE[{{ s.name }}]="{{ s.no_restore }}"
 {% endfor %}
 
-# A server that hangs instead of refusing keeps restic waiting for as long as it hangs. That
-# costs the big files nothing. A database frozen meanwhile is down, so LIMIT bounds those calls.
+# A server that hangs instead of refusing keeps restic waiting for as long as it hangs. LIMIT
+# bounds that: a database frozen meanwhile is down, and a run that never ends blocks the next.
+# A first upload that needs longer than BULK_LIMIT goes on from where it was at the next run.
 FREEZE_LIMIT=30m
 ASK_LIMIT=3m
+BULK_LIMIT=20h
 
 restic() { # MOUNT... -- ARGUMENT...
     local mounts=()
@@ -104,7 +106,7 @@ backup() {
         done
         LIMIT=$FREEZE_LIMIT store "$m" frozen "${FROZEN[$m]}" || ok=0
         thaw
-        store "$m" bulk "${BULK[$m]}" || ok=0
+        LIMIT=$BULK_LIMIT store "$m" bulk "${BULK[$m]}" || ok=0
         (( ok )) || failed+=("$m")
     done
     if [[ -n ${failed[*]:-} ]]; then
