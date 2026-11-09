@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.0 — Tang
+
+- The module `tang` serves rings: one Tang server each, with keys of its own, on a port
+  of the host. kiwi-server's `unlock:` block binds a machine's disk to them. The rings'
+  keys are in the backup, since the machines bound to them need them.
+- `ghcr.io/derlocke-ng/tang:15-kiwi2`: a stopped ring is a clean exit, not a failed unit.
+- A bind mount with `each:` and `host:` makes one directory per key of a map, and one
+  `open_ports` entry can come out as several ports.
+
 ## 0.14.0 — backups of a machine's data
 
 - The module `backup` keeps a machine's data with restic, encrypted, on a node running

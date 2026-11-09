@@ -623,6 +623,32 @@ class TestRender(unittest.TestCase):
         self.assertNotIn(client["RESTIC_REST_PASSWORD"], read(out, "kn-backup-server/htpasswd"))
         self.assertIn("--private-repos --append-only", read(out, "docker-compose.yml"))
 
+    def tang_node(self, name, **settings):
+        node = {k: v for k, v in SH3["node"].items() if k in ("vpn_ip", "vpn-client", "reverse-proxy", "pub_iface")}
+        node["modules"] = ["vpn-client", "reverse-proxy", "tang"]
+        node.update(settings)
+        return self.render(name, dict(SH3, node=node))
+
+    def test_a_ring_is_a_server_with_a_port_and_keys_of_its_own(self):
+        out = self.tang_node("tang1", tang={"rings": {"infra": "7500", "emergency": "7501"}})
+        compose = read(out, "docker-compose.yml")
+        self.assertIn("kn-tang-infra:", compose)
+        self.assertIn("kn-tang-emergency:", compose)
+        self.assertIn("7501:7500", compose)
+        self.assertIn("/home/user/docker/kn-tang/emergency:/db:z", compose)
+        stack = read(out, "stack.sh")
+        self.assertIn("kn-tang/infra", stack)
+        self.assertIn("kn-tang/emergency", stack)
+        self.assertIn("7500/tcp", stack)
+        self.assertIn("7501/tcp", stack)
+
+    def test_the_infra_ring_is_the_default(self):
+        self.assertIn("kn-tang-infra:", read(self.tang_node("tang2"), "docker-compose.yml"))
+
+    def test_a_backup_keeps_the_rings_keys(self):
+        out = self.backup_node("tang3", modules=("tang",))
+        self.assertIn('BULK[tang]="/home/user/docker/kn-tang:/source/home/user/docker/kn-tang"', read(out, "kiwi/backup.sh"))
+
     def test_the_extra_containers_can_be_left_out(self):
         compose = read(self.apps_node("apps3", immich={"machine_learning": False}, paperless={"office_documents": False}),
                        "docker-compose.yml")
