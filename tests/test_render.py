@@ -236,5 +236,15 @@ class TestRender(unittest.TestCase):
         self.assertEqual(cli.main(["profiles"]), 0)
 
 
+class TestVersion(unittest.TestCase):
+    def test_manifest_package_and_changelog_agree(self):
+        with open(os.path.join(ROOT, "kiwi.manifest")) as f:
+            manifest = next(line.split("=", 1)[1].strip() for line in f if line.startswith("VERSION="))
+        with open(os.path.join(ROOT, "CHANGELOG.md")) as f:
+            changelog = next(line.split()[1] for line in f if line.startswith("## "))
+        self.assertEqual(VERSION, manifest)
+        self.assertEqual(VERSION, changelog)
+
+
 if __name__ == "__main__":
     unittest.main()

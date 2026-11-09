@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.1 — the package says the release
+
+- `lib/kiwimodules/__init__.py` still said 0.3.0 in the 0.4.0 release, whose
+  `kiwi.manifest` said 0.4.0, so the package reported the old number. Both
+  say 0.4.1 now; there is no other change from 0.4.0.
+- A test compares the manifest, the package and the changelog's top entry, so
+  a release cannot go out with them disagreeing.
+
 ## 0.4.0 — a hub and its relay
 
 - **`nostr-relay`**: strfry behind the reverse proxy at `relay.<hostname>`,
