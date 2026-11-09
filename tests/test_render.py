@@ -402,6 +402,22 @@ class TestRender(unittest.TestCase):
         self.assertNotEqual(cli.main(["render", self.write("badkey", dict(MACHINES["hub1"], master=master)),
                                       "-o", os.path.join(self.tmp, "bk.bundle")]), 0)
 
+    def test_a_gateway_lets_its_lan_clients_through(self):
+        out = self.render("gw1", MACHINES["m1"])
+        path = next(os.path.join(d, "gw.sh") for d, _s, files in os.walk(out) if "gw.sh" in files)
+        with open(path) as f:
+            text = f.read()
+        self.assertEqual(subprocess.run(["bash", "-n", path]).returncode, 0)
+        # both of these were refused by iptables at every start, and nobody saw
+        self.assertNotIn("--ctstatus", text)
+        self.assertNotRegex(text, r"! -s \S+ ! -s")
+        self.assertIn("-j KIWI_GW_NAT", text)
+        # firewalld refuses forwarded LAN traffic without a policy, and a reload must not untrust the stack
+        self.assertIn("--policy=kiwi-lan-gateway --set-target=ACCEPT", text)
+        self.assertLess(text.index('--permanent --zone=trusted --add-source="$DOCKER_SUBNET"'), text.index("firewall-cmd -q --reload"))
+        # the node's own mesh address goes straight to its proxy for a LAN client
+        self.assertRegex(text, r'-d "\$OWN_MESH_IP" -p tcp -m multiport --dports 80,443 -j DNAT --to-destination "\$PROXY_IP"')
+
     def test_an_exec_health_check_needs_no_shell(self):
         def health(test):
             unit, _env = quadlet.container_unit("s", {"image": "x", "healthcheck": {"test": test}}, {}, {"s": {}})
