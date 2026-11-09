@@ -1,13 +1,17 @@
 # Changelog
 
+## 0.4.2 — the package says the release
 
-## 0.4.1 — the package says the release
+- `lib/kiwimodules/__init__.py` still said 0.3.0 in the 0.4.0 and 0.4.1
+  releases, whose `kiwi.manifest` said otherwise, so the package reported the
+  old number. Both say 0.4.2 now; there is no other change from 0.4.1.
+- A test compares the manifest, the package and the changelog's top entry.
+- The release workflow's check that a new tag's version agrees everywhere
+  now reads `lib/*/__init__.py` and `VERSION` too; it only knew
+  `src/*/__init__.py` and `__version__`, so it passed both releases above.
 
-- `lib/kiwimodules/__init__.py` still said 0.3.0 in the 0.4.0 release, whose
-  `kiwi.manifest` said 0.4.0, so the package reported the old number. Both
-  say 0.4.1 now; there is no other change from 0.4.0.
-- A test compares the manifest, the package and the changelog's top entry, so
-  a release cannot go out with them disagreeing.
+## 0.4.1 — account-only mounts and a space's relays
+
 - **`hub`**: `account_mounts` (the mounts that ask for an account, a
   username and password for the key, not a key alone; anyone else is told
   why, registers or signs in, and comes back; no age is asked),
