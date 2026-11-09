@@ -3,7 +3,9 @@ under tests/golden/sh3 is kiwi-server's: the same machine, rendered from a
 fleet there and from a machine file here, must give the same bytes (the
 secrets derive from the same seed). Run: python3 -m unittest discover -s tests
 """
+import contextlib
 import difflib
+import io
 import json
 import os
 import shutil
@@ -499,6 +501,67 @@ class TestRender(unittest.TestCase):
         for path in ("/mnt/data/oc:/var/lib/opencloud", "/mnt/data/im:/data", "/mnt/data/pl/media:/usr/src/paperless/media",
                      "/mnt/scans:/usr/src/paperless/consume"):
             self.assertIn(path, compose)
+
+    def folders_data(self, **cloud):
+        return dict(SH3, node=dict(SH3["node"], cloud=dict(SH3["node"]["cloud"], **cloud)))
+
+    def folders_refusal(self, **cloud):
+        """What the renderer says about these settings; they must not render."""
+        out, err = os.path.join(self.tmp, "refused.bundle"), io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(cli.main(["render", self.write("refused", self.folders_data(**cloud)), "-o", out]), 1)
+        return err.getvalue()
+
+    def test_nextcloud_shows_folders_other_apps_can_use(self):
+        out = self.render("folders1", self.folders_data(shared_folders={"Photos": "/mnt/data/shared/Photos"},
+                                                        read_only_folders={"Archive": "/mnt/data/pl/archive"}))
+        compose = read(out, "docker-compose.yml")
+        self.assertIn("/mnt/data/shared/Photos:/mnt/data/shared/Photos:rw,z", compose)
+        self.assertIn("/mnt/data/pl/archive:/mnt/data/pl/archive:ro,z", compose)
+        script = read(out, "kiwi/cloud-folders.sh")
+        self.assertIn("folder Photos /mnt/data/shared/Photos false", script)
+        self.assertIn("folder Archive /mnt/data/pl/archive true", script)
+        self.assertIn("find /mnt/data/shared/Photos ", script)
+        self.assertNotIn("find /mnt/data/pl/archive", script)   # what another app owns stays its own
+        self.assertIn('files:scan --path="admin/files/Archive"', script)
+        self.assertNotIn('files:scan --path="admin/files/Photos"', script)
+        self.assertIn("kiwi/cloud-folders.sh", read(out, "host-units/kn-cloud-folders.service"))
+        for path in ("/mnt/data/shared/Photos", "/mnt/data/pl/archive"):
+            self.assertIn(path, read(out, "stack.sh"))      # made before a container mounts them
+
+    def test_without_shared_folders_there_is_no_unit(self):
+        out = self.render("folders2", SH3)
+        self.assertFalse(os.path.exists(os.path.join(out, "host-units", "kn-cloud-folders.service")))
+        self.assertFalse(os.path.exists(os.path.join(out, "kiwi", "cloud-folders.sh")))
+
+    def test_a_shared_folder_must_be_a_plain_name_and_path(self):
+        for bad in ({"shared_folders": {"a b": "/mnt/x"}}, {"shared_folders": {"Photos": "mnt/x"}},
+                    {"shared_folders": {"Photos": "/mnt/x;reboot"}}, {"read_only_folders": {"$(id)": "/mnt/x"}}):
+            self.assertIn("is not a valid", self.folders_refusal(**bad))
+
+    def test_a_name_cannot_be_two_shared_folders(self):
+        self.assertIn("read_only_folders too", self.folders_refusal(shared_folders={"A": "/mnt/a"},
+                                                                    read_only_folders={"A": "/mnt/b"}))
+
+    def test_the_data_directory_is_not_a_shared_folder(self):
+        self.assertIn("must not hold the data directory",
+                      self.folders_refusal(nextcloud_datadir="/mnt/nc", shared_folders={"A": "/mnt/nc"}))
+
+    def test_immich_only_reads_a_folder_another_app_holds(self):
+        out = self.apps_node("apps5", immich={"external_dirs": ["/mnt/data/shared/Photos"]})
+        self.assertIn("/mnt/data/shared/Photos:/mnt/data/shared/Photos:ro,z", read(out, "docker-compose.yml"))
+        self.assertIn("/mnt/data/shared/Photos", read(out, "stack.sh"))
+
+    def test_paperless_can_share_an_owner_and_name_its_files(self):
+        compose = read(self.apps_node("apps6"), "docker-compose.yml")
+        self.assertIn("USERMAP_UID=1000", compose)
+        self.assertNotIn("PAPERLESS_FILENAME_FORMAT", compose)
+        out = self.apps_node("apps7", paperless={"user_id": 33, "filename_format": "{{created_year}}/{{title}}"})
+        compose = read(out, "docker-compose.yml")
+        self.assertIn("USERMAP_UID=33", compose)
+        self.assertIn("USERMAP_GID=33", compose)
+        self.assertIn("PAPERLESS_FILENAME_FORMAT={{created_year}}/{{title}}", compose)
+        self.assertIn("{{created_year}}/{{title}}", read(out, "quadlets/kn-paperless.container"))
 
     def test_the_extra_containers_can_be_left_out(self):
         compose = read(self.apps_node("apps3", immich={"machine_learning": False}, paperless={"office_documents": False}),

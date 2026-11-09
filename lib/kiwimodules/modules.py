@@ -754,6 +754,11 @@ class Renderer:
                                 data, int(out.get("mode", 0o600)))
             # directories, ports, host integration
             for bm in mod.bind_mounts:
+                if bm.get("each"):      # one directory per value of a list or map setting
+                    values = ctx.get(str(bm["each"])) or []
+                    for v in values.values() if isinstance(values, dict) else values:
+                        bundle.add_dir(str(v))
+                    continue
                 host = str(bm.get("host") or "")
                 if not host or bm.get("type", "dir") != "dir":
                     continue
