@@ -642,6 +642,38 @@ class TestRender(unittest.TestCase):
         self.assertIn("7500/tcp", stack)
         self.assertIn("7501/tcp", stack)
 
+    def test_the_mesh_reaches_a_ring_through_the_hosts_port(self):
+        rules = read(self.tang_node("tang4", tang={"rings": {"infra": "7500", "b": "7501"}}), "kn-vpn-client/post-rules.txt")
+        self.assertIn("-d 10.8.0.25 -p tcp -m multiport --dports 7500,7501 -j DNAT --to-destination 172.128.0.1", rules)
+        self.assertIn("-i tun0 -m conntrack --ctstate DNAT -j ACCEPT", rules)
+
+    def relay_master(self, name, **vpn):
+        data = json.loads(json.dumps(MACHINES["gate"]))
+        data["master"]["vpn-server"].update(vpn)
+        return self.render(name, data)
+
+    def test_a_master_relays_a_ring_only_past_its_gate(self):
+        out = self.relay_master("relay1", unlock_relay={"7500": "10.8.0.25:7500"})
+        script = read(out, "km-vpn-server/start.sh")
+        self.assertIn("-t nat -A PREROUTING -i eth0 -p tcp --dport 7500 -j DNAT --to-destination 10.8.0.25:7500", script)
+        self.assertIn("wg show wg0 endpoints", script)
+        # the gate and its DROP come before wg-easy's accept of everything towards wg0
+        self.assertLess(script.index("-j KIWI_RELAY"), script.index("iptables -A FORWARD -o wg0 -j ACCEPT"))
+        self.assertLess(script.index("--ctstate NEW -j DROP"), script.index("iptables -A FORWARD -o wg0 -j ACCEPT"))
+        self.assertIn("7500:7500/tcp", read(out, "docker-compose.yml"))
+        self.assertIn("7500/tcp", read(out, "stack.sh"))
+
+    def test_a_master_without_a_relay_stays_as_it_was(self):
+        out = self.relay_master("relay2")
+        self.assertNotIn("KIWI_RELAY", read(out, "km-vpn-server/start.sh"))
+
+    def test_a_relay_needs_a_mesh_address_and_port(self):
+        data = json.loads(json.dumps(MACHINES["gate"]))
+        data["master"]["vpn-server"]["unlock_relay"] = {"7500": "papaya:7500"}
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            self.assertEqual(cli.main(["render", self.write("relay3", data), "-o", os.path.join(self.tmp, "relay3.bundle")]), 1)
+        self.assertIn("is not a valid value", err.getvalue())
+
     def test_the_infra_ring_is_the_default(self):
         self.assertIn("kn-tang-infra:", read(self.tang_node("tang2"), "docker-compose.yml"))
 
