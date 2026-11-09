@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0 — service passwords no longer have to be written down
+
+- **`wg_password`, `pihole_password`, `transmission_password`, `sftp_password`,
+  the cloud's and Portainer's `admin_password` are generated when left empty**,
+  from the fleet's seed like the cloud's database secrets, the same at every
+  render. A value that is set is used as before.
+- Portainer left empty used to wait on its first-run page; it now starts with a
+  generated password.
+- Removing a value from a running machine's settings changes that password.
+  Nextcloud's and Portainer's are only read at their first start, so on a
+  machine already set up the password stays what it was.
+
 ## 0.4.3 — two things a boot got wrong
 
 - **`vpn-client`** sets `net.ipv4.ip_forward=1` itself. A new network

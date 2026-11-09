@@ -11,7 +11,6 @@ role: node
 node:
   preset: cloud
   cloud:
-    admin_password: change-me
     collabora: true
     talk: true
   reverse-proxy:
