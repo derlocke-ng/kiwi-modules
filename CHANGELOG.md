@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.0 — local traffic stays local
+
+- A node's Pi-hole and hosts file answer with the LAN address of nodes on its own
+  LAN (`lan_addresses`, mesh address to LAN address). A client at home opening
+  `cloud.<node>.home` went through the tunnel to the master and back; now it goes
+  across the switch. Mesh clients still ask the master's Pi-hole and get mesh addresses.
+
 ## 0.9.1 — a gateway that works, a health check without a shell
 
 - **The `gateway` module works for LAN clients.** Two of its rules were invalid and
