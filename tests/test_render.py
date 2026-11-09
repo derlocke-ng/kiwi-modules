@@ -582,10 +582,15 @@ class TestRender(unittest.TestCase):
         self.assertIn('EXCLUDE[paperless]="/source/home/user/docker/kn-paperless/data/log"', script)
         self.assertIn('SERVICES[vault]="kn-vault"', script)
 
-    def test_a_backup_keeps_the_certificates(self):
-        script = read(self.backup_node("backup9"), "kiwi/backup.sh")
-        self.assertIn("/home/user/docker/kn-nginx/letsencrypt:/source/home/user/docker/kn-nginx/letsencrypt", script)
-        self.assertIn('SERVICES[reverse-proxy]="kn-nginx"', script)
+    def test_a_backup_keeps_the_certificates_of_a_public_site(self):
+        host = self.public_hub()
+        host["master"]["modules"] = [*host["master"]["modules"], "backup"]
+        host["master"]["backup"] = {"server": "https://backup.lychee.home"}
+        script = read(self.render("backup9", host), "kiwi/backup.sh")
+        self.assertIn("/home/user/docker/km-nginx/letsencrypt:/source/home/user/docker/km-nginx/letsencrypt", script)
+        self.assertIn('SERVICES[reverse-proxy]="km-nginx"', script)
+        # a machine without public names has none to keep, and the backup would say so every night
+        self.assertNotIn("letsencrypt", read(self.backup_node("backup8"), "kiwi/backup.sh"))
 
     def test_a_backup_leaves_out_what_is_not_set_here(self):
         out = self.backup_node("backup2", modules=("sftp",), sftp={"sftp_password": "x"})
