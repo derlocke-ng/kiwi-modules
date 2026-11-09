@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.16.0 — the relay
+
+- `vpn-server.unlock_relay` lets a machine that cannot reach its Tang ring at boot ask
+  the master's public port instead. The packet goes on into the mesh in netfilter, with
+  no process on the master that could learn anything. A gate lets through only the
+  addresses enrolled machines last connected from, rate limited, so a box carried off
+  elsewhere is dropped first; it is rebuilt from `wg show` every 30 seconds.
+- The `tang` module's rings are reachable at the node's mesh address too.
+
 ## 0.15.0 — Tang
 
 - The module `tang` serves rings: one Tang server each, with keys of its own, on a port
