@@ -3,7 +3,7 @@ schema_version: "1.0"
 module:
   name: hub
   title: Hub (kiwi-framework)
-  version: 1.0.0
+  version: 1.1.0
   description: "A hub built on kiwi-framework (Armory, or your fork) as a container behind the reverse proxy at hub.<hostname>: its relays, policy and public area set here, so a private hub inside the VPN, a semi-public one with a public chat, or a public one come from the same image"
   category: productivity
   node_types: [node, master]
@@ -32,6 +32,7 @@ derived:
 validate:
   - { when: "not relays_effective", error: "name relays, or run the nostr-relay module on this host" }
   - { when: "public_mounts and not public_relays", error: "public_mounts need public_relays" }
+  - { when: "space_relays and (space_relays | join(' ')).count('=') < (space_relays | length)", error: "space_relays: one <space id>=<relays> per line" }
 
 urls:
   - "Hub: https://{{ hub_host }}"
@@ -76,6 +77,22 @@ settings:
     type: list
     label: Public area mounts
     help: "The mounts (by id, e.g. uplink) on the public relays. Everything else stays on the hub's own relays."
+    default: []
+  - key: account_mounts
+    type: list
+    label: Mounts that ask for an account
+    help: "The mounts (by id, e.g. tradingpost) for people with an account on this hub: a username and password for their key, not a key alone. Anyone else is told why and sent to sign in or register, then back. No age or identity is asked. Empty: the distribution's own choice."
+    default: []
+  - key: require_account
+    type: bool
+    group: Advanced
+    label: Every mount asks for an account
+    default: false
+  - key: space_relays
+    type: list
+    group: Advanced
+    label: A space's own relays
+    help: "One line per space: <space id>=wss://a,wss://b. A mount on that space reads and writes there and nowhere else. Empty after the '=': the space's mount's network."
     default: []
   - key: user_mounts
     type: bool

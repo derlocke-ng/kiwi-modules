@@ -11,6 +11,16 @@ services:
       - HUB_RELAYS_LOCKED={{ 'true' if relays_locked else 'false' }}
       - HUB_REQUIRE_HUB={{ 'true' if require_hub else 'false' }}
       - HUB_USER_MOUNTS={{ 'true' if user_mounts else 'false' }}
+{# only what the host says: unset, the distribution's own account-only mounts stand #}
+{% if account_mounts %}
+      - HUB_ACCOUNT_MOUNTS={{ account_mounts | join(',') }}
+{% endif %}
+{% if require_account %}
+      - HUB_REQUIRE_ACCOUNT=true
+{% endif %}
+{% if space_relays %}
+      - HUB_SPACE_RELAYS={{ space_relays | join(';') }}
+{% endif %}
     networks:
       {{ network_name }}:
         ipv4_address: {{ container_ip }}

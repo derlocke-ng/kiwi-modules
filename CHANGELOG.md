@@ -1,5 +1,6 @@
 # Changelog
 
+
 ## 0.4.1 — the package says the release
 
 - `lib/kiwimodules/__init__.py` still said 0.3.0 in the 0.4.0 release, whose
@@ -7,6 +8,13 @@
   say 0.4.1 now; there is no other change from 0.4.0.
 - A test compares the manifest, the package and the changelog's top entry, so
   a release cannot go out with them disagreeing.
+- **`hub`**: `account_mounts` (the mounts that ask for an account, a
+  username and password for the key, not a key alone; anyone else is told
+  why, registers or signs in, and comes back; no age is asked),
+  `require_account` (every mount), and `space_relays` (`<space id>=<relays>`
+  per line: a space's own relays, the network its mount reads and writes).
+  They become `HUB_ACCOUNT_MOUNTS`, `HUB_REQUIRE_ACCOUNT` and
+  `HUB_SPACE_RELAYS` for kiwi-framework 0.19's container.
 
 ## 0.4.0 — a hub and its relay
 
