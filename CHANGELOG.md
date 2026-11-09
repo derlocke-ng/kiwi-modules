@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.11.0 — a calendar's way to Nextcloud
+
+- **`hub.caldav`**: the hub forwards `/remote.php/dav/` to a Nextcloud, so its calendar
+  needs no CORS. That path answers the mesh only, on a public hub too: it is the login
+  of a private Nextcloud.
+- **`cloud.cors_origins`**: hubs on other addresses (Armory on GitHub Pages) may use
+  CalDAV from the browser. nginx answers only real CORS preflights itself; a DAV
+  client's own `OPTIONS` still reaches Nextcloud, because DAVx5 and others read the
+  `DAV:` header from it.
+- A master's containers and host can reach the mesh: the masquerade was there, but the
+  rule keeping mesh clients off the container network dropped the answers too.
+- **Nextcloud sees who its clients are.** It recorded every client as `127.0.0.1`, so
+  brute-force protection counted nothing and its logs named nobody. AIO's Caddy replaces
+  `X-Forwarded-For` from a proxy outside private address space, which the stack network
+  is, so Nextcloud now reads `X-Real-IP`. And the gateway's masquerade no longer hides LAN
+  clients of published ports behind the bridge address.
+- `pattern` on a list setting now checks every item.
+
 ## 0.10.0 — local traffic stays local
 
 - A node's Pi-hole and hosts file answer with the LAN address of nodes on its own
