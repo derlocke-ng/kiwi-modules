@@ -1,34 +1,34 @@
-# A hub node: a nostr relay and a hub built on kiwi-framework (Armory, or a
-# fork of it), both behind nginx, behind the VPN client. As it comes this is
-# a private hub: its relay is reachable through the mesh only, the hub's
-# relays are fixed, and its pages wait while the relay is away. Render:
+# A hub on a master: a nostr relay and a hub built on kiwi-framework (Armory,
+# or a fork of it), both behind nginx in the WireGuard server's namespace. As
+# it comes this is a private hub: its relay is reachable through the mesh only,
+# the hub's relays are fixed, and its pages wait while the relay is away.
+# Render:
 #   kiwi-modules render examples/hub.yaml -o hub.bundle
-name: hub1
+name: gate
 domain: home
-target: ucore
+target: debian
 timezone: Europe/Berlin
-admin: { user: core }
-role: node
-node:
-  preset: hub
-  vpn_ip: 10.8.0.30
+admin: { user: admin }
+role: master
+master:
+  modules: [vpn-client, vpn-server, dns, tor, reverse-proxy, nostr-relay, hub]
+  vpn-client:
+    vpn_provider: mullvad
+    wireguard_private_key: "<from the provider's WireGuard config>"
+    wireguard_addresses: 10.66.1.2/32
+    server_countries: Germany
+  vpn-server:
+    wg_host: vpn.example.org     # what the clients connect to
   nostr-relay:
     relay_name: Acme relay
     relay_contact: admin@acme.example
   hub:
     image: ghcr.io/derlocke-ng/armory:latest
     # a semi-public hub: the chat (Armory mounts it as uplink) on public relays, so the
-    # people inside talk to outsiders there; everything else stays on the node's relay
+    # people inside talk to outsiders there; everything else stays on this relay
     public_relays: [wss://nos.lol, wss://relay.damus.io]
     public_mounts: [uplink]
   reverse-proxy:
-    tls_fullchain: secrets/hub1-fullchain.pem
-    tls_privkey: secrets/hub1-privkey.pem
-dns_records:
-  - [10.8.0.1, gate.home]
-  - [10.8.0.30, hub1.home]
-  - [10.8.0.30, hub.hub1.home]
-  - [10.8.0.30, relay.hub1.home]
-master_ip: 10.8.0.1
-ca_cert: ca.pem
+    tls_fullchain: secrets/gate-fullchain.pem
+    tls_privkey: secrets/gate-privkey.pem
 seed: secrets/seed

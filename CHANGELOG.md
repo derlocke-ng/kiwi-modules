@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0 — hubs live on masters
+
+- **`hub` and `nostr-relay` are for masters now.** A hub may be public, and a
+  master is the machine made to face the internet; a node publishes its
+  services on its LAN. The node role's `hub` preset is gone: a master lists
+  them in its `modules:`. `examples/hub.yaml` shows one.
+- Run on a test master: a device on the mesh gets the hub's page and config, the
+  relay's NIP-11 document and a websocket, with the fleet CA verifying.
+
 ## 0.5.0 — service passwords no longer have to be written down
 
 - **`wg_password`, `pihole_password`, `transmission_password`, `sftp_password`,
