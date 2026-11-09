@@ -10,5 +10,5 @@ fi
 # not exec: as PID 1 tangd would ignore the signal that stops the container
 setpriv --reuid=tang --regid=tang --clear-groups /usr/libexec/tangd -l -p "$PORT" /db &
 tangd=$!
-trap 'kill "$tangd"' TERM INT
+trap 'kill "$tangd"; wait "$tangd"; exit 0' TERM INT
 wait "$tangd"
