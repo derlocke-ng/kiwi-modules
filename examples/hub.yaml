@@ -11,6 +11,8 @@ timezone: Europe/Berlin
 admin: { user: admin }
 role: master
 master:
+  # add turn for the chat's calls between strict networks (two phones on mobile data): coturn on this
+  # machine's public address, 3478 and 49160-49200/udp opened, named to the hub's pages by itself
   modules: [vpn-client, vpn-server, dns, tor, reverse-proxy, nostr-relay, hub]
   vpn-client:
     vpn_provider: mullvad

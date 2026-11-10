@@ -95,6 +95,12 @@ the people inside talk to outsiders); `relays` naming public relays and
 `relays_locked: false` make a public hub. `examples/hub.yaml` is the
 semi-public one.
 
+The hub's chat has voice and video calls, sent straight between the browsers. Two phones on
+mobile data often find no direct path; the `turn` module (coturn on the master's public address,
+3478 and a small UDP range opened) gets those calls through, and the `hub` module names it to its
+pages by itself. Its name is the WireGuard server's public endpoint unless `turn_domain` says
+otherwise; it needs a public DNS record.
+
 Three applications can be added to a node's `modules:`, each at its own name behind the
 reverse proxy: `opencloud` (files and sharing), `immich` (photos; `machine_learning: false`
 leaves out the container that wants the most memory) and `paperless` (scanned documents
