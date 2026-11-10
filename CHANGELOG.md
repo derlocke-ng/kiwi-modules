@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.22.0 — what shares a network comes back with it
+
+- A container in another's network (Pi-hole, Tor and nginx in the VPN server's or client's)
+  is bound to it and wanted by it. With Requires it stayed stopped when the VPN came back after
+  a stop, and after a crash it ran on in the old, dead namespace, cut off and looking healthy.
+  The master's public sites were down until someone ran `kiwi-stack start`.
+
 ## 0.21.0 — a rebuilt machine does not back up its empty self
 
 - A machine that has made no backup but finds snapshots of itself on the server holds its
