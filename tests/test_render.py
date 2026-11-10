@@ -573,6 +573,16 @@ class TestRender(unittest.TestCase):
         node.update(settings)
         return self.render(name, dict(SH3, node=node))
 
+    def test_a_container_in_anothers_network_lives_and_dies_with_it(self):
+        from kiwimodules import quadlet
+        text, _ = quadlet.container_unit("km-nginx", {"image": "nginx:1", "network_mode": "service:km-vpn-server", "restart": "always"},
+                                         {}, {"km-nginx": {}, "km-vpn-server": {}})
+        self.assertIn("BindsTo=km-vpn-server.service", text)
+        self.assertNotIn("Requires=km-vpn-server.service", text)
+        install = text.split("[Install]", 1)[1]
+        self.assertIn("WantedBy=kiwi-stack.target", install)
+        self.assertIn("WantedBy=km-vpn-server.service", install)       # its start brings this one back
+
     def test_a_backup_holds_what_the_modules_declare(self):
         script = read(self.backup_node("backup1"), "kiwi/backup.sh")
         self.assertIn('FREEZE[vault]="kn-vault"', script)
