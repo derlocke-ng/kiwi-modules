@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.21.0 — a rebuilt machine does not back up its empty self
+
+- A machine that has made no backup but finds snapshots of itself on the server holds its
+  backups until `kiwi-stack restore` or `kiwi-stack backup --new`. A rebuilt master backed up its
+  fresh, empty state during its first apply, so `restore` put that back instead of the data, and
+  the next prune would have kept only it of that day. The timer skips while it is held.
+
 ## 0.20.0 — a full disk costs one module
 
 - A repository that could not take a frozen database ends the run. A full disk still answers,
