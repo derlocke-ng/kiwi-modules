@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.24.0 — a hub's calls get through
+
+- A `turn` module: coturn on a master, for the voice and video calls in a hub's chat (kiwi-framework
+  0.31). Two browsers send their calls straight to each other; where two networks allow no direct
+  path (two phones on mobile data, a strict firewall) only a TURN server gets a call through. It
+  relays the browsers' encrypted media (DTLS-SRTP) and cannot hear them.
+- It runs in the host's own network, so it answers on the host's address and relays from a range
+  of the host's UDP ports (`relay_ports`, 49160-49200 by default; one or two per call), past the
+  WireGuard server's double hop, which is for the mesh's own traffic. 3478 UDP and TCP and the range
+  are opened in the host's firewall. Behind a router, `external_ip` names the public address.
+- One login, `username` and a `password` generated from the fleet's seed. The hub's pages are given
+  it, so it is a login for this server alone; `user_quota` limits the calls at once.
+- It never relays into the machine's own networks: the private and loopback ranges, the mesh, and
+  the stack's container network (172.64.0.0/24 by default, which is no private range) are denied.
+- The `hub` module names it to its pages by itself when both run on the host (`HUB_ICE`,
+  `HUB_ICE_USERNAME`, `HUB_ICE_CREDENTIAL`; the password goes to the env file, not the unit), at
+  the WireGuard server's public endpoint or the module's `turn_domain`. A TURN server elsewhere is
+  `hub.ice`, `ice_username` and `ice_credential`.
+
 ## 0.23.0 — a restore from before
 
 - `kiwi-stack restore --at TIME MODULE...` puts back the newest snapshot of each module made at

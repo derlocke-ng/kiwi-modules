@@ -423,6 +423,88 @@ class TestRender(unittest.TestCase):
         node["cloud"] = dict(node["cloud"], **cloud)
         return dict(SH3, node=node)
 
+    def turn_hub(self, hub=None, **turn):
+        """hub1 with the turn module, its settings `turn`, and the hub's own settings changed by `hub`."""
+        master = dict(MACHINES["hub1"]["master"])
+        master["modules"] = master["modules"] + ["turn"]
+        if turn:
+            master["turn"] = turn
+        if hub:
+            master["hub"] = dict(master["hub"], **hub)
+        return dict(MACHINES["hub1"], master=master)
+
+    def test_a_turn_server_relays_the_hubs_calls_from_the_hosts_own_address(self):
+        out = self.render("turn1", self.turn_hub())
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            services = yaml.safe_load(f)["services"]
+        self.assertEqual(services["km-turn"]["network_mode"], "host", "the host's address and ports, past the mesh's double hop")
+        self.assertTrue(services["km-turn"]["image"].startswith("docker.io/coturn/coturn:"))
+        conf = read(out, "km-turn/turnserver.conf")
+        password = re.search(r"^user=kiwi:(\S+)$", conf, re.M).group(1)
+        self.assertEqual(len(password), 32, "generated from the seed")
+        self.assertIn("realm=vpn.example.org", conf, "the WireGuard server's public endpoint names it")
+        self.assertIn("listening-port=3478", conf)
+        self.assertIn("min-port=49160", conf)
+        self.assertIn("max-port=49200", conf)
+        self.assertNotIn("external-ip", conf)
+        # never a way into the machine's own networks: the private ranges, the mesh, and the stack's own network
+        for r in ("10.0.0.0-10.255.255.255", "127.0.0.0-127.255.255.255", "172.16.0.0-172.31.255.255",
+                  "192.168.0.0-192.168.255.255", "100.64.0.0-100.127.255.255", "172.64.0.0-172.64.0.255"):
+            self.assertIn("denied-peer-ip=%s\n" % r, conf)
+        self.assertEqual(oct(os.stat(os.path.join(out, "km-turn", "turnserver.conf")).st_mode & 0o777), "0o644")
+        stack = read(out, "stack.sh")
+        for port in ("3478/udp", "3478/tcp", "49160-49200/udp"):
+            self.assertIn("'%s'" % port, stack)
+        # the hub on the same host names it to its pages, the password kept out of the unit
+        env = services["km-hub"]["environment"]
+        self.assertIn("HUB_ICE=stun:vpn.example.org:3478 turn:vpn.example.org:3478?transport=udp turn:vpn.example.org:3478?transport=tcp", env)
+        self.assertIn("HUB_ICE_USERNAME=kiwi", env)
+        self.assertIn("HUB_ICE_CREDENTIAL=" + password, env)
+        self.assertNotIn(password, read(out, "quadlets/km-hub.container"))
+        self.assertIn("HUB_ICE_CREDENTIAL=" + password, read(out, "kiwi/env/km-hub.env"))
+        # a name of its own, behind a router, other ports
+        out = self.render("turn2", self.turn_hub(turn_domain="turn.example.org", external_ip="203.0.113.7", port=3479,
+                                                 relay_ports="50000-50100", username="calls"))
+        conf = read(out, "km-turn/turnserver.conf")
+        self.assertIn("external-ip=203.0.113.7", conf)
+        self.assertIn("realm=turn.example.org", conf)
+        self.assertIn("listening-port=3479", conf)
+        self.assertIn("min-port=50000", conf)
+        self.assertRegex(conf, r"(?m)^user=calls:\S+$")
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            env = yaml.safe_load(f)["services"]["km-hub"]["environment"]
+        self.assertIn("HUB_ICE=stun:turn.example.org:3479 turn:turn.example.org:3479?transport=udp turn:turn.example.org:3479?transport=tcp", env)
+        self.assertIn("HUB_ICE_USERNAME=calls", env)
+
+    def test_a_turn_server_takes_a_port_range_it_can_use(self):
+        for turn in ({"relay_ports": "100-200"}, {"relay_ports": "50000-49000"}, {"relay_ports": "40000-50000"},
+                     {"port": 49170}, {"relay_ports": "49160"}, {"external_ip": "turn.example.org"}):
+            name = "turnbad-%d" % len(os.listdir(self.tmp))
+            self.assertNotEqual(cli.main(["render", self.write(name, self.turn_hub(**turn)), "-o", os.path.join(self.tmp, name + ".bundle")]),
+                                0, turn)
+
+    def test_a_turn_server_runs_on_a_master_only(self):
+        node = dict(MACHINES["min"], node=dict(MACHINES["min"]["node"], modules=["vpn-client", "reverse-proxy", "turn"]))
+        self.assertNotEqual(cli.main(["render", self.write("turnnode", node), "-o", os.path.join(self.tmp, "turnnode.bundle")]), 0)
+
+    def test_a_hub_names_servers_for_calls_elsewhere_or_none(self):
+        master = dict(MACHINES["hub1"]["master"], hub=dict(MACHINES["hub1"]["master"]["hub"], ice=["turn:turn.example.org:3478?transport=udp"],
+                                                            ice_username="hub1", ice_credential="a-turn-login-for-hub1"))
+        out = self.render("ice1", dict(MACHINES["hub1"], master=master))
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            env = yaml.safe_load(f)["services"]["km-hub"]["environment"]
+        self.assertIn("HUB_ICE=turn:turn.example.org:3478?transport=udp", env)
+        self.assertIn("HUB_ICE_USERNAME=hub1", env)
+        self.assertNotIn("a-turn-login-for-hub1", read(out, "quadlets/km-hub.container"))
+        # nothing named and no turn module: nothing passed, the distribution's public STUN stands
+        out = self.render("ice2", MACHINES["hub1"])
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            env = yaml.safe_load(f)["services"]["km-hub"]["environment"]
+        self.assertFalse([e for e in env if e.startswith("HUB_ICE")])
+        # what is no STUN or TURN address is refused
+        bad = dict(MACHINES["hub1"], master=dict(master, hub=dict(master["hub"], ice=["https://turn.example.org"])))
+        self.assertNotEqual(cli.main(["render", self.write("ice3", bad), "-o", os.path.join(self.tmp, "ice3.bundle")]), 0)
+
     def test_the_hub_forwards_the_calendar_to_the_mesh_only(self):
         out = self.render("cal1", self.hub_with("cal1", caldav="https://cloud.sh3.home"))
         self.assertIn("HUB_CALDAV=https://cloud.sh3.home", read(out, "docker-compose.yml"))
