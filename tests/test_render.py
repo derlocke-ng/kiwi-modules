@@ -699,7 +699,10 @@ class TestRender(unittest.TestCase):
         script = read(out, "kiwi/backup.sh")
         self.assertIn('touch "$DIR/restored"', script)         # a restore lets a rebuilt machine back up again
         self.assertIn("kiwi-stack backup --new", script)
-        self.assertIn("Restart=on-failure", read(out, "host-units/kn-backup.service"))
+        unit = read(out, "host-units/kn-backup.service")
+        self.assertIn("Restart=on-failure", unit)
+        self.assertIn("StartLimitIntervalSec=0", unit)          # applies restart it; a limit kept the night out
+        self.assertNotIn("kiwi-stack start", read(out, "kiwi/backup.sh"))   # it would restart this very unit
 
     def test_a_backup_needs_a_server_it_can_name(self):
         data = dict(SH3, node=dict(SH3["node"], modules=["vpn-client", "reverse-proxy", "backup"],
@@ -776,7 +779,7 @@ class TestRender(unittest.TestCase):
 
     def test_a_restore_brings_back_what_shares_a_network(self):
         script = read(self.backup_node("norestore2"), "kiwi/backup.sh")
-        self.assertIn("/usr/local/bin/kiwi-stack start", script)
+        self.assertIn("systemctl start kiwi-stack.target", script)    # not kiwi-stack start: it restarts this unit
 
     def test_a_relay_needs_a_mesh_address_and_port(self):
         data = json.loads(json.dumps(MACHINES["gate"]))

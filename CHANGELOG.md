@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.24.1 — the automatic restore finishes
+
+- A restore brings the stack up with its target (or `docker compose up`) instead of
+  `kiwi-stack start`, which restarts the host units too: the automatic restore runs in
+  kn-backup.service, killed itself half way and began again until the start limit stopped it.
+- kn-backup.service has no start limit: every apply restarts it, and the limit of 0.24.0
+  counted those and kept the night's run from starting. Its retries back off instead, from
+  an hour to at most eight.
+
 ## 0.24.0 — two copies, and a rebuilt machine brings itself back
 
 - `backup.servers`: a machine backs up to each server in the list, a full copy of its own on
