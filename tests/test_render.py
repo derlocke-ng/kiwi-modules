@@ -586,14 +586,64 @@ class TestRender(unittest.TestCase):
         def pick(when):
             prog = "set -uo pipefail\nHOST=h\nASK_LIMIT=3m\nrestic() { cat <<'J'\n%s\nJ\n}\n%s\nsnapshot_at vault frozen $(date -d '%s' +%%s%%N)" % (listing, func, when)
             r = subprocess.run(["bash", "-c", prog], capture_output=True, text=True)
-            return r.stdout.strip(), r.returncode
+            return (r.stdout.split() or [""])[-1], r.returncode       # "NANOSECONDS SHORT-ID"
         self.assertEqual(pick("2026-11-10T09:10:00Z"), ("cccccccc", 0))   # 10:06+01:00 is 09:06Z
         self.assertEqual(pick("2026-11-10T09:00:00Z"), ("bbbbbbbb", 0))
         self.assertEqual(pick("2026-11-10T08:44:17Z"), ("aaaaaaaa", 0))   # not the one half a second later
         self.assertEqual(pick("2026-11-09T21:05:00.123456789Z"), ("aaaaaaaa", 0))   # at the moment itself
         self.assertEqual(pick("2026-11-09T21:05:00Z"), ("", 1))          # nothing that old
-        self.assertIn('restore "$snap"', script)
+        self.assertIn('restore "$5" --target /restore --delete', script)
         self.assertIn('"${tags[@]}"', script)                             # snapshots MODULE...
+
+    def test_a_machine_backs_up_to_each_of_its_servers(self):
+        out = self.backup_node("backup6", backup={"servers": ["https://backup.lychee.home", "https://backup.papaya.home"],
+                                                  "server": "https://backup.lychee.home"})
+        script = read(out, "kiwi/backup.sh")
+        self.assertIn("TARGETS=(https://backup.lychee.home https://backup.papaya.home)", script)   # once each
+        self.assertIn("AUTO_RESTORE=yes", script)
+        self.assertIn('-r "rest:$TARGET/$HOST/"', script)
+        self.assertIn("backup.lychee.home, https://backup.papaya.home", read(out, "host-units/kn-backup.service"))
+        env = read(out, "kiwi/backup/restic.env")
+        self.assertTrue(env.startswith("RESTIC_REPOSITORY=rest:https://backup.lychee.home/"), env[:60])
+        held = self.backup_node("backup5", backup={"server": "https://backup.lychee.home", "restore": "hold"})
+        self.assertIn("AUTO_RESTORE=no", read(held, "kiwi/backup.sh"))
+        node = {k: v for k, v in SH3["node"].items() if k in ("vpn_ip", "vpn-client", "reverse-proxy", "pub_iface")}
+        node.update(modules=["vpn-client", "reverse-proxy", "vault", "backup"], backup={})
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            rc = cli.main(["render", self.write("backup4", dict(SH3, node=node)), "-o", os.path.join(self.tmp, "b4")])
+        self.assertNotEqual(rc, 0)
+        self.assertRegex(err.getvalue(), "servers or .*server is required")
+
+    def test_a_restore_takes_the_freshest_copy_of_any_server(self):
+        script = read(self.backup_node("backup3", backup={"servers": ["https://a.home", "https://b.home"]}), "kiwi/backup.sh")
+        funcs = "\n".join(re.search(r"^%s\(\) \{.*?^\}$" % f, script, re.S | re.M).group(0) for f in ("snapshot_at", "freshest"))
+
+        def listing(*snaps):
+            return json.dumps([{"time": t, "hostname": "h", "id": i * 8, "short_id": i * 8} for t, i in snaps])
+        a = listing(("2026-11-10T08:00:00Z", "a"), ("2026-11-10T09:00:00Z", "b"))
+        b = listing(("2026-11-10T08:30:00Z", "c"))           # b missed the night's second run
+        prog = ("set -uo pipefail\nHOST=h\nASK_LIMIT=3m\nTARGETS=(https://a.home https://b.home)\n"
+                "restic() { if [[ $TARGET == https://a.home ]]; then echo '%s'; else echo '%s'; fi; }\n%s\n"
+                "freshest m frozen $(date -d \"$1\" +%%s%%N)" % (a, b, funcs))
+
+        def pick(when):
+            return subprocess.run(["bash", "-c", prog, "x", when], capture_output=True, text=True).stdout.strip()
+        self.assertEqual(pick("2026-11-10T10:00:00Z"), "https://a.home bbbbbbbb")
+        self.assertEqual(pick("2026-11-10T08:45:00Z"), "https://b.home cccccccc")
+        self.assertEqual(pick("2026-11-10T07:00:00Z"), "")
+
+    def test_a_commercial_exit_that_stays_unhealthy_is_started_anew(self):
+        text, _ = quadlet.container_unit("km-vpn-client", {
+            "image": "gluetun:3", "restart": "unless-stopped", "x-kiwi-health-on-failure": "kill",
+            "healthcheck": {"test": ["CMD", "/gluetun-entrypoint", "healthcheck"], "interval": "60s", "retries": 5}},
+            {}, {"km-vpn-client": {}})
+        self.assertIn('HealthCmd=["/gluetun-entrypoint","healthcheck"]', text)
+        self.assertIn("HealthOnFailure=kill", text)
+        self.assertIn("Restart=always", text)
+        with self.assertRaisesRegex(Exception, "not one of"):
+            quadlet.container_unit("x", {"image": "i", "x-kiwi-health-on-failure": "reboot",
+                                         "healthcheck": {"test": ["CMD", "true"]}}, {}, {"x": {}})
 
     def test_a_container_in_anothers_network_lives_and_dies_with_it(self):
         from kiwimodules import quadlet
