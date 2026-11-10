@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.24.2 — every setting says what it is for
+
+- Help for the 94 settings that had none, which the app shows beside each field; a test keeps
+  every new setting from coming without one.
+
 ## 0.24.1 — the automatic restore finishes
 
 - A restore brings the stack up with its target (or `docker compose up`) instead of

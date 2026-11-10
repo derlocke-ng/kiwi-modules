@@ -914,6 +914,16 @@ class TestRender(unittest.TestCase):
         self.assertEqual(cli.main(["profiles"]), 0)
 
 
+class TestHelp(unittest.TestCase):
+    def test_every_setting_says_what_it_is_for(self):
+        """The app shows a setting's help beside it: a setting without one is a field nobody can
+        fill in with confidence."""
+        from kiwimodules import modules
+        missing = ["%s.%s" % (name, s.key) for name, m in modules.discover().modules.items()
+                   for s in m.settings if len(s.help.strip()) < 12]
+        self.assertEqual(missing, [], "settings without help in module.yaml")
+
+
 class TestVersion(unittest.TestCase):
     def test_manifest_package_and_changelog_agree(self):
         with open(os.path.join(ROOT, "kiwi.manifest")) as f:
