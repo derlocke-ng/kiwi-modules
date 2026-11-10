@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.24.0 — two copies, and a rebuilt machine brings itself back
+
+- `backup.servers`: a machine backs up to each server in the list, a full copy of its own on
+  each, one after the other; a server that fails costs only its copy. `backup.server` stays
+  for one. A restore takes the freshest copy, from whichever server has it.
+- `backup.restore: auto` (the default): a machine that finds itself in the backups but has
+  made none of them (a rebuild) restores every module by itself at its first run, then backs
+  up as before. `hold` keeps the old behaviour of waiting for a person.
+- `backup-server` keeps no copy of itself: two nodes back each other up.
+- A commercial VPN exit (Mullvad through gluetun) that stays unhealthy for five minutes is
+  started anew, and with it another server: gluetun restarts a failing tunnel to the same
+  server, so a bad server kept a master's exit down for good. Under podman only.
+- The settings schema has `required_unless: KEY`.
+
 ## 0.23.0 — a restore from before
 
 - `kiwi-stack restore --at TIME MODULE...` puts back the newest snapshot of each module made at
