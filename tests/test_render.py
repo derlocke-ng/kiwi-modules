@@ -10,6 +10,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -572,6 +573,27 @@ class TestRender(unittest.TestCase):
         node["backup"] = {"server": "https://backup.lychee.home"}
         node.update(settings)
         return self.render(name, dict(SH3, node=node))
+
+    def test_restore_at_a_time_picks_the_newest_snapshot_from_then(self):
+        script = read(self.backup_node("backup7"), "kiwi/backup.sh")
+        func = re.search(r"^snapshot_at\(\) \{.*?^\}$", script, re.S | re.M).group(0)
+        listing = json.dumps([      # restic's own order and fields, as `snapshots --json` gives them
+            {"time": "2026-11-09T22:05:00.123456789+01:00", "tree": "t", "paths": ["/x"], "hostname": "h",
+             "summary": {"backup_start": "2026-11-09T21:05:00Z", "backup_end": "2026-11-09T21:05:01Z"}, "id": "a" * 64, "short_id": "aaaaaaaa"},
+            {"time": "2026-11-10T08:44:17.5Z", "tree": "t", "paths": ["/x"], "hostname": "h", "id": "b" * 64, "short_id": "bbbbbbbb"},
+            {"time": "2026-11-10T10:06:12+01:00", "tree": "t", "paths": ["/x"], "hostname": "h", "parent": "c" * 64, "id": "c" * 64, "short_id": "cccccccc"}])
+
+        def pick(when):
+            prog = "set -uo pipefail\nHOST=h\nASK_LIMIT=3m\nrestic() { cat <<'J'\n%s\nJ\n}\n%s\nsnapshot_at vault frozen $(date -d '%s' +%%s%%N)" % (listing, func, when)
+            r = subprocess.run(["bash", "-c", prog], capture_output=True, text=True)
+            return r.stdout.strip(), r.returncode
+        self.assertEqual(pick("2026-11-10T09:10:00Z"), ("cccccccc", 0))   # 10:06+01:00 is 09:06Z
+        self.assertEqual(pick("2026-11-10T09:00:00Z"), ("bbbbbbbb", 0))
+        self.assertEqual(pick("2026-11-10T08:44:17Z"), ("aaaaaaaa", 0))   # not the one half a second later
+        self.assertEqual(pick("2026-11-09T21:05:00.123456789Z"), ("aaaaaaaa", 0))   # at the moment itself
+        self.assertEqual(pick("2026-11-09T21:05:00Z"), ("", 1))          # nothing that old
+        self.assertIn('restore "$snap"', script)
+        self.assertIn('"${tags[@]}"', script)                             # snapshots MODULE...
 
     def test_a_container_in_anothers_network_lives_and_dies_with_it(self):
         from kiwimodules import quadlet

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.23.0 — a restore from before
+
+- `kiwi-stack restore --at TIME MODULE...` puts back the newest snapshot of each module made at
+  or before TIME, for a mistake found later than the last backup. Every snapshot is found
+  before anything stops, so a time with nothing to restore changes nothing.
+- `kiwi-stack snapshots MODULE...` lists only those modules' snapshots.
+
 ## 0.22.0 — what shares a network comes back with it
 
 - A container in another's network (Pi-hole, Tor and nginx in the VPN server's or client's)
