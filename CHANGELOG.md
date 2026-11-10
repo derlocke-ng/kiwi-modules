@@ -4,6 +4,9 @@
 
 - A repository that could not take a frozen database ends the run. A full disk still answers,
   so each module after it would have sat frozen in its turn, every night.
+- Asking whether the repository exists no longer takes a lock. With a stale exclusive lock it
+  failed, restic was asked to create the repository, and the run died on "config file already
+  exists" before it reached the line that removes such locks.
 - A database is frozen for at most 10 minutes (it was 30), and a failed run tries again three
   times, not five.
 - A file that goes away while a backup reads it no longer fails the whole run. restic stored

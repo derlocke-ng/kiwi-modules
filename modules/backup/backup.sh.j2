@@ -94,13 +94,13 @@ thaw_left() {
 
 backup() {
     local m c list ok frozen_failed=0 failed=()
-    LIMIT=$ASK_LIMIT restic -- cat config >/dev/null 2>&1 || LIMIT=$ASK_LIMIT restic -- init || return 1
+    LIMIT=$ASK_LIMIT restic -- --no-lock cat config >/dev/null 2>&1 || LIMIT=$ASK_LIMIT restic -- init || return 1
     # a restic killed half way leaves its lock, and one from a prune stops every backup after
     # it. This removes only those: a lock in use is refreshed and is never old enough.
     LIMIT=$ASK_LIMIT restic -- unlock >/dev/null 2>&1 || true
     for m in "${MODULES[@]}"; do
         # the server gone, each module would sit frozen through restic's retries in its turn
-        if [[ -n ${failed[*]:-} ]] && ! LIMIT=$ASK_LIMIT restic -- cat config >/dev/null 2>&1; then
+        if [[ -n ${failed[*]:-} ]] && ! LIMIT=$ASK_LIMIT restic -- --no-lock cat config >/dev/null 2>&1; then
             echo "backup: {{ server }} no longer answers, stopping here" >&2
             failed+=("$m and those after it")
             break
