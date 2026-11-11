@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.26.3 — a node is back sooner after its master restarts
+
+- vpn-client `keepalive`: 10 seconds for a node joining the fleet's master (was 25), 25 for a
+  provider. A restarted master learns where a node is only from the node's next packet: with
+  users on the mesh, lychee's services were gone for 30 s after sorbet's WireGuard server
+  restarted (tests/drills/users.py in kiwi-server).
+
 ## 0.26.2 — a master's own names inside its containers
 
 - On a master the containers found the master's own names at the reverse proxy's own address,
