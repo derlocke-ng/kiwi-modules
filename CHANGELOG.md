@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.27.0 — fail2ban
+
+- New module `fail2ban` (in the master preset): linuxserver's fail2ban on the host's network,
+  an sshd jail (5 failures in 10 minutes, a ban of an hour, all settings) over sshd's log,
+  which the host unit `kn-sshd-log` copies out of the journal (the image cannot read it), and
+  a rate limit of 20 new SSH connections a minute per address. The mesh is never banned.
+- Its port follows `admin.ssh_port` unless set: the jail and the limit watch where sshd
+  listens.
+
 ## 0.26.3 — a node is back sooner after its master restarts
 
 - vpn-client `keepalive`: 10 seconds for a node joining the fleet's master (was 25), 25 for a

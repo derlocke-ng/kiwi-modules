@@ -951,6 +951,25 @@ class TestFederation(unittest.TestCase):
         ip = server["networks"]["knet-master"]["ipv4_address"]
         self.assertIn("wg.gate.home:%s" % ip, server["extra_hosts"])     # nginx lives in this namespace
 
+    def test_fail2ban_watches_the_ssh_port_and_limits_new_connections(self):
+        m = json.loads(json.dumps(MACHINES["gate"]))
+        m["master"]["modules"] = ["vpn-client", "vpn-server", "dns", "tor", "reverse-proxy", "fail2ban"]
+        m["admin"] = dict(m["admin"], ssh_port=2222)          # fail2ban follows it
+        m["master"]["fail2ban"] = {"ignore": ["198.51.100.7"]}
+        out = self.render("gate-f2b", m)
+        with open(os.path.join(out, "km-fail2ban", "config", "fail2ban", "jail.d", "kiwi.local")) as f:
+            jail = f.read()
+        self.assertIn("port     = 2222", jail)
+        self.assertIn("198.51.100.7", jail)
+        self.assertIn("10.8.0.0/16", jail)          # the mesh is never banned
+        with open(os.path.join(out, "km-fail2ban", "init", "50-kiwi-ratelimit")) as f:
+            self.assertIn("--dport 2222", f.read())
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            svc = yaml.safe_load(f)["services"]["km-fail2ban"]
+        self.assertEqual(svc["network_mode"], "host")
+        self.assertIn("/var/log/kiwi:/var/log/kiwi:ro,z", svc["volumes"])
+        self.assertTrue(os.path.isfile(os.path.join(out, "host-units", "kn-sshd-log.service")))
+
     def test_a_node_lets_partners_open_only_the_shared_names(self):
         m = json.loads(json.dumps(SH3))
         m["node"].setdefault("reverse-proxy", {})["federation"] = {
