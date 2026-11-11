@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.26.1 — federation, tried
+
+- A partner's connections into the mesh come from an address of this mesh (`as`, per
+  partner): a node routes only its own mesh back through its VPN client, and the answers to a
+  partner's own addresses left by the LAN.
+- On a master with an exit, the link's packets carry WireGuard's own fwmark into the table
+  that leaves by the real interface: through the exit, the partner learnt the exit's address
+  and the link went one way.
+
 ## 0.26.0 — federation
 
 - vpn-server `federation`: a WireGuard link (`wg-fed`, UDP `federation_port`, 51822) to each
