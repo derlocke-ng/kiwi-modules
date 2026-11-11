@@ -970,6 +970,22 @@ class TestFederation(unittest.TestCase):
         self.assertIn("/var/log/kiwi:/var/log/kiwi:ro,z", svc["volumes"])
         self.assertTrue(os.path.isfile(os.path.join(out, "host-units", "kn-sshd-log.service")))
 
+    def test_fail2ban_watches_a_public_masters_sites_in_forward(self):
+        m = TestRender.public_hub(self)
+        m["master"] = dict(m["master"], modules=list(m["master"].get("modules") or
+                           ["vpn-client", "vpn-server", "dns", "tor", "reverse-proxy", "nostr-relay", "hub"]) + ["fail2ban"])
+        out = self.render("hub-f2b", m)
+        with open(os.path.join(out, "km-fail2ban", "config", "fail2ban", "jail.d", "kiwi.local")) as f:
+            jail = f.read()
+        self.assertIn("[kiwi-nginx-probe]", jail)
+        self.assertIn("chain    = FORWARD", jail)
+        self.assertTrue(os.path.isfile(os.path.join(out, "km-fail2ban", "config", "fail2ban", "filter.d", "kiwi-nginx-probe.conf")))
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            svcs = yaml.safe_load(f)["services"]
+        self.assertIn("/home/user/docker/km-nginx/log:/var/log/nginx:ro,z", svcs["km-fail2ban"]["volumes"])
+        self.assertIn("/home/user/docker/km-nginx/log:/var/log/nginx:z", svcs["km-nginx"]["volumes"])
+        self.assertTrue(os.path.isfile(os.path.join(out, "host-units", "km-nginx-logs.timer")))
+
     def test_a_node_lets_partners_open_only_the_shared_names(self):
         m = json.loads(json.dumps(SH3))
         m["node"].setdefault("reverse-proxy", {})["federation"] = {

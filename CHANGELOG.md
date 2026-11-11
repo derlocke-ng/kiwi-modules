@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.27.1 — fail2ban for public sites
+
+- On a master with public sites nginx writes its logs to files as well (kept a day, the journal
+  keeps its copy), and fail2ban reads them: nginx-bad-request, nginx-http-auth and
+  kiwi-nginx-probe (requests for wp-login.php, .env, cgi-bin and the like, three strikes), banned
+  in FORWARD, where the host's port forwarding passes those packets.
+
 ## 0.27.0 — fail2ban
 
 - New module `fail2ban` (in the master preset): linuxserver's fail2ban on the host's network,
