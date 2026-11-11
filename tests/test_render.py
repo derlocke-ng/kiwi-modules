@@ -918,7 +918,7 @@ class TestFederation(unittest.TestCase):
     setUp, tearDown, render, write = TestRender.setUp, TestRender.tearDown, TestRender.render, TestRender.write
     PARTNER = {"endpoint": "198.51.100.9", "public_key": "cGFydG5lci1wdWJsaWMta2V5LW5vdC1yZWFsLTAwMDA9",
                "mesh": "10.10.0.0/16", "domain": "internal", "dns": "10.10.0.1",
-               "share": ["cloud.sh3", "m1:22", "min", "nowhere"], "from": ["10.10.3.0/24"]}
+               "share": ["cloud.sh3", "m1:22", "min", "nowhere"], "from": ["10.10.3.0/24"], "as": "10.8.255.1"}
 
     def test_a_master_links_to_a_partner_and_lets_in_only_what_is_shared(self):
         m = json.loads(json.dumps(MACHINES["gate"]))
@@ -928,11 +928,13 @@ class TestFederation(unittest.TestCase):
         with open(os.path.join(out, "km-vpn-server", "start.sh")) as f:
             start = f.read()
         self.assertIn("ip link add wg-fed type wireguard", start)
+        self.assertIn("listen-port 51822 fwmark 65", start)      # gate exits through Mullvad: the link must not
         self.assertIn("endpoint 198.51.100.9:51822 allowed-ips 10.10.0.0/16 persistent-keepalive 25", start)
         self.assertRegex(start, r"-A KIWI_FED -s 10\.10\.3\.0/24 -d [0-9.]+ -p tcp --dport 443 -j ACCEPT")   # a service
         self.assertRegex(start, r"-A KIWI_FED -s 10\.10\.3\.0/24 -d [0-9.]+ -p tcp --dport 22 -j ACCEPT")    # a port
         self.assertRegex(start, r"-A KIWI_FED -s 10\.10\.3\.0/24 -d [0-9.]+ -j ACCEPT")                      # a node
         self.assertIn("# share nowhere: no such name in this fleet, left out", start)
+        self.assertIn("-t nat -A POSTROUTING -s 10.10.0.0/16 -o wg0 -j SNAT --to-source 10.8.255.1", start)
         self.assertLess(start.index("-A KIWI_FED -s"), start.index("-A KIWI_FED -j DROP"))
         with open(os.path.join(out, "docker-compose.yml")) as f:
             compose = f.read()
