@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.join(ROOT, "lib"))
 
 import yaml  # noqa: E402
 
-from kiwimodules import VERSION, cli, machine, quadlet  # noqa: E402
+from kiwimodules import VERSION, cli, machine, quadlet, resolver  # noqa: E402
 
 GOLDEN = os.path.join(HERE, "golden")
 SEED = b"kiwi-golden-seed-0123456789abcdef"      # 32 bytes, never used for a real machine
@@ -912,6 +912,20 @@ class TestRender(unittest.TestCase):
     def test_lists(self):
         self.assertEqual(cli.main(["modules", "-v"]), 0)
         self.assertEqual(cli.main(["profiles"]), 0)
+
+
+class TestMeshAddress(unittest.TestCase):
+    def test_a_master_exiting_through_another_network_keeps_its_own_address(self):
+        conf = {"vpn-client/wireguard_config": b"[Interface]\nAddress = 10.10.5.2/32\n"}
+
+        class Host:
+            def __init__(self, modules):
+                self.modules, self.role_settings, self.warnings = modules, {}, []
+        node, master = Host(["vpn-client"]), Host(["vpn-client", "vpn-server"])
+        resolver._mesh_address_from_wireguard(node, conf, "node")
+        resolver._mesh_address_from_wireguard(master, conf, "master")
+        self.assertEqual(node.role_settings.get("vpn_ip"), "10.10.5.2")
+        self.assertNotIn("vpn_ip", master.role_settings)     # its records keep server_ip, not the other network's
 
 
 class TestHelp(unittest.TestCase):
