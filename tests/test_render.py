@@ -941,6 +941,16 @@ class TestFederation(unittest.TestCase):
         self.assertIn("server=/internal/10.10.0.1", compose)
         self.assertIn("51822:51822/udp", compose)
 
+    def test_a_masters_containers_reach_its_own_names_where_the_proxy_is(self):
+        m = json.loads(json.dumps(MACHINES["gate"]))
+        m["dns_records"] = RECORDS
+        out = self.render("gate-names", m)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            compose = yaml.safe_load(f)
+        server = compose["services"]["km-vpn-server"]
+        ip = server["networks"]["knet-master"]["ipv4_address"]
+        self.assertIn("wg.gate.home:%s" % ip, server["extra_hosts"])     # nginx lives in this namespace
+
     def test_a_node_lets_partners_open_only_the_shared_names(self):
         m = json.loads(json.dumps(SH3))
         m["node"].setdefault("reverse-proxy", {})["federation"] = {

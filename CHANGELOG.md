@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.26.2 — a master's own names inside its containers
+
+- On a master the containers found the master's own names at the reverse proxy's own address,
+  where nothing listens: the proxy lives in the WireGuard server's namespace. They point at
+  that container now (found by kiwi-server check on sorbet).
+
 ## 0.26.1 — federation, tried
 
 - A partner's connections into the mesh come from an address of this mesh (`as`, per
