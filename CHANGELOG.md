@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.25.2 — multi-hop keeps the master's address
+
+- A master whose VPN client holds another network's config (multi-hop, `vpn_provider:
+  custom`) no longer takes that config's address as its own: its Pi-hole answered its own
+  names with the other network's address, so its clients could not reach it by name.
+
 ## 0.25.1 — the night's backup runs
 
 - The nightly run (its time and the hour after) backs up unless one ran within the hour; a
