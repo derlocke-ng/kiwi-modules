@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.26.0 — federation
+
+- vpn-server `federation`: a WireGuard link (`wg-fed`, UDP `federation_port`, 51822) to each
+  partner network's master. Their mesh is routed through it; they reach only what is shared
+  (`share`: a node, `node:port`, or `service.node` on 443) from the addresses in `from`, and
+  this master's DNS. The link's key derives from `federation_secret` (generated from the seed).
+- dns: a master forwards each partner's domain to the partner's DNS over the link.
+- reverse-proxy `federation` (generated): per name, which partner addresses may open it; the
+  partner networks are shut out of every name not shared with them.
+
 ## 0.25.2 — multi-hop keeps the master's address
 
 - A master whose VPN client holds another network's config (multi-hop, `vpn_provider:
