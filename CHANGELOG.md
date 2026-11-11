@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.25.1 — the night's backup runs
+
+- The nightly run (its time and the hour after) backs up unless one ran within the hour; a
+  backup by hand in the evening skipped the whole night before. Starts at other times (an
+  apply, a boot) still wait 20 hours after the last backup.
+
 ## 0.25.0 — backups the app can read
 
 - `kiwi-stack snapshots --json`: a line per backup server with restic's JSON.
