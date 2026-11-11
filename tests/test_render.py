@@ -914,6 +914,45 @@ class TestRender(unittest.TestCase):
         self.assertEqual(cli.main(["profiles"]), 0)
 
 
+class TestFederation(unittest.TestCase):
+    setUp, tearDown, render, write = TestRender.setUp, TestRender.tearDown, TestRender.render, TestRender.write
+    PARTNER = {"endpoint": "198.51.100.9", "public_key": "cGFydG5lci1wdWJsaWMta2V5LW5vdC1yZWFsLTAwMDA9",
+               "mesh": "10.10.0.0/16", "domain": "internal", "dns": "10.10.0.1",
+               "share": ["cloud.sh3", "m1:22", "min", "nowhere"], "from": ["10.10.3.0/24"]}
+
+    def test_a_master_links_to_a_partner_and_lets_in_only_what_is_shared(self):
+        m = json.loads(json.dumps(MACHINES["gate"]))
+        m["master"].setdefault("vpn-server", {})["federation"] = {"kiwi2": self.PARTNER}
+        m["dns_records"] = RECORDS
+        out = self.render("gate-fed", m)
+        with open(os.path.join(out, "km-vpn-server", "start.sh")) as f:
+            start = f.read()
+        self.assertIn("ip link add wg-fed type wireguard", start)
+        self.assertIn("endpoint 198.51.100.9:51822 allowed-ips 10.10.0.0/16 persistent-keepalive 25", start)
+        self.assertRegex(start, r"-A KIWI_FED -s 10\.10\.3\.0/24 -d [0-9.]+ -p tcp --dport 443 -j ACCEPT")   # a service
+        self.assertRegex(start, r"-A KIWI_FED -s 10\.10\.3\.0/24 -d [0-9.]+ -p tcp --dport 22 -j ACCEPT")    # a port
+        self.assertRegex(start, r"-A KIWI_FED -s 10\.10\.3\.0/24 -d [0-9.]+ -j ACCEPT")                      # a node
+        self.assertIn("# share nowhere: no such name in this fleet, left out", start)
+        self.assertLess(start.index("-A KIWI_FED -s"), start.index("-A KIWI_FED -j DROP"))
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            compose = f.read()
+        self.assertIn("server=/internal/10.10.0.1", compose)
+        self.assertIn("51822:51822/udp", compose)
+
+    def test_a_node_lets_partners_open_only_the_shared_names(self):
+        m = json.loads(json.dumps(SH3))
+        m["node"].setdefault("reverse-proxy", {})["federation"] = {
+            "names": {"cloud.sh3.home": {"allow": ["10.10.3.0/24"], "deny": ["10.10.0.0/16"]}},
+            "deny": ["10.10.0.0/16"]}
+        out = self.render("sh3-fed", m)
+        nginx = open(os.path.join(out, "kn-nginx", "nginx.conf")).read()
+        cloud = nginx.split("server_name cloud.sh3.home;", 1)[1].split("server {", 1)[0]
+        vault = nginx.split("server_name vault.sh3.home;", 1)[1].split("server {", 1)[0]
+        self.assertLess(cloud.index("allow 10.10.3.0/24;"), cloud.index("deny 10.10.0.0/16;"))
+        self.assertIn("deny 10.10.0.0/16;", vault)
+        self.assertNotIn("allow 10.10.3.0/24;", vault)
+
+
 class TestMeshAddress(unittest.TestCase):
     def test_a_master_exiting_through_another_network_keeps_its_own_address(self):
         conf = {"vpn-client/wireguard_config": b"[Interface]\nAddress = 10.10.5.2/32\n"}
