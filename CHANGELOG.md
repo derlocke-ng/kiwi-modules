@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.25.0 — backups the app can read
+
+- `kiwi-stack snapshots --json`: a line per backup server with restic's JSON.
+- backup-server: `keep_daily`, `keep_weekly`, `keep_monthly`, what `kiwi-server prune` keeps.
+
 ## 0.24.2 — every setting says what it is for
 
 - Help for the 94 settings that had none, which the app shows beside each field; a test keeps
