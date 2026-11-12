@@ -986,6 +986,27 @@ class TestFederation(unittest.TestCase):
         self.assertIn("/home/user/docker/km-nginx/log:/var/log/nginx:z", svcs["km-nginx"]["volumes"])
         self.assertTrue(os.path.isfile(os.path.join(out, "host-units", "km-nginx-logs.timer")))
 
+    def test_the_cache_mirrors_registries_behind_the_proxy_and_proxies_apt(self):
+        m = json.loads(json.dumps(SH3))
+        m["node"]["modules"] = ["vpn-client", "reverse-proxy", "cache"]
+        m["node"].pop("preset", None)
+        for k in ("cloud", "vault"):
+            m["node"].pop(k, None)
+        m["node"]["cache"] = {"registries": ["docker.io", "ghcr.io"]}
+        out = self.render("sh3-cache", m)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            svcs = yaml.safe_load(f)["services"]
+        self.assertIn("REGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io", svcs["kn-cache-docker"]["environment"])
+        self.assertIn("REGISTRY_PROXY_REMOTEURL=https://ghcr.io", svcs["kn-cache-ghcr"]["environment"])
+        self.assertNotIn("kn-cache-quay", svcs)
+        self.assertEqual(svcs["kn-cache-apt"]["ports"], ["3142:3142"])
+        nginx = open(os.path.join(out, "kn-nginx", "nginx.conf")).read()
+        site = nginx.split("server_name cache.sh3.home;", 1)[1]
+        self.assertIn("set $mirror http://kn-cache-ghcr:5000; rewrite ^/v2/ghcr\\.io/(.*)$ /v2/$1 break;", site)   # set first: break ends them
+        apt = open(os.path.join(out, "kn-cache", "apt-nginx.conf")).read()
+        self.assertIn("deb.debian.org 1;", apt)
+        self.assertIn("max_size=10g", apt)
+
     def test_a_node_lets_partners_open_only_the_shared_names(self):
         m = json.loads(json.dumps(SH3))
         m["node"].setdefault("reverse-proxy", {})["federation"] = {
