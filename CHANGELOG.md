@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.28.0 — a cache for the LAN
+
+- New module `cache` for a node: a pull-through mirror per registry (docker.io, ghcr.io,
+  quay.io, lscr.io) at `cache.<hostname>/<registry>` behind the reverse proxy, and a caching
+  proxy for Debian's package servers on port 3142 (only those; packages are signed).
+- Stack settings `registry_mirrors` and `apt_proxy`: what a machine asks first. kiwi-server
+  fills them in for the nodes on the cache's LAN.
+
 ## 0.27.1 — fail2ban for public sites
 
 - On a master with public sites nginx writes its logs to files as well (kept a day, the journal
