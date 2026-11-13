@@ -1104,11 +1104,19 @@ class TestRotateAttribute(unittest.TestCase):
         self.assertEqual(Setting("t", {"key": "a_secret", "type": "secret", "rotate": "restart"}).rotate, "")
         with self.assertRaisesRegex(KiwiError, "rotate"):
             Setting("t", {"key": "a_secret", "type": "secret", "generate": True, "rotate": "magic"})
+        s = Setting("t", {"key": "a_secret", "type": "secret", "generate": True,
+                          "rotate": {"in": "x-db", "run": "set-password $NEW"}})
+        self.assertEqual((s.rotate, s.rotate_in, s.rotate_run), ("exec", "x-db", "set-password $NEW"))
+        for bad in ({"in": "x-db"}, {"in": "x-db", "run": "no value here"}, {"in": "x", "run": "$NEW", "more": 1}):
+            with self.assertRaisesRegex(KiwiError, "rotate needs"):
+                Setting("t", {"key": "a_secret", "type": "secret", "generate": True, "rotate": bad})
 
     def test_the_marked_ones(self):
         from kiwimodules import modules as modmod
         ms = modmod.discover()
-        marked = sorted("%s.%s" % (m.name, s.key) for m in ms.modules.values() for s in m.settings if s.rotate)
+        marked = sorted("%s.%s" % (m.name, s.key) for m in ms.modules.values() for s in m.settings if s.rotate == "restart")
+        changed_in_place = sorted("%s.%s" % (m.name, s.key) for m in ms.modules.values() for s in m.settings if s.rotate == "exec")
+        self.assertEqual(changed_in_place, ["immich.db_password", "paperless.db_password"])
         self.assertEqual(marked, [
             "cloud.imaginary_secret", "cloud.onlyoffice_secret", "cloud.redis_password", "cloud.talk_internal_secret",
             "cloud.whiteboard_secret", "dns.pihole_password", "downloader.transmission_password",

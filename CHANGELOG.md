@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.31.0 — a generated secret can say how it is changed where it lives
+
+- `rotate: { in: <container>, run: <command with $NEW> }` on a generated secret: the
+  command runs in that container of the module and sets the new value there, before the
+  containers restart with it. kiwi-server `rotate seed` uses it.
+- First: the database passwords of Immich and Paperless (`ALTER USER` in their Postgres).
+
 ## 0.30.1 — the bundle names the seed it follows
 
 - The bundle's manifest carries `KS_SEED_FROM` (the id of the seed this one replaced) when
