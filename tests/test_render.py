@@ -986,6 +986,32 @@ class TestFederation(unittest.TestCase):
         self.assertIn("/home/user/docker/km-nginx/log:/var/log/nginx:z", svcs["km-nginx"]["volumes"])
         self.assertTrue(os.path.isfile(os.path.join(out, "host-units", "km-nginx-logs.timer")))
 
+    def test_control_is_for_the_mesh_and_a_node_takes_ssh_from_it(self):
+        m = json.loads(json.dumps(SH3))
+        m["node"]["modules"] = ["vpn-client", "reverse-proxy", "control"]
+        m["node"].pop("preset", None)
+        for k in ("cloud", "vault"):
+            m["node"].pop(k, None)
+        m["node"]["control"] = {"allow_from": "192.168.0.0/16"}
+        m["admin"] = dict(m.get("admin") or {}, ssh_port=41022)
+        out = self.render("sh3-control", m)
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            conf = f.read()
+        site = conf[conf.index("server_name control.sh3.home"):]
+        self.assertIn("allow 10.8.0.0/16;", site)
+        self.assertIn("allow 192.168.0.0/16;", site)
+        self.assertIn("deny all;", site)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            svcs = yaml.safe_load(f)["services"]
+        self.assertIn("/home/user/docker/kn-control:/fleet:Z", svcs["kn-control"]["volumes"])
+        self.assertIn("KIWI_CONTROL_HOST=sh3", svcs["kn-control"]["environment"])
+        with open(os.path.join(out, "kn-vpn-client", "post-rules.txt")) as f:
+            rules = f.read()
+        self.assertIn("--dport 22 -j DNAT --to-destination 172.128.0.1:41022", rules)   # follows admin.ssh_port
+        m["node"]["vpn-client"] = dict(m["node"].get("vpn-client") or {}, mesh_ssh=False)
+        with open(os.path.join(self.render("sh3-nossh", m), "kn-vpn-client", "post-rules.txt")) as f:
+            self.assertNotIn("--dport 22 ", f.read())
+
     def test_the_cache_mirrors_registries_behind_the_proxy_and_proxies_apt(self):
         m = json.loads(json.dumps(SH3))
         m["node"]["modules"] = ["vpn-client", "reverse-proxy", "cache"]

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.29.0 — the control node, SSH over the mesh
+
+- New module `control`: kiwi-server with web pages at `control.<hostname>`, open to the mesh
+  only (`allow_from` adds one more network). Its data directory is the fleet directory, and it
+  is in the node's backup.
+- vpn-client `mesh_ssh` (on by default, nodes only): port 22 of a node's mesh address goes to
+  the machine's sshd (`ssh_port` follows `admin.ssh_port`), so the control node and admin
+  devices reach every node from anywhere in the VPN.
+
 ## 0.28.1 — our own images for arm64 too
 
 - The tang and strfry images are built for linux/amd64 and linux/arm64 (tang 15-kiwi3,
