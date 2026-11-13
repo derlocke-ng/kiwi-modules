@@ -66,7 +66,9 @@ databases know the old passwords. A generated secret
 marked `rotate: restart` in its module is read by its containers at every
 start and kept nowhere else: kiwi-server may give it a new value when the
 fleet's seed is replaced. The others live in a database or an account and
-keep their value until the module has a step that changes it there.
+keep their value until the module has a step that changes it there:
+`rotate: { in: immich-db, run: "psql … PASSWORD '$NEW'" }` runs that command
+in the module's container before the restart.
 
 ## What a bundle is
 
