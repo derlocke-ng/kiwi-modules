@@ -1107,7 +1107,12 @@ class TestRotateAttribute(unittest.TestCase):
         s = Setting("t", {"key": "a_secret", "type": "secret", "generate": True,
                           "rotate": {"in": "x-db", "run": "set-password $NEW"}})
         self.assertEqual((s.rotate, s.rotate_in, s.rotate_run), ("exec", "x-db", "set-password $NEW"))
-        for bad in ({"in": "x-db"}, {"in": "x-db", "run": "no value here"}, {"in": "x", "run": "$NEW", "more": 1}):
+        s = Setting("t", {"key": "a_secret", "type": "secret", "generate": True, "rotate": [
+            {"name": "app", "run": "app set $NEW"}, {"in": "db", "run": "db set $NEW"}]})
+        self.assertEqual(s.rotate_steps, [{"in": "", "name": "app", "run": "app set $NEW"},
+                                          {"in": "db", "name": "", "run": "db set $NEW"}])
+        for bad in ({"in": "x-db"}, {"in": "x-db", "run": "no value here"}, {"in": "x", "run": "$NEW", "more": 1},
+                    {"in": "x", "name": "y", "run": "$NEW"}, [{"run": "$NEW"}], ["x"]):
             with self.assertRaisesRegex(KiwiError, "rotate needs"):
                 Setting("t", {"key": "a_secret", "type": "secret", "generate": True, "rotate": bad})
 
@@ -1116,7 +1121,7 @@ class TestRotateAttribute(unittest.TestCase):
         ms = modmod.discover()
         marked = sorted("%s.%s" % (m.name, s.key) for m in ms.modules.values() for s in m.settings if s.rotate == "restart")
         changed_in_place = sorted("%s.%s" % (m.name, s.key) for m in ms.modules.values() for s in m.settings if s.rotate == "exec")
-        self.assertEqual(changed_in_place, ["immich.db_password", "paperless.db_password"])
+        self.assertEqual(changed_in_place, ["cloud.database_password", "immich.db_password", "paperless.db_password"])
         self.assertEqual(marked, [
             "backup.server_password", "cloud.imaginary_secret", "cloud.onlyoffice_secret", "cloud.redis_password", "cloud.talk_internal_secret",
             "cloud.whiteboard_secret", "dns.pihole_password", "downloader.transmission_password",
