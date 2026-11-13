@@ -1,133 +1,57 @@
 # kiwi-modules
 
-The kiwi-network's modules and their renderer: one machine file in, a stack
-bundle out. The bundle is what [kiwi-stack](https://github.com/derlocke-ng/kiwi-stack)
-installs on the machine (`sudo kiwi-stack apply DIR`): podman quadlets (or a
-compose file on docker), the configs, the host units, and `stack.sh`, the
-manifest that names them all.
+kiwi-modules turns the description of one machine into the files that run its
+services. You write a machine file that names the modules the machine gets (a
+VPN client, a reverse proxy, Nextcloud and so on). kiwi-modules renders it
+into a bundle: container units, configuration files and a list of them all.
+[kiwi-stack](https://github.com/derlocke-ng/kiwi-stack) installs the bundle on
+the machine.
 
+It is part of the network side of Kiwi Network. Use it for a single machine
+that you set up by hand, or to develop a module.
 [kiwi-server](https://github.com/derlocke-ng/kiwi-server) uses the same
-package for a whole fleet (ISOs, enrolment, the CA, apply over SSH). This
-repository is for a stack on one machine without any of that: a node you set
-up by hand, a module you develop, a machine that renders its own stack.
+package to manage a whole fleet of machines.
 
-```sh
+- Runs on: Linux with Python 3; CI tests it on Ubuntu
+- Needs: PyYAML and Jinja2
+- License: GPL-3.0-or-later
+
+## Install
+
+```bash
 git clone https://github.com/derlocke-ng/kiwi-modules
 cd kiwi-modules
-./install.sh install                       # ~/.local/bin/kiwi-modules (KIWI_SCOPE=system: /usr/local)
+./install.sh install
+```
+
+The installer copies the tool to `~/.local` and does not need root. kiwi-updater
+installs it the same way, from the `kiwi.manifest` file.
+
+## Quick start
+
+```bash
 mkdir -p sh3/secrets && head -c 32 /dev/urandom > sh3/secrets/seed
-cp examples/sh3.yaml sh3/                  # edit: passwords, TLS files, the WireGuard config
+cp examples/sh3.yaml sh3/          # then edit it: TLS files, the WireGuard configuration
 kiwi-modules render sh3/sh3.yaml -o sh3/sh3.bundle
 scp -r sh3/sh3.bundle sh3:/tmp/ && ssh sh3 sudo kiwi-stack apply /tmp/sh3.bundle
 ```
 
-It needs python3 with PyYAML and Jinja2 (`python3-yaml python3-jinja2` on
-Debian, `python3-pyyaml python3-jinja2` on Fedora). kiwi-updater installs it
-from `kiwi.manifest`. `python3 -m kiwimodules` from a checkout works too
-(`PYTHONPATH=lib`).
+This renders the stack of a node called `sh3` and installs it there.
+`kiwi-modules modules -v` lists every module and setting you can use.
 
-## The machine file
+## Documentation
 
-```yaml
-name: sh3                       # hostname: name.domain unless given
-domain: home
-target: ucore                   # coreos | ucore | debian — what the stack runs on
-timezone: Europe/Berlin
-admin: { user: core }           # the service user default
-role: node                      # the profile: master, or node with a preset
-node:
-  preset: cloud                 # gateway | cloud | minimal; or modules: [...] outright
-  vpn_ip: 10.8.0.25             # or taken from the WireGuard config's Address
-  cloud: { collabora: true }    # passwords left out are generated from the seed
-  reverse-proxy: { tls_fullchain: secrets/sh3-fullchain.pem, tls_privkey: secrets/sh3-privkey.pem }
-dns_records: [[10.8.0.1, gate.home], [10.8.0.25, sh3.home]]   # optional: the network's names
-master_ip: 10.8.0.1             # optional: the DNS upstream and the mesh route
-ca_cert: ca.pem                 # optional: the network's CA, trusted inside the containers
-seed: secrets/seed              # 32 random bytes — generated secrets derive from it
-```
+| Page | What it covers |
+|---|---|
+| [Install](docs/install.md) | what it needs, install, update, uninstall |
+| [Using kiwi-modules](docs/usage.md) | the commands, from a machine file to a running stack |
+| [The machine file](docs/machine-file.md) | every key, paths, generated secrets and the seed |
+| [Modules and presets](docs/modules.md) | what each module does and where it can run |
+| [The bundle](docs/bundle.md) | the files a render writes |
+| [Development](docs/development.md) | tests, CI, releases |
 
-Paths are relative to the file. `secrets/<hostname>.conf` is the WireGuard
-client config the vpn-client takes when `vpn-client.wireguard_config` is not
-set (the master's wg-easy exports one per client). The profile's settings
-(`docker_dir`, `service_user`, `runtime: podman|docker`, `auto_update`, …)
-and every module's settings go under the `role:` name; `kiwi-modules
-modules -v` lists them all with their defaults, `kiwi-modules profiles` the
-profiles and presets.
-
-**Secrets.** A secret-typed setting left empty is derived from the seed, the
-hostname, the module and the key, so a render is repeatable and a backup of
-the seed is a backup of every generated password. The derivation is frozen
-(tests/test_render.py pins a value); kiwi-server derives the same values
-from the same seed, so a machine first set up from a fleet keeps its
-secrets when rendered from a machine file, and the other way round. Without
-a seed every secret must be given. The bundle carries `KS_SEED_ID`;
-kiwi-stack refuses to apply a bundle from another seed onto a machine whose
-databases know the old passwords. A generated secret
-marked `rotate: restart` in its module is read by its containers at every
-start and kept nowhere else: kiwi-server may give it a new value when the
-fleet's seed is replaced. The others live in a database or an account and
-keep their value until the module has a step that changes it there:
-`rotate: { in: immich-db, run: "psql … PASSWORD '$NEW'" }` runs that command
-in the module's container before the restart.
-
-## What a bundle is
-
-```
-sh3.bundle/
-  stack.sh                 # bash manifest: KS_HOST…, KS_STACK_MODULES, _QUADLETS, _IMAGES, _PORTS, _FILES …
-  docker-compose.yml       # the stack (used as is on docker; the source of the quadlets on podman)
-  quadlets/*.container|*.network|kiwi-stack.target   # podman: one unit per service, '# kiwi-server stack' marker
-  host-units/*.service|*.timer                       # units a module wants on the host (gateway routing, …)
-  kiwi/env/<service>.env   # the secrets, root-only, EnvironmentFile= of the units
-  kiwi/ca/kiwiCA.crt       # the network's CA when given
-  <prefix>-<module>/…      # each module's config files (nginx.conf, wg0.conf, torrc …)
-```
-
-`stack.sh` is the contract between the two repositories: kiwi-stack sources
-it and reads only `KS_*` variables. Every file's mode is in `KS_STACK_FILES`
-(`path:0600` for the secrets); directories, ports, sysctls, kernel modules,
-images and the URLs to print after the start are lists of their own.
-
-## A hub
-
-A node that hosts a hub built on [kiwi-framework](https://github.com/derlocke-ng/kiwi-framework)
-is the `hub` preset: the VPN client, the reverse proxy, `nostr-relay` (strfry
-at `relay.<hostname>`, through the mesh) and `hub` (the distribution's
-container at `hub.<hostname>`, its relays and policy set from the module's
-settings). As it comes this is a private hub: its pages work from inside the
-VPN, with the node's relay, and nowhere else. `public_relays` and
-`public_mounts` under `hub` open a public area (a chat on public relays, so
-the people inside talk to outsiders); `relays` naming public relays and
-`relays_locked: false` make a public hub. `examples/hub.yaml` is the
-semi-public one.
-
-Three applications can be added to a node's `modules:`, each at its own name behind the
-reverse proxy: `opencloud` (files and sharing), `immich` (photos; `machine_learning: false`
-leaves out the container that wants the most memory) and `paperless` (scanned documents
-with OCR; `office_documents: false` leaves out Tika and Gotenberg). Each has a setting for
-where its data lives, for a node with a big disk.
-
-## Modules and profiles
-
-`modules/<name>/module.yaml` declares a module's settings, its compose
-fragment and templates, the ports and names it announces, its dependencies;
-`profiles/<name>/role.yaml` is a stack shape (module list or presets, module
-defaults). The formats are kiwi-server's, documented in its
-[docs/modules.md](https://github.com/derlocke-ng/kiwi-server/blob/main/docs/modules.md)
-(the context a template sees, every key, how to add a module); the directory
-layout here (`lib/kiwimodules`, `modules/`, `profiles/`) is what the package
-expects around itself. `KIWI_MODULES_HOME` points it at another modules
-directory, `KIWI_MODULES_PROFILES` at other profiles.
-
-## Status
-
-0.2.0: the renderer as kiwi-server 2.7.0 has it, with the fixes of the first
-hardware round (CHANGELOG.md); the stacks it renders run on a master and two
-nodes. tests/golden/sh3 is kiwi-server's golden bundle, matched byte for
-byte. The modules and the renderer are developed here and released by tag;
-kiwi-server carries each release as a vendored copy pinned in its `VENDORED`
-file (`tools/vendor.sh` there).
+The same pages are on [kiwi-network.eu](https://kiwi-network.eu/docs/server/modules/).
 
 ## License
 
-GPL-3.0-or-later.
+GPL-3.0-or-later; see [LICENSE](LICENSE).

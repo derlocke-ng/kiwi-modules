@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.32.1 — a docs/ folder, and a short README
+
+- `docs/`: install, the commands, the machine file, modules and presets, the bundle,
+  development. kiwi-network.eu shows these pages from the next release on.
+- The README is the short front page now. Its section on hubs said a node hosts a hub
+  through a `hub` preset; there is no such preset, and the `hub` and `nostr-relay`
+  modules run on a master.
+
 ## 0.32.0 — Nextcloud's database password can be changed where it lives
 
 - `rotate:` takes a list of steps, run in order, and `name:` for a container with a name of
