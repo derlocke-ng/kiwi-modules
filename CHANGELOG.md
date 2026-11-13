@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.29.1 — the control node keeps its secrets in RAM
+
+- control: the opened store, job logs and renders live in a tmpfs (`ram_mb`); the disk holds
+  the fleet file and the encrypted store only. It waits for the first `control push` instead
+  of restarting in a loop.
+
 ## 0.29.0 — the control node, SSH over the mesh
 
 - New module `control`: kiwi-server with web pages at `control.<hostname>`, open to the mesh
