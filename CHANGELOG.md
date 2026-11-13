@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.31.1 — the backup server password follows a new seed
+
+- backup: `server_password` is `rotate: restart`. The machine reads it from its restic
+  environment at every backup, and its backup servers keep only a hash that derives from
+  the same value: both sides follow a new seed at their next apply. Between the two
+  applies that machine's backups to that server are refused.
+
 ## 0.31.0 — a generated secret can say how it is changed where it lives
 
 - `rotate: { in: <container>, run: <command with $NEW> }` on a generated secret: the

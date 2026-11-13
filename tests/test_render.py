@@ -1118,7 +1118,7 @@ class TestRotateAttribute(unittest.TestCase):
         changed_in_place = sorted("%s.%s" % (m.name, s.key) for m in ms.modules.values() for s in m.settings if s.rotate == "exec")
         self.assertEqual(changed_in_place, ["immich.db_password", "paperless.db_password"])
         self.assertEqual(marked, [
-            "cloud.imaginary_secret", "cloud.onlyoffice_secret", "cloud.redis_password", "cloud.talk_internal_secret",
+            "backup.server_password", "cloud.imaginary_secret", "cloud.onlyoffice_secret", "cloud.redis_password", "cloud.talk_internal_secret",
             "cloud.whiteboard_secret", "dns.pihole_password", "downloader.transmission_password",
             "paperless.secret_key", "sftp.sftp_password", "vpn-server.wg_password"])
 
