@@ -62,7 +62,11 @@ from the same seed, so a machine first set up from a fleet keeps its
 secrets when rendered from a machine file, and the other way round. Without
 a seed every secret must be given. The bundle carries `KS_SEED_ID`;
 kiwi-stack refuses to apply a bundle from another seed onto a machine whose
-databases know the old passwords.
+databases know the old passwords. A generated secret
+marked `rotate: restart` in its module is read by its containers at every
+start and kept nowhere else: kiwi-server may give it a new value when the
+fleet's seed is replaced. The others live in a database or an account and
+keep their value until the module has a step that changes it there.
 
 ## What a bundle is
 
