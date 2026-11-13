@@ -1083,5 +1083,26 @@ class TestVersion(unittest.TestCase):
         self.assertEqual(VERSION, changelog)
 
 
+class TestRotateAttribute(unittest.TestCase):
+    """Which generated secrets a new seed may replace by a restart alone."""
+    def test_only_generated_secrets_take_it_and_only_restart(self):
+        from kiwimodules.schema import Setting
+        from kiwimodules.util import KiwiError
+        s = Setting("t", {"key": "a_secret", "type": "secret", "generate": True, "rotate": "restart"})
+        self.assertEqual((s.rotate, s.as_dict()["rotate"]), ("restart", "restart"))
+        self.assertEqual(Setting("t", {"key": "a_secret", "type": "secret", "rotate": "restart"}).rotate, "")
+        with self.assertRaisesRegex(KiwiError, "rotate"):
+            Setting("t", {"key": "a_secret", "type": "secret", "generate": True, "rotate": "magic"})
+
+    def test_the_marked_ones(self):
+        from kiwimodules import modules as modmod
+        ms = modmod.discover()
+        marked = sorted("%s.%s" % (m.name, s.key) for m in ms.modules.values() for s in m.settings if s.rotate)
+        self.assertEqual(marked, [
+            "cloud.imaginary_secret", "cloud.onlyoffice_secret", "cloud.redis_password", "cloud.talk_internal_secret",
+            "cloud.whiteboard_secret", "dns.pihole_password", "downloader.transmission_password",
+            "paperless.secret_key", "sftp.sftp_password", "vpn-server.wg_password"])
+
+
 if __name__ == "__main__":
     unittest.main()

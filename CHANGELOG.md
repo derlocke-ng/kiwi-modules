@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.30.0 — which generated secrets may change with a restart
+
+- A generated secret can say `rotate: restart`: its containers read it at every start and
+  keep it nowhere else, so kiwi-server can replace it when the fleet's seed is replaced
+  (kiwi-server `rotate seed`). Marked, after reading what each image does with it: cloud
+  (redis_password, onlyoffice_secret, imaginary_secret, whiteboard_secret,
+  talk_internal_secret), dns (pihole_password), paperless (secret_key), sftp
+  (sftp_password), downloader (transmission_password), vpn-server (wg_password).
+- Not marked, so kept as they are: database and admin passwords, the backup passwords,
+  Talk's TURN and signaling secrets (Nextcloud adds them once and keeps them), the
+  federation secret.
+
 ## 0.29.1 — the control node keeps its secrets in RAM
 
 - control: the opened store, job logs and renders live in a tmpfs (`ram_mb`); the disk holds
