@@ -4,7 +4,7 @@ A *module* is one service, or a small group of containers that belong
 together, such as Nextcloud with its database. A *profile* says what a
 machine is: a master or a node, with a list of modules to start from. A
 *preset* is one of several named module lists inside a profile. This page
-lists all of them as of v0.28.0. `kiwi-modules modules -v` shows every
+lists all of them as of v0.28.1. `kiwi-modules modules -v` shows every
 setting with its default, and each setting has a help text in its module's
 `module.yaml`.
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.28.1 — our own images for arm64 too
+
+- The tang and strfry images are built for linux/amd64 and linux/arm64 (tang 15-kiwi3,
+  strfry 1.1.3-kiwi2): a Tang ring or a relay on an Odroid or another arm64 board. Every other
+  image the modules use already comes for both.
+
 ## 0.28.0 — a cache for the LAN
 
 - New module `cache` for a node: a pull-through mirror per registry (docker.io, ghcr.io,

@@ -87,7 +87,8 @@ python3 .claude/skills/kiwi-docs/scripts/check-docs.py .
 
 The nostr-relay and tang modules use images built here:
 `ghcr.io/derlocke-ng/strfry` (strfry 1.1.3 with `images/strfry/auth.patch`)
-and `ghcr.io/derlocke-ng/tang`. Their workflows build the image on a pull
+and `ghcr.io/derlocke-ng/tang`, each for `linux/amd64` and `linux/arm64`.
+Their workflows build the image on a pull
 request that changes `images/strfry/` or `images/tang/`, and push it to GHCR
 when such a change reaches `main`. The tag is set in the workflow file
 (`TAG:`); raise it with every change, and point the module's `image` default

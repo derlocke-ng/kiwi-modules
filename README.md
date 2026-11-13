@@ -18,7 +18,7 @@ on one machine without all of that: a node you set up by hand, a module you
 are developing, or a machine that renders its own stack. If you write modules,
 this is the repository they live in.
 
-- Latest release: **v0.28.0**
+- Latest release: **v0.28.1**
 - Runs on: any Linux machine with Python 3, PyYAML and Jinja2; CI runs it on
   Ubuntu. The stacks it renders are for Fedora CoreOS, uCore and Debian.
 - License: GPL-3.0-or-later

@@ -2,7 +2,7 @@
 
 Every module has a `module.yaml` that tells the renderer what the module is,
 what it needs, which templates it has and which settings a machine may give
-it. This page lists every key the renderer reads at v0.28.0. For a guided
+it. This page lists every key the renderer reads at v0.28.1. For a guided
 first module, see [Writing a module](writing-a-module.md).
 
 Every key is optional. The smallest useful `module.yaml` names the module
@@ -203,7 +203,7 @@ host_integration:
 `sysctl` values and `kernel_modules` are collected from all modules into
 `stack.sh`, and kiwi-stack sets them on the host. The dns module also has
 `disable_resolved_stub: true`, but the renderer does not read that key at
-v0.28.0.
+v0.28.1.
 
 ## urls
 
