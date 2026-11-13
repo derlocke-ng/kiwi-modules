@@ -5,4 +5,5 @@ __pycache__/
 secrets/
 examples/secrets/
 CLAUDE.md
-.claude/
+.claude/*
+!.claude/skills/
