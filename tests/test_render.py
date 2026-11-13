@@ -1005,6 +1005,8 @@ class TestFederation(unittest.TestCase):
             svcs = yaml.safe_load(f)["services"]
         self.assertIn("/home/user/docker/kn-control:/fleet:Z", svcs["kn-control"]["volumes"])
         self.assertIn("KIWI_CONTROL_HOST=sh3", svcs["kn-control"]["environment"])
+        self.assertEqual(svcs["kn-control"]["tmpfs"], ["/run/kiwi:size=256m,mode=0700"])    # the open store lives in RAM
+        self.assertIn("--wait", svcs["kn-control"]["command"])
         with open(os.path.join(out, "kn-vpn-client", "post-rules.txt")) as f:
             rules = f.read()
         self.assertIn("--dport 22 -j DNAT --to-destination 172.128.0.1:41022", rules)   # follows admin.ssh_port

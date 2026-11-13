@@ -3,11 +3,16 @@ services:
   {{ container_prefix }}-control:
     image: {{ image }}
     container_name: {{ container_prefix }}-control
-    command: ["serve", "/fleet/fleet.yaml", "--listen", "0.0.0.0:8740", "--status-minutes", "{{ status_minutes }}"]
+    command: ["serve", "/fleet/fleet.yaml", "--listen", "0.0.0.0:8740", "--status-minutes", "{{ status_minutes }}", "--wait"]
     environment:
       # an apply of this machine restarts this container: the role then runs detached from it
       - KIWI_CONTROL_HOST={{ hostname.split('.')[0] }}
+      # the opened store, job logs and renders: in RAM, gone with the container
+      - XDG_RUNTIME_DIR=/run/kiwi
+    tmpfs:
+      - /run/kiwi:size={{ ram_mb }}m,mode=0700
     volumes:
+      # fleet.yaml and the encrypted store (secrets.age): no secret is on this disk in the clear
       - {{ docker_dir }}/{{ container_prefix }}-control:/fleet:Z
     restart: unless-stopped
     networks:

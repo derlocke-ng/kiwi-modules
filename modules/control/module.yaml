@@ -4,7 +4,7 @@ module:
   name: control
   title: Control
   version: 1.0.0
-  description: "The control node (design/control-plane.md in kiwi-server): kiwi-server with web pages at control.<hostname>, for the mesh only. It keeps the fleet directory, looks at every machine by itself, sends the role to RAM masters, and applies from a phone."
+  description: "The control node (design/control-plane.md in kiwi-server): kiwi-server with web pages at control.<hostname>, for the mesh only. It keeps the fleet file and the secrets as the encrypted store, which its password opens into RAM; then it looks at every machine by itself, sends the role to RAM masters, and applies from a phone."
   category: system
   node_types: [node]
 
@@ -25,7 +25,7 @@ templates:
 
 storage:
   bind_mounts:
-    # the fleet directory: fleet file, secrets, CA, control/ (jobs, audit log); kiwi-server control push fills it
+    # fleet.yaml, secrets.age (encrypted), control/ (salt, audit log); kiwi-server control push fills it
     - { host: "${DOCKERDIR}/{{ container_prefix }}-control", type: dir, required: true }
 
 urls:
@@ -46,7 +46,7 @@ nginx:
     - "deny all;"
 
 backup:
-  # the fleet itself: without it the network has no CA, no seed and no secrets
+  # the fleet itself, its secrets encrypted: without it the network has no CA, no seed and no secrets
   paths: ["${DOCKERDIR}/{{ container_prefix }}-control"]
 
 settings:
@@ -63,6 +63,11 @@ settings:
     label: Look every (minutes)
     help: "How often it asks every machine how it is doing."
     default: 10
+  - key: ram_mb
+    type: int
+    label: RAM for the open store (MiB)
+    help: "The tmpfs that holds the opened secrets, job logs and rendered stacks while the fleet is unlocked."
+    default: 256
   - key: allow_from
     label: Also allow
     help: "One more address or network that may open the page besides the mesh, e.g. the operator's LAN 192.168.0.0/16. Empty: the mesh only."
