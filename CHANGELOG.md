@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.32.0 — Nextcloud's database password can be changed where it lives
+
+- `rotate:` takes a list of steps, run in order, and `name:` for a container with a name of
+  its own (`in:` stays the name after the prefix).
+- cloud: `database_password` has two steps: Nextcloud's `config.php` through occ (skipped
+  when it already holds the new value), then the roles `oc_nextcloud` and `nextcloud` in
+  its Postgres.
+
 ## 0.31.1 — the backup server password follows a new seed
 
 - backup: `server_password` is `rotate: restart`. The machine reads it from its restic
