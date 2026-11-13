@@ -146,6 +146,17 @@ class TestRender(unittest.TestCase):
         with open(os.path.join(gdir, "meta.txt")) as f:
             self.assertEqual("modes: " + " ".join(sorted(modes)), f.readline().strip())
 
+    def test_the_manifest_names_the_seed_this_one_replaced(self):
+        from unittest import mock
+        name, data = next(iter(MACHINES.items()))
+        with open(os.path.join(self.render(name, data), "stack.sh")) as f:
+            sh = f.read()
+        self.assertRegex(sh, r"KS_SEED_ID='[0-9a-f]{12}'")
+        self.assertNotIn("KS_SEED_FROM", sh)                     # a machine file knows no older seed
+        with mock.patch.object(machine.Secrets, "seed_from", lambda _s: "0123456789ab", create=True):
+            with open(os.path.join(self.render(name + "-again", data), "stack.sh")) as f:
+                self.assertIn("KS_SEED_FROM='0123456789ab'", f.read())
+
     def test_every_preset_renders_a_bundle_kiwi_stack_takes(self):
         for name, data in MACHINES.items():
             out = self.render(name, data)

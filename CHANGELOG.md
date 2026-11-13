@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.30.1 — the bundle names the seed it follows
+
+- The bundle's manifest carries `KS_SEED_FROM` (the id of the seed this one replaced) when
+  the secrets provider knows one: kiwi-stack 0.8.0 takes a changed seed from that one only.
+
 ## 0.30.0 — which generated secrets may change with a restart
 
 - A generated secret can say `rotate: restart`: its containers read it at every start and
