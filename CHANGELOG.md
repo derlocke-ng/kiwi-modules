@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.0 — a VPN group reaches one service or one port of a node
+
+- vpn-server: a group's `reach` takes what a federation partner's `share` takes. Beside
+  `all`, `nodes`, a node's name and an address: `cloud.papaya` (that service's web
+  address only) and `papaya:22` (that port only). A name that is not in the fleet is
+  left out and said in the script, not handed to iptables.
+- reverse-proxy: `access`, filled in by kiwi-server. A group that reaches a node for
+  some services only is refused at the node's other names: all of a node's services
+  share one address and port, so the master's firewall alone cannot tell them apart.
+
 ## 0.34.0 — a network leaves to the internet through its partner, over the link
 
 - vpn-server: two keys in a federation partner's entry. `exit: true` makes that partner

@@ -149,6 +149,10 @@ http {
         deny {{ c }};
 {% endfor %}
 {% endif %}
+{% set acc = access or {} %}
+{% for c in (acc.names or {}).get(s.server_name, acc.others or []) %}
+        deny {{ c }};      # a VPN group that reaches this machine for other services only
+{% endfor %}
 {% if s.public %}
         ssl_certificate     /etc/nginx/acme/{{ s.server_name }}/fullchain.pem;
         ssl_certificate_key /etc/nginx/acme/{{ s.server_name }}/privkey.pem;
