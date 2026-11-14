@@ -985,6 +985,47 @@ class TestFederation(unittest.TestCase):
         self.assertIn("server=/internal/10.10.0.1", compose)
         self.assertIn("51822:51822/udp", compose)
 
+    def start_of(self, name, **partner):
+        m = json.loads(json.dumps(MACHINES["gate"]))
+        m["master"].setdefault("vpn-server", {})["federation"] = {"kiwi2": dict(self.PARTNER, **partner)}
+        m["dns_records"] = RECORDS
+        out = self.render(name, m)
+        path = os.path.join(out, "km-vpn-server", "start.sh")
+        self.assertEqual(subprocess.run(["sh", "-n", path]).returncode, 0)
+        with open(path) as f:
+            return f.read()
+
+    def test_a_network_leaves_through_its_partner_over_the_link(self):
+        """The exit rides the link that is there: no VPN client that logs in to the partner's
+        VPN server, no second tunnel."""
+        plain = self.start_of("gate-fed-plain")
+        self.assertNotIn("table 202", plain)
+        self.assertNotIn("0.0.0.0/0", plain)
+        start = self.start_of("gate-fed-exit", exit=True)
+        self.assertIn("allowed-ips 10.10.0.0/16,0.0.0.0/0 persistent-keepalive 25", start)
+        self.assertIn("ip rule add iif wg0 table 202", start)                 # what the clients send
+        self.assertIn("ip route add default dev wg-fed table 202", start)     # the internet: over the link
+        for mesh in ("10.8.0.0/16", "10.10.0.0/16"):                          # the meshes: as before
+            self.assertIn("ip route add throw %s table 202" % mesh, start)
+        # the partner sees this master, not its clients; what goes to the partner's mesh keeps its address
+        self.assertLess(start.index("-A KIWI_FED_SNAT -d 10.10.0.0/16 -j RETURN"),
+                        start.index("-A KIWI_FED_SNAT -j SNAT --to-source 10.8.0.1"))
+        self.assertIn("-t nat -A POSTROUTING -o wg-fed -j KIWI_FED_SNAT", start)
+        # the kill switch: with the link down, not out by this master's own connection
+        self.assertRegex(start, r"iptables -I FORWARD 1 -i wg0 -o eth0 ! -d [0-9./]+ -j DROP")
+
+    def test_a_partner_may_leave_through_this_master_and_only_to_the_internet(self):
+        plain = self.start_of("gate-fed-plain2")
+        self.assertNotIn("KIWI_FED_OUT", plain)
+        start = self.start_of("gate-fed-out", internet=True)
+        for net in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10"):
+            self.assertIn("-A KIWI_FED_OUT -d %s -j RETURN" % net, start)     # never a private network, this mesh included
+        self.assertLess(start.index("-A KIWI_FED_OUT -d 10.0.0.0/8 -j RETURN"), start.index("-A KIWI_FED_OUT -j ACCEPT"))
+        self.assertIn("-A KIWI_FED -s 10.10.0.1 -j KIWI_FED_OUT", start)      # the partner's master, as it arrives
+        self.assertLess(start.index("-j KIWI_FED_OUT"), start.index("-A KIWI_FED -j DROP"))
+        self.assertIn("-t nat -A POSTROUTING -s 10.10.0.0/16 -o eth0 -j MASQUERADE", start)
+        self.assertNotIn("table 202", start)                                  # letting out is not leaving
+
     def test_a_masters_containers_reach_its_own_names_where_the_proxy_is(self):
         m = json.loads(json.dumps(MACHINES["gate"]))
         m["dns_records"] = RECORDS

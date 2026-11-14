@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.34.0 — a network leaves to the internet through its partner, over the link
+
+- vpn-server: two keys in a federation partner's entry. `exit: true` makes that partner
+  this network's way to the internet: what the clients send there goes over the
+  federation link (`wg-fed`) and comes out at the partner's master. `internet: true` on
+  the other side lets the partner out, to the internet only, never to a private
+  address. The partner sees the entry master, not its clients. With the link down the
+  clients have no internet: they do not fall back to the master's own connection.
+- This is multi-hop between two networks without the entry master being a client of the
+  exit master's VPN server: no VPN client container, no second tunnel, no login there.
+
 ## 0.33.2 — an empty blocklist database is made anew
 
 - dns: a first start without names can leave Pi-hole a database file with nothing in
