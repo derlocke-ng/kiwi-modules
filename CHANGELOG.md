@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.1 — the control page stays shut for who was not given it
+
+- reverse-proxy: a site with allow and deny lines of its own (the control page: the mesh,
+  `allow_from`) ignored the lines that shut out a federation partner or a limited VPN
+  group. nginx takes such lines from one level only. A partner or a group that was given
+  another service of the same node could open the control page's login. The shut-out
+  lines are now repeated where the site has its own, before them. Found by kiwi-server's
+  access drill, with real VPN clients.
+
 ## 0.35.0 — a VPN group reaches one service or one port of a node
 
 - vpn-server: a group's `reach` takes what a federation partner's `share` takes. Beside
