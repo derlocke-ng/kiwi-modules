@@ -1016,7 +1016,7 @@ class TestFederation(unittest.TestCase):
             svcs = yaml.safe_load(f)["services"]
         self.assertIn("/home/user/docker/kn-control:/fleet:Z", svcs["kn-control"]["volumes"])
         self.assertIn("KIWI_CONTROL_HOST=sh3", svcs["kn-control"]["environment"])
-        self.assertEqual(svcs["kn-control"]["tmpfs"], ["/run/kiwi:size=256m,mode=0700"])    # the open store lives in RAM
+        self.assertEqual(svcs["kn-control"]["tmpfs"], ["/run/kiwi:size=2048m,mode=0700"])    # the open store lives in RAM
         self.assertIn("--wait", svcs["kn-control"]["command"])
         with open(os.path.join(out, "kn-vpn-client", "post-rules.txt")) as f:
             rules = f.read()
@@ -1126,6 +1126,23 @@ class TestRotateAttribute(unittest.TestCase):
             "backup.server_password", "cloud.imaginary_secret", "cloud.onlyoffice_secret", "cloud.redis_password", "cloud.talk_internal_secret",
             "cloud.whiteboard_secret", "dns.pihole_password", "downloader.transmission_password",
             "paperless.secret_key", "sftp.sftp_password", "vpn-server.wg_password"])
+
+
+
+class TestWriteThroughLinks(unittest.TestCase):
+    def test_a_link_is_written_where_it_points(self):
+        import tempfile
+        from kiwimodules import util
+        with tempfile.TemporaryDirectory() as tmp:
+            ram, disk = os.path.join(tmp, "ram"), os.path.join(tmp, "disk")
+            os.makedirs(ram)
+            os.makedirs(disk)
+            util.write_text(os.path.join(ram, "fleet.yaml"), "old\n", 0o600)
+            os.symlink(os.path.join(ram, "fleet.yaml"), os.path.join(disk, "fleet.yaml"))
+            util.write_text(os.path.join(disk, "fleet.yaml"), "new\n", 0o600)
+            self.assertTrue(os.path.islink(os.path.join(disk, "fleet.yaml")))
+            self.assertEqual(os.listdir(disk), ["fleet.yaml"])           # no copy, no .tmp beside the link
+            self.assertEqual(util.read_text(os.path.join(ram, "fleet.yaml")), "new\n")
 
 
 if __name__ == "__main__":
