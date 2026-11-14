@@ -1142,6 +1142,139 @@ class TestRotateAttribute(unittest.TestCase):
 
 
 
+class TestLogins(unittest.TestCase):
+    """What a person signs in to: a module says it in `logins:`, a machine lists it with its own values."""
+    setUp, tearDown, render, write = TestRender.setUp, TestRender.tearDown, TestRender.render, TestRender.write
+
+    def logins(self, name, data):
+        from kiwimodules import modules as modmod, profiles as profmod
+        m = machine.load(self.write(name, data))
+        profile = profmod.discover()[m.role]
+        ms = modmod.discover()
+        resolver.resolve_settings(profile, m, ms)
+        spec = resolver.stack_spec(m, profile, m.dns_records, master_ip=m.master_ip, ca_cert=m.ca_cert,
+                                   lan_addresses=m.lan_addresses)
+        return modmod.Renderer(ms).logins(spec)
+
+    @staticmethod
+    def rows(logins):
+        return [(x["module"], x["label"], x["address"], x["user"], x["password"]) for x in logins]
+
+    def test_a_gateway_lists_its_pages_with_user_names_and_passwords(self):
+        generated = machine.derive_secret(SEED, "m1.home", "portainer", "admin_password")
+        self.assertEqual(self.rows(self.logins("m1", MACHINES["m1"])), [
+            ("dns", "Ad blocker (Pi-hole)", "https://pihole.m1.home/admin", "", "golden-pihole-m1"),
+            ("downloader", "Downloads (Transmission)", "https://dl.m1.home", "user", "golden-transmission"),
+            # JDownloader without a login of its own takes Transmission's, as its container does
+            ("downloader", "Downloads (JDownloader)", "https://jd.m1.home", "user", "golden-transmission"),
+            ("portainer", "Containers (Portainer)", "https://portainer.m1.home", "admin", generated),
+            ("sftp", "File transfer (SFTP)", "sftp://m1.home:2224", "user", "golden-sftp")])
+        own = json.loads(json.dumps(MACHINES["m1"]))
+        own["node"]["downloader"].update(transmission_user="anna", jd_web_user="ben", jd_web_password="golden-jd",
+                                         jd_hostname="load.example.org")
+        own["node"]["sftp"].update(sftp_user="carl", sftp_port=2022)
+        rows = self.rows(self.logins("m1-own", own))
+        self.assertIn(("downloader", "Downloads (Transmission)", "https://dl.m1.home", "anna", "golden-transmission"), rows)
+        self.assertIn(("downloader", "Downloads (JDownloader)", "https://load.example.org", "ben", "golden-jd"), rows)
+        self.assertIn(("sftp", "File transfer (SFTP)", "sftp://m1.home:2022", "carl", "golden-sftp"), rows)
+        # what the compose file gives the containers is what the list says
+        with open(os.path.join(self.render("m1-own", own), "docker-compose.yml")) as f:
+            compose = f.read()
+        for line in ("USER=anna", "PASS=golden-transmission", "WEB_AUTHENTICATION_USERNAME=ben",
+                     "WEB_AUTHENTICATION_PASSWORD=golden-jd"):
+            self.assertIn(line, compose)
+        off = json.loads(json.dumps(MACHINES["m1"]))
+        off["node"]["downloader"]["jdownloader"] = False
+        self.assertNotIn("Downloads (JDownloader)", [r[1] for r in self.rows(self.logins("m1-off", off))])
+
+    def test_a_cloud_node_and_a_master(self):
+        logins = self.logins("sh3", SH3)
+        self.assertEqual(self.rows(logins)[:2], [
+            ("cloud", "Files (Nextcloud)", "https://cloud.sh3.home", "admin", "golden-nc-admin"),
+            ("vault", "Passwords (Vaultwarden)", "https://vault.sh3.home", "", "")])       # everyone has an account of their own
+        self.assertIn("own account", logins[1]["note"])
+        self.assertEqual([r[1] for r in self.rows(logins)], ["Files (Nextcloud)", "Passwords (Vaultwarden)", "Containers (Portainer)"])
+        self.assertEqual(self.rows(self.logins("gate", MACHINES["gate"])), [
+            ("vpn-server", "VPN devices (wg-easy)", "https://wg.gate.home", "", "golden-wg-password"),
+            ("dns", "Ad blocker (Pi-hole)", "https://pihole.gate.home/admin", "", "golden-pihole-master")])
+
+    def test_vaultwardens_admin_page_says_what_to_type(self):
+        def admin(token):
+            data = json.loads(json.dumps(SH3))
+            data["node"]["vault"] = {"admin_token": token}
+            return [x for x in self.logins("sh3-" + str(len(token)), data) if x["label"] == "Vaultwarden admin page"]
+        self.assertEqual(admin(""), [])                                  # no token: the page is off
+        plain, = admin("golden-admin-token")
+        self.assertEqual((plain["address"], plain["user"], plain["password"]),
+                         ("https://vault.sh3.home/admin", "", "golden-admin-token"))
+        hashed, = admin("$argon2id$v=19$m=65540,t=3,p=4$Z29sZGVu$Z29sZGVuLWhhc2g")
+        self.assertEqual((hashed["address"], hashed["password"]), ("https://vault.sh3.home/admin", ""))   # a hash is not what is typed
+        self.assertIn("hash", hashed["note"])
+
+    def test_without_a_reverse_proxy_a_page_has_no_address(self):
+        data = {"name": "bare1", "domain": "home", "role": "node", "seed": "secrets/seed",
+                "node": {"modules": ["portainer"]}}
+        row, = self.logins("bare1", data)
+        self.assertEqual((row["label"], row["address"], row["user"]), ("Containers (Portainer)", "", "admin"))
+        self.assertEqual(row["password"], machine.derive_secret(SEED, "bare1.home", "portainer", "admin_password"))
+
+    def test_a_login_is_checked_when_the_module_is_read(self):
+        from kiwimodules.schema import Login, Setting, load_logins
+        from kiwimodules.util import KiwiError
+        settings = [Setting("t", {"key": "admin_password", "type": "secret", "generate": True}),
+                    Setting("t", {"key": "other_password", "type": "secret"}),
+                    Setting("t", {"key": "admin_user", "default": "admin"}), Setting("t", {"key": "extra", "type": "bool"})]
+        full = Login("t", {"label": "Files", "site": "cloud", "path": "/login", "user": "{{ admin_user }}",
+                           "password": "admin_password", "note": "A note.", "when": "extra"}, settings, ["cloud"])
+        self.assertEqual(full.as_dict(), {"label": "Files", "site": "cloud", "path": "/login", "address": "",
+                                          "user": "{{ admin_user }}", "password": ["admin_password"], "note": "A note.",
+                                          "when": "extra"})
+        self.assertEqual(Login("t", {"label": "Files"}).as_dict()["password"], [])           # a note-only login
+        self.assertEqual(Login("t", {"label": "Files", "password": ["other_password", "admin_password"]}, settings).password,
+                         ["other_password", "admin_password"])
+        self.assertEqual(Login("t", {"label": "Files", "address": "sftp://x:22", "when": "has_dns"}, settings).address, "sftp://x:22")
+        self.assertEqual(Login("t", {"label": "Files", "when": "ready"}, settings, derived=["ready"]).when, "ready")
+        self.assertEqual(load_logins("t", None), [])
+        for bad, said in (({"user": "admin"}, "needs a label"),
+                          ({"label": "Files", "pasword": "admin_password"}, "unknown key.*pasword"),
+                          ({"label": "Files", "password": "no_such"}, "not a secret setting"),
+                          ({"label": "Files", "password": "admin_user"}, "not a secret setting"),
+                          ({"label": "Files", "password": {"key": "admin_password"}}, "key of a setting"),
+                          ({"label": "Files", "site": "other"}, "site 'other' is not a site"),
+                          ({"label": "Files", "site": "cloud", "address": "sftp://x"}, "in place of site and path"),
+                          ({"label": "Files", "path": "admin"}, "path starts with a /"),
+                          ({"label": "Files", "when": "nothing"}, "when names 'nothing'"),
+                          ("Files", "is a mapping")):
+            with self.assertRaisesRegex(KiwiError, said):
+                Login("t", bad, settings, ["cloud"])
+        with self.assertRaisesRegex(KiwiError, "is a list"):
+            load_logins("t", {"label": "Files"}, settings)
+
+    def test_the_modules_that_have_one_and_every_password_is_a_setting(self):
+        from kiwimodules import modules as modmod
+        ms = modmod.discover()
+        self.assertEqual(sorted(m.name for m in ms.modules.values() if m.logins),
+                         ["cloud", "control", "dns", "downloader", "immich", "opencloud", "paperless", "portainer",
+                          "sftp", "vault", "vpn-server"])
+        for mod in ms.modules.values():
+            secrets = {s.key for s in mod.settings if s.type == "secret"}
+            names = {s.key for s in mod.settings} | set(mod.derived)
+            sites = [str(e.get("site") or "") for e in [mod.nginx or {}] + list((mod.nginx or {}).get("servers") or [])]
+            published = mod.as_dict()["logins"]
+            self.assertEqual(published, [x.as_dict() for x in mod.logins])
+            for login in published:
+                where = "%s: %s" % (mod.name, login["label"])
+                for key in login["password"]:
+                    self.assertIn(key, secrets, where)
+                if login["site"]:
+                    self.assertIn(login["site"], sites, where)
+                if login["when"]:
+                    self.assertIn(login["when"], names, where)
+                self.assertTrue(login["password"] or login["note"], "%s: neither a password nor a word about it" % where)
+                for text in (login["label"], login["note"]):
+                    self.assertNotRegex(text.lower(), r"\b(hub|dashboard|cluster|credentials?)\b", where)
+
+
 class TestWriteThroughLinks(unittest.TestCase):
     def test_a_link_is_written_where_it_points(self):
         import tempfile
