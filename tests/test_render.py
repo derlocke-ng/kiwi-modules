@@ -847,6 +847,19 @@ class TestRender(unittest.TestCase):
         self.assertLess(text.index('--permanent --zone=trusted --add-source="$DOCKER_SUBNET"'), text.index("firewall-cmd -q --reload"))
         # the node's own mesh address goes straight to its proxy for a LAN client
         self.assertRegex(text, r'-d "\$OWN_MESH_IP" -p tcp -m multiport --dports 80,443 -j DNAT --to-destination "\$PROXY_IP"')
+        # the kill switch: a LAN client's traffic never leaves by the card it came in on. It is the
+        # last rule inserted, so the first one checked, and stop takes it away again
+        kill = 'iptables -I FORWARD -i "$PUB_IFACE" -o "$PUB_IFACE" -j DROP'
+        self.assertIn(kill, text)
+        self.assertGreater(text.rindex(kill), text.index('iptables -I FORWARD -i "$PUB_IFACE" -o "$BRIDGE" -j ACCEPT'))
+        self.assertIn('iptables -D FORWARD -i "$PUB_IFACE" -o "$PUB_IFACE" -j DROP', text)
+        # and the unit stays to watch what a network manager may take away
+        unit = next(os.path.join(d, "kn-gateway.service") for d, _s, files in os.walk(out) if "kn-gateway.service" in files)
+        with open(unit) as f:
+            u = f.read()
+        self.assertIn("gw.sh watch", u)
+        self.assertNotIn("oneshot", u)
+        self.assertIn("ExecStopPost=", u)
 
     def test_an_exec_health_check_needs_no_shell(self):
         def health(test):
