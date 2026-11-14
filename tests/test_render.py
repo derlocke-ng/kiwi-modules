@@ -1134,6 +1134,54 @@ class TestFederation(unittest.TestCase):
         self.assertNotIn("allow 10.10.3.0/24;", vault)
 
 
+class TestAccess(unittest.TestCase):
+    """Who on the VPN may reach what: a group's reach names nodes, one service or one port."""
+    setUp, tearDown, render, write = TestRender.setUp, TestRender.tearDown, TestRender.render, TestRender.write
+
+    def start_of(self, name, groups):
+        m = json.loads(json.dumps(MACHINES["gate"]))
+        m["master"]["vpn-server"]["groups"] = groups
+        m["dns_records"] = RECORDS
+        out = self.render(name, m)
+        path = os.path.join(out, "km-vpn-server", "start.sh")
+        self.assertEqual(subprocess.run(["sh", "-n", path]).returncode, 0)
+        with open(path) as f:
+            return f.read()
+
+    def test_a_group_reaches_one_service_or_one_port_of_a_node(self):
+        start = self.start_of("gate-access", {
+            "guests": {"subnet": "10.8.1.0/24", "reach": ["cloud.sh3", "m1:22", "min", "vault.sh3.home", "nowhere"], "peers": False},
+            "family": {"subnet": "10.8.5.0/24", "reach": ["sh3", "cloud.sh3", "10.8.0.99"]}})
+        g = [x for x in start.splitlines() if "-s 10.8.1.0/24" in x]
+        for want in ("-d 10.8.0.25 -p tcp --dport 443 -j ACCEPT", "-d 10.8.0.25 -p tcp --dport 80 -j ACCEPT",   # a service: its web address
+                     "-d 10.8.0.6 -p tcp --dport 22 -j ACCEPT",                                                 # a port
+                     "-d 10.8.0.9 -j ACCEPT"):                                                                  # a whole node
+            self.assertTrue(any(x.endswith(want) for x in g), want)
+        self.assertFalse(any(x.endswith("-d 10.8.0.25 -j ACCEPT") or x.endswith("-d 10.8.0.6 -j ACCEPT") for x in g))
+        self.assertEqual(len([x for x in g if "--dport 443" in x and "FORWARD" in x]), 1)      # two services of sh3: one rule
+        self.assertEqual(g[-2:], ["iptables -A FORWARD -s 10.8.1.0/24 -d 10.8.0.0/16 -j DROP",
+                                  "iptables -t nat -A POSTROUTING -s 10.8.1.0/24 -o eth0 -j MASQUERADE"])
+        self.assertIn("# reach nowhere: no such name in this fleet, left out", start)
+        self.assertNotIn("-d nowhere", start)
+        f = [x for x in start.splitlines() if "-s 10.8.5.0/24" in x]
+        self.assertIn("iptables -A FORWARD -s 10.8.5.0/24 -d 10.8.0.25 -j ACCEPT", f)          # the whole node: no port rules beside it
+        self.assertFalse(any("--dport" in x and "FORWARD" in x for x in f))
+        self.assertIn("iptables -A FORWARD -s 10.8.5.0/24 -d 10.8.0.99 -j ACCEPT", f)          # an address as written
+        self.assertIn("iptables -A FORWARD -s 10.8.5.0/24 -d 10.8.0.6 -j DROP", f)             # the other nodes, one by one
+
+    def test_a_node_refuses_a_group_the_names_it_was_not_given(self):
+        m = json.loads(json.dumps(SH3))
+        m["node"].setdefault("reverse-proxy", {})["access"] = {
+            "names": {"cloud.sh3.home": []}, "others": ["10.8.1.0/24"]}
+        out = self.render("sh3-access", m)
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        cloud = nginx.split("server_name cloud.sh3.home;", 1)[1].split("server {", 1)[0]
+        vault = nginx.split("server_name vault.sh3.home;", 1)[1].split("server {", 1)[0]
+        self.assertNotIn("deny 10.8.1.0/24;", cloud)
+        self.assertIn("deny 10.8.1.0/24;", vault)
+
+
 class TestMeshAddress(unittest.TestCase):
     def test_a_master_exiting_through_another_network_keeps_its_own_address(self):
         conf = {"vpn-client/wireguard_config": b"[Interface]\nAddress = 10.10.5.2/32\n"}
