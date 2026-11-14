@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.33.1 — the ad blocker blocks
+
+- dns: Pi-hole fetches its blocklist when its container starts, before it can resolve a
+  name itself. On every machine whose own lookups go through that Pi-hole the fetch
+  failed and the list stayed empty: three test machines answered names for two weeks
+  and blocked nothing. A timer now looks at the list soon after every start and once an
+  hour, and fetches an empty one again (`kn-pihole-blocklist.timer`).
+
 ## 0.33.0 — a module says how to log in to it
 
 - `logins:` in `module.yaml`: what a person types to get into a module's service. Each
