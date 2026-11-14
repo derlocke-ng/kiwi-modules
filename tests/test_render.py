@@ -831,6 +831,25 @@ class TestRender(unittest.TestCase):
         self.assertIn("192.168.1.25 sh3.home", stack)         # the host's own /etc/hosts
         self.assertIn("10.8.0.1 gate.home", stack)
 
+    def test_an_empty_blocklist_is_fetched_again(self):
+        """Pi-hole's own fetch at its start fails where the machine resolves through it: a timer
+        looks at the list and fetches an empty one."""
+        out = self.render("gw1", MACHINES["m1"])
+        found = {f: os.path.join(d, f) for d, _s, files in os.walk(out) for f in files}
+        script = found["pihole-blocklist.sh"]
+        self.assertEqual(subprocess.run(["bash", "-n", script]).returncode, 0)
+        with open(script) as f:
+            text = f.read()
+        self.assertIn('C="kn-pihole"', text)
+        self.assertIn("select count(*) from gravity", text)
+        self.assertIn("pihole -g", text)
+        with open(found["kn-pihole-blocklist.timer"]) as f:
+            timer = f.read()
+        self.assertIn("OnUnitActiveSec=1h", timer)
+        self.assertIn("Unit=kn-pihole-blocklist.service", timer)
+        with open(found["kn-pihole-blocklist.service"]) as f:
+            self.assertIn("kiwi/pihole-blocklist.sh", f.read())
+
     def test_a_gateway_lets_its_lan_clients_through(self):
         out = self.render("gw1", MACHINES["m1"])
         path = next(os.path.join(d, "gw.sh") for d, _s, files in os.walk(out) if "gw.sh" in files)
