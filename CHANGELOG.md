@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.33.0 — a module says how to log in to it
+
+- `logins:` in `module.yaml`: what a person types to get into a module's service. Each
+  entry has a `label`, and as needed a `site` or an `address`, a `path`, a `user` (a
+  literal or Jinja over the settings), the `password` (the key of the secret setting
+  that holds it), a `note` and a `when`. Published with the schema, so kiwi-server can
+  list every login of a machine. docs/development.md.
+- Declared for cloud, opencloud, paperless, portainer, dns (Pi-hole), downloader
+  (Transmission, JDownloader), sftp, vault, vpn-server (wg-easy), immich and control.
+- An nginx server of a module may carry a `site:` name, for a module with several.
+
 ## 0.32.3 — the gateway keeps its clients inside the VPN, whatever happens to its rules
 
 - gateway: a kill switch. What a LAN client sends is never forwarded back out of the
