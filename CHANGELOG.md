@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.33.2 — an empty blocklist database is made anew
+
+- dns: a first start without names can leave Pi-hole a database file with nothing in
+  it, and its own fetch cannot build on that (seen on an Odroid). The hourly look
+  removes an empty file before it fetches.
+
 ## 0.33.1 — the ad blocker blocks
 
 - dns: Pi-hole fetches its blocklist when its container starts, before it can resolve a
