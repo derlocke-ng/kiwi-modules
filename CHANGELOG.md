@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.32.3 — the gateway keeps its clients inside the VPN, whatever happens to its rules
+
+- gateway: a kill switch. What a LAN client sends is never forwarded back out of the
+  card it came in on. Before, when the routing rule (table 128) was lost, the gateway
+  became a plain router and its clients' traffic left by the home's own connection.
+  Seen on an Odroid: systemd-networkd drops rules it did not make when it sets the
+  card up anew.
+- gateway: `kn-gateway.service` now stays running and looks at the rule, the routes
+  and the kill switch twice a minute, and puts back what is gone. A v1 gateway needed
+  its services restarted by hand for this.
+
 ## 0.32.2 — a file behind a link is written where the link points
 
 - `util.write_bytes` (and `write_text`) follow a link: a control node's fleet file is a
