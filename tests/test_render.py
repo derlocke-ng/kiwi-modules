@@ -843,6 +843,7 @@ class TestRender(unittest.TestCase):
         self.assertIn('C="kn-pihole"', text)
         self.assertIn("select count(*) from gravity", text)
         self.assertIn("pihole -g", text)
+        self.assertLess(text.index("rm -f /etc/pihole/gravity.db"), text.index("pihole -g"))    # an empty file first
         with open(found["kn-pihole-blocklist.timer"]) as f:
             timer = f.read()
         self.assertIn("OnUnitActiveSec=1h", timer)
