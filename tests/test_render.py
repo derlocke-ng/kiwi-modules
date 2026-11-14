@@ -1181,6 +1181,27 @@ class TestAccess(unittest.TestCase):
         self.assertNotIn("deny 10.8.1.0/24;", cloud)
         self.assertIn("deny 10.8.1.0/24;", vault)
 
+    def test_a_site_with_its_own_allow_list_still_shuts_out_who_was_not_given_it(self):
+        """The control page allows the mesh in its location. nginx then ignores the server
+        block's deny lines: a group or a partner that was given another service of the node
+        opened the control page too (found by kiwi-server's access drill)."""
+        m = json.loads(json.dumps(SH3))
+        m["node"]["modules"] = ["vpn-client", "reverse-proxy", "cloud", "control"]
+        m["node"].pop("preset", None)
+        m["node"]["reverse-proxy"]["access"] = {"names": {"cloud.sh3.home": []}, "others": ["10.8.1.0/24"]}
+        m["node"]["reverse-proxy"]["federation"] = {
+            "names": {"cloud.sh3.home": {"allow": ["10.8.255.1"], "deny": ["10.8.255.1"]}}, "deny": ["10.8.255.1"]}
+        out = self.render("sh3-control", m)
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        site = nginx.split("server_name control.sh3.home;", 1)[1].split("\n    server {", 1)[0]
+        where = site.split("location / {", 1)[1]
+        for shut in ("deny 10.8.1.0/24;", "deny 10.8.255.1;"):
+            self.assertIn(shut, where)
+            self.assertLess(where.index(shut), where.index("allow 10.8.0.0/16;"))      # the first match counts
+        cloud = nginx.split("server_name cloud.sh3.home;", 1)[1].split("\n    server {", 1)[0]
+        self.assertNotIn("deny 10.8.1.0/24;", cloud.split("location / {", 1)[1])        # no rules of its own there
+
 
 class TestMeshAddress(unittest.TestCase):
     def test_a_master_exiting_through_another_network_keeps_its_own_address(self):
