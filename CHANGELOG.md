@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.32.2 — a file behind a link is written where the link points
+
+- `util.write_bytes` (and `write_text`) follow a link: a control node's fleet file is a
+  link into memory, and writing it used to put a plain copy on the disk beside it.
+- control: `ram_mb` is 2048 by default (was 256), so install media made on the page fit
+  in memory until they are fetched. It is a limit, not a reservation.
+
 ## 0.32.1 — a docs/ folder, and a short README
 
 - `docs/`: install, the commands, the machine file, modules and presets, the bundle,
