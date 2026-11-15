@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.46.2 — a name that keeps its mesh address at home
+
+- A module's site can say `mesh_only:` (in its nginx block): its service answers at the
+  machine's mesh address only. On a LAN such a name is then not answered with the
+  machine's address at home (`lan_addresses`), in Pi-hole's records and in the hosts
+  file. `Renderer.mesh_only_names(spec)` lists them; a spec takes them as `mesh_only`.
+- Jabber on a node marks its names so: its ports (5222, 5223) are in the VPN client's
+  network, and a device at home was sent to the machine's home address, where they are
+  closed.
+
 ## 0.46.1 — a node without a mesh address yet is told what it needs again
 
 - 0.46.0 made every node with a reverse proxy and no mesh address yet (not enrolled) stop
