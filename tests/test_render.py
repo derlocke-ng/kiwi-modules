@@ -1118,6 +1118,93 @@ class TestFederation(unittest.TestCase):
         with open(os.path.join(self.render("sh3-nostatus", m), "kn-nginx", "nginx.conf")) as f:
             self.assertNotIn("status.sh3.home", f.read())
 
+    def test_a_nodes_service_is_open_to_the_internet_through_the_master(self):
+        """The service and its certificate on the node; the master hands on names (still
+        encrypted) and ports, each connection with the address it came from in front."""
+        # the master: what kiwi-server gives it from the nodes
+        m = json.loads(json.dumps(MACHINES["hub1"]))
+        m["master"].setdefault("reverse-proxy", {})["exposed"] = {
+            "names": {"chat.example.org": "10.8.0.25"},
+            "ports": [{"port": 5222, "to": "10.8.0.25:15222", "proxy_protocol": True}]}
+        out = self.render("exp-master", m)
+        with open(os.path.join(out, "km-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        self.assertIn("stream {", nginx)
+        self.assertIn("chat.example.org 10.8.0.25:8443;", nginx)
+        self.assertIn("default 127.0.0.1:8443;", nginx)
+        self.assertIn("ssl_preread on;", nginx)
+        self.assertIn("listen 5222;\n        proxy_pass 10.8.0.25:15222;\n        proxy_protocol on;", nginx)
+        self.assertNotIn("listen 443 ssl", nginx)                      # its own sites moved behind the stream block
+        self.assertIn("listen 127.0.0.1:8443 ssl proxy_protocol;", nginx)
+        self.assertIn("real_ip_header proxy_protocol;", nginx)        # and still see who asks
+        self.assertIn("proxy_pass http://10.8.0.25:80;", nginx)       # Let's Encrypt's question goes to the node
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            ports = yaml.safe_load(f)["services"]["km-vpn-server"]["ports"]
+        for want in ("80:80/tcp", "443:443/tcp", "5222:5222/tcp"):
+            self.assertTrue(any(p.endswith(want) for p in ports), (want, ports))
+        with open(os.path.join(out, "km-vpn-server", "start.sh")) as f:
+            start = f.read()
+        self.assertIn("--sport 5222 ! -d", start)                      # the answers leave by the real interface
+        self.assertIn("--sport 443 ! -d", start)
+        # a master that hands nothing on is as it was
+        with open(os.path.join(self.render("exp-plain", MACHINES["hub1"]), "km-nginx", "nginx.conf")) as f:
+            plain = f.read()
+        self.assertNotIn("stream {", plain)
+        self.assertNotIn("8443", plain)
+
+        # the node: Jabber with a public name, in the VPN client's network
+        n = json.loads(json.dumps(SH3))
+        n["node"]["modules"] = ["vpn-client", "reverse-proxy", "xmpp"]
+        n["node"].pop("preset", None); n["node"].pop("cloud", None)
+        n["node"]["xmpp"] = {"xmpp_domain": "chat.example.org", "admin_password": "golden-xmpp"}
+        n["node"]["vpn-client"] = {"vpn_provider": "mullvad", "wireguard_private_key": "golden-mullvad-key",
+                                   "wireguard_addresses": "10.66.1.2/32"}
+        n["vpn_ip"] = "10.8.0.25"
+        rp = n["node"].setdefault("reverse-proxy", {})
+        rp.update(public=True)
+        # nobody hands on to it: said, not rendered
+        self.assertNotEqual(cli.main(["render", self.write("exp-alone", n), "-o", os.path.join(self.tmp, "exp-alone.bundle")]), 0)
+        rp["via"] = "10.8.0.1"
+        out = self.render("exp-node", n)
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        block = nginx[nginx.index("server_name chat.example.org;") - 400:nginx.index("server_name chat.example.org;") + 400]
+        self.assertIn("listen 8443 ssl proxy_protocol;", block)
+        self.assertIn("set_real_ip_from 10.8.0.1;", block)
+        self.assertIn("/etc/nginx/acme/chat.example.org/fullchain.pem", block)
+        internal = nginx[nginx.index("server_name jabber.sh3.home;") - 200:nginx.index("server_name jabber.sh3.home;") + 300]
+        self.assertIn("listen 443 ssl;", internal)                     # the VPN's site stays as it is
+        self.assertNotIn("deny all;", internal)
+        self.assertNotIn("stream {", nginx)
+        with open(os.path.join(out, "kn-vpn-client", "post-rules.txt")) as f:
+            rules = f.read()
+        self.assertIn("-s 10.8.0.1 -d 10.8.0.25 -p tcp --dport 8443 -j DNAT", rules.replace("${VPN_IP}", "10.8.0.25"))
+        self.assertIn("-A INPUT -i tun0 -p tcp -m multiport --dports 5222,5223 -j ACCEPT", rules)
+        self.assertIn("-A INPUT -i tun0 -s 10.8.0.1 -p tcp -m multiport --dports 15222,15223,15269 -j ACCEPT", rules)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            svcs = yaml.safe_load(f)["services"]
+        self.assertEqual(svcs["kn-xmpp"]["network_mode"], "service:kn-vpn-client")
+        self.assertNotIn("ports", svcs["kn-xmpp"])                     # nothing opened at home
+        with open(os.path.join(out, "kn-xmpp", "ejabberd.yml")) as f:
+            conf = yaml.safe_load(f)
+        handed = {x["port"]: x for x in conf["listen"] if x.get("use_proxy_protocol")}
+        self.assertEqual(sorted(handed), [15222, 15223, 15269])
+        self.assertEqual(conf["hosts"], ["chat.example.org"])
+        self.assertTrue(os.path.isfile(os.path.join(out, "kiwi", "acme.sh")))     # the node fetches the certificate
+        # and what kiwi-server asks the library, to tell the master
+        from kiwimodules import modules as modmod, profiles
+        mm = machine.load(self.write("exp-node2", n))
+        profile = profiles.discover()[mm.role]
+        ms = modmod.discover()
+        resolver.resolve_settings(profile, mm, ms)
+        spec = resolver.stack_spec(mm, profile, mm.dns_records, master_ip=mm.master_ip, ca_cert=mm.ca_cert,
+                                   lan_addresses=mm.lan_addresses)
+        names, ports = modmod.Renderer(ms).exposure(spec)
+        self.assertEqual(names, ["chat.example.org"])
+        self.assertEqual(ports, [{"port": 5222, "to": 15222, "proxy_protocol": True},
+                                 {"port": 5223, "to": 15223, "proxy_protocol": True},
+                                 {"port": 5269, "to": 15269, "proxy_protocol": True}])
+
     def xmpp_master(self, **xmpp):
         m = json.loads(json.dumps(MACHINES["hub1"]))
         m["master"]["modules"] = list(m["master"]["modules"]) + ["xmpp"]
