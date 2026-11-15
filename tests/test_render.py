@@ -1134,7 +1134,8 @@ class TestFederation(unittest.TestCase):
         m = json.loads(json.dumps(MACHINES["hub1"]))
         m["master"].setdefault("reverse-proxy", {})["exposed"] = {
             "names": {"chat.example.org": "10.8.0.25"},
-            "ports": [{"port": 5222, "to": "10.8.0.25:15222", "proxy_protocol": True}]}
+            "ports": [{"port": 5222, "to": "10.8.0.25:15222", "proxy_protocol": True},
+                      {"port": 10666, "to": "10.8.0.25:10666", "proxy_protocol": False, "proto": "udp"}]}
         out = self.render("exp-master", m)
         with open(os.path.join(out, "km-nginx", "nginx.conf")) as f:
             nginx = f.read()
@@ -1142,8 +1143,9 @@ class TestFederation(unittest.TestCase):
         self.assertIn("chat.example.org 10.8.0.25:8443;", nginx)
         self.assertIn("default 127.0.0.1:8443;", nginx)
         self.assertIn("ssl_preread on;", nginx)
-        self.assertEqual(nginx.count("limit_conn kiwi_door 80;"), 2)       # one address, so many connections at once: the door and the port
+        self.assertEqual(nginx.count("limit_conn kiwi_door 80;"), 3)       # one address, so many connections at once: the door and the port
         self.assertIn("listen 5222;\n        proxy_pass 10.8.0.25:15222;\n        proxy_protocol on;", nginx)
+        self.assertIn("listen 10666 udp;\n        proxy_pass 10.8.0.25:10666;", nginx)     # a game's port, as it is
         self.assertNotIn("listen 443 ssl", nginx)                      # its own sites moved behind the stream block
         self.assertIn("listen 127.0.0.1:8443 ssl proxy_protocol;", nginx)
         self.assertIn("real_ip_header proxy_protocol;", nginx)        # and still see who asks
@@ -1151,11 +1153,12 @@ class TestFederation(unittest.TestCase):
         self.assertIn("proxy_pass http://10.8.0.25:80;", nginx)       # Let's Encrypt's question goes to the node
         with open(os.path.join(out, "docker-compose.yml")) as f:
             ports = yaml.safe_load(f)["services"]["km-vpn-server"]["ports"]
-        for want in ("80:80/tcp", "443:443/tcp", "5222:5222/tcp"):
+        for want in ("80:80/tcp", "443:443/tcp", "5222:5222/tcp", "10666:10666/udp"):
             self.assertTrue(any(p.endswith(want) for p in ports), (want, ports))
         with open(os.path.join(out, "km-vpn-server", "start.sh")) as f:
             start = f.read()
         self.assertIn("--sport 5222 ! -d", start)                      # the answers leave by the real interface
+        self.assertIn("-p udp --sport 10666 ! -d", start)
         self.assertIn("--sport 443 ! -d", start)
         # a master that hands nothing on is as it was
         with open(os.path.join(self.render("exp-plain", MACHINES["hub1"]), "km-nginx", "nginx.conf")) as f:
@@ -1219,9 +1222,9 @@ class TestFederation(unittest.TestCase):
         self.assertEqual(names, ["chat.example.org"])
         # Jabber's ports on a node are at its mesh address only: its names say so
         self.assertEqual(sorted(modmod.Renderer(ms).mesh_only_names(spec)), ["chat.example.org", "jabber.sh3.home"])
-        self.assertEqual(ports, [{"port": 5222, "to": 15222, "proxy_protocol": True},
-                                 {"port": 5223, "to": 15223, "proxy_protocol": True},
-                                 {"port": 5269, "to": 15269, "proxy_protocol": True}])
+        self.assertEqual(ports, [{"port": 5222, "to": 15222, "proxy_protocol": True, "proto": "tcp"},
+                                 {"port": 5223, "to": 15223, "proxy_protocol": True, "proto": "tcp"},
+                                 {"port": 5269, "to": 15269, "proxy_protocol": True, "proto": "tcp"}])
 
     def xmpp_master(self, **xmpp):
         m = json.loads(json.dumps(MACHINES["hub1"]))
@@ -1436,6 +1439,22 @@ class TestFederation(unittest.TestCase):
             m["node"].pop(k, None)
         m["node"]["games"] = games
         return m
+
+    def test_a_public_game_server_is_handed_on_by_the_master(self):
+        from kiwimodules import modules as modmod, profiles
+        m = self.games_machine(eula=True, servers={
+            "survival": {"game": "minecraft", "public": True},
+            "doom": {"game": "zandronum", "public": True, "port": 10700},
+            "private": {"game": "terraria"}})
+        mm = machine.load(self.write("sh3-games-public", m))
+        profile = profiles.discover()[mm.role]
+        ms = modmod.discover()
+        resolver.resolve_settings(profile, mm, ms)
+        spec = resolver.stack_spec(mm, profile, mm.dns_records, master_ip=mm.master_ip, ca_cert=mm.ca_cert, lan_addresses=mm.lan_addresses)
+        names, ports = modmod.Renderer(ms).exposure(spec)
+        self.assertEqual(names, [])                                    # no web site: a game needs no public proxy
+        self.assertEqual(sorted((p["port"], p["to"], p["proto"], p["proxy_protocol"]) for p in ports),
+                         [(10700, 10700, "udp", False), (25565, 25565, "tcp", False)])        # the private one stays at home
 
     def test_game_servers_each_get_a_container_a_folder_and_their_ports(self):
         out = self.render("sh3-games", self.games_machine(eula=True, servers={
