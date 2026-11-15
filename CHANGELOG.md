@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.49.0 — plain names, fewer settings in view
+
+- **The modules are called what they do**: *Files (Nextcloud)*, *Ad blocker (Pi-hole)*,
+  *VPN connection*, *Web addresses (nginx)*, *Downloads*, *Home gateway*… instead of
+  *Nextcloud*, *DNS (Pi-hole)*, *VPN client (gluetun)*, *Reverse proxy (nginx)*. The app,
+  the control page and `kiwi-server modules` show these names.
+- **Technical settings moved to Advanced** (25 of them): container images, ports that
+  rarely move, sharing another container's network, certificate files, user ids. The app and
+  the control page fold Advanced away.
+
 ## 0.48.1 — Jabber's accounts stay with their name
 
 - When one Jabber service became two (`separate: true`), the public one started with no
