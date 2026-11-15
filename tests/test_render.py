@@ -1687,6 +1687,38 @@ class TestOnion(unittest.TestCase):
             compose = yaml.safe_load(f)
         return out, compose
 
+    def test_a_hidden_service_answers_https_when_asked_to_and_names_no_inner_port(self):
+        out, _compose = self.node("sh3-onion-plain")
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        self.assertIn("port_in_redirect off;", nginx)             # a redirect at a hidden service names no port 8043
+        self.assertNotIn("8044", nginx)
+        with open(os.path.join(out, "kn-onion", "etc", "torrc")) as f:
+            self.assertNotIn("HiddenServicePort 443", f.read())
+        # tls: Tor hands 443 over too, and the proxy answers it with a certificate for the addresses
+        m = json.loads(json.dumps(SH3))
+        m["node"]["modules"] = ["vpn-client", "reverse-proxy", "vault", "onion"]
+        m["node"].pop("preset", None); m["node"].pop("cloud", None)
+        m["node"]["onion"] = {"services": {"vault": {}}, "keys": {"vault": self.KEYS["vault"]}, "tls": True}
+        m["node"]["reverse-proxy"]["onion"] = {"vault.sh3.home": self.KEYS["vault"]["address"]}
+        self.assertNotEqual(cli.main(["render", self.write("sh3-onion-nocert", m), "-o", os.path.join(self.tmp, "nocert.bundle")]), 0)
+        m["node"]["reverse-proxy"].update(onion_fullchain=TLS["tls_fullchain"], onion_privkey=TLS["tls_privkey"])
+        out = self.render("sh3-onion-tls", m)
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        at = nginx.index("server_name %s;" % self.KEYS["vault"]["address"])
+        block = nginx[at - 400:at]
+        self.assertIn("listen 8043;", block)
+        self.assertIn("listen 8044 ssl;", block)
+        self.assertIn("ssl_certificate     /etc/nginx/onion-fullchain.pem;", block)
+        self.assertIn("listen 8044 ssl default_server;", nginx)
+        with open(os.path.join(out, "kn-onion", "etc", "torrc")) as f:
+            self.assertRegex(f.read(), r"HiddenServicePort 443 [0-9.]+:8044")
+        self.assertTrue(os.path.isfile(os.path.join(out, "kn-nginx", "onion-privkey.pem")))
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            vols = yaml.safe_load(f)["services"]["kn-nginx"]["volumes"]
+        self.assertTrue(any(v.endswith("/etc/nginx/onion-fullchain.pem:ro,z") for v in vols))
+
     def test_tor_shares_the_vpn_clients_network_and_only_serves(self):
         out, compose = self.node("sh3-onion")
         svc = compose["services"]["kn-onion"]
