@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.39.0 — Nextcloud survives a power cut, and a status page
+
+- **cloud: the database's settings come back after a power cut.** Nextcloud's database
+  image rewrites `postgresql.conf` at every start without syncing it. A power cut in
+  the seconds after leaves the file empty; the database then listens on 127.0.0.1
+  only, Nextcloud waits for it for ever, and every container says it is healthy. Seen
+  on a test machine after power-cut drills. The database container now starts through
+  `kiwi-start.sh`, which puts the image's own sample back when the file has lost its
+  settings, and then runs the image's start script as before.
+- **control: `status.<hostname>`**, a site of the control part that is no admin page:
+  whatever is asked for there, the control part is asked for `/status` and nothing
+  else. For kiwi-server's status page, which needs no login. `status_page: false`
+  switches it off, `status_hostname` names it.
+- A module's `urls:` entry that renders empty is left out.
+
 ## 0.38.0 — admin pages, and every app
 
 - A module's site can be an admin page (`admin: true` in its `nginx:` block): the

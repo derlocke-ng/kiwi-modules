@@ -1099,6 +1099,69 @@ class TestFederation(unittest.TestCase):
         with open(os.path.join(self.render("sh3-nossh", m), "kn-vpn-client", "post-rules.txt")) as f:
             self.assertNotIn("--dport 22 ", f.read())
 
+    def test_the_status_page_is_one_path_without_a_login(self):
+        m = json.loads(json.dumps(SH3))
+        m["node"]["modules"] = ["vpn-client", "reverse-proxy", "control"]
+        m["node"].pop("preset", None)
+        for k in ("cloud", "vault"):
+            m["node"].pop(k, None)
+        out = self.render("sh3-status", m)
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            conf = f.read()
+        site = conf.split("server_name status.sh3.home;", 1)[1].split("\n    server {", 1)[0]
+        self.assertIn("set $backend http://kn-control:8740/status;", site)       # whatever is asked for: /status
+        self.assertNotIn("deny all;", site)                                       # no admin page: the access rules decide
+        from kiwimodules import modules
+        nx = modules.discover().get("control").nginx
+        self.assertEqual([bool(e.get("admin")) for e in nx["servers"]], [False])
+        m["node"]["control"] = {"status_page": False}
+        with open(os.path.join(self.render("sh3-nostatus", m), "kn-nginx", "nginx.conf")) as f:
+            self.assertNotIn("status.sh3.home", f.read())
+
+    def test_nextclouds_database_gets_its_settings_back_after_a_power_cut(self):
+        out = self.render("sh3-dbguard", json.loads(json.dumps(SH3)))
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            db = yaml.safe_load(f)["services"]["nextcloud-aio-database"]
+        self.assertEqual((db["entrypoint"], db["command"]), (["/bin/sh"], ["/kiwi-start.sh"]))
+        self.assertIn("/home/user/docker/nextcloud-aio-database/kiwi-start.sh:/kiwi-start.sh:ro,z", db["volumes"])
+        script = os.path.join(out, "nextcloud-aio-database", "kiwi-start.sh")
+        self.assertEqual(subprocess.run(["sh", "-n", script]).returncode, 0)
+        # run for real against a folder that looks like the database's: an emptied file is put back, a good one kept
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp)
+        data, sample, started = os.path.join(tmp, "data"), os.path.join(tmp, "sample"), os.path.join(tmp, "started")
+        os.makedirs(data)
+        with open(sample, "w") as f:
+            f.write("listen_addresses = '*'\nmax_connections = 100\n")
+        with open(os.path.join(tmp, "start.sh"), "w") as f:
+            f.write("#!/bin/sh\ntouch %s\n" % started)
+        os.chmod(os.path.join(tmp, "start.sh"), 0o755)
+        with open(script) as f:
+            text = f.read().replace("/var/lib/postgresql/data", data).replace(
+                "/usr/local/share/postgresql/postgresql.conf.sample", sample).replace("exec /start.sh", "exec %s/start.sh" % tmp)
+        guard = os.path.join(tmp, "guard.sh")
+        with open(guard, "w") as f:
+            f.write(text)
+        conf = os.path.join(data, "postgresql.conf")
+
+        def run(before):
+            if before is not None:
+                with open(conf, "w") as f:
+                    f.write(before)
+            r = subprocess.run(["sh", guard], capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertTrue(os.path.exists(started))
+            os.remove(started)
+            return (open(conf).read() if os.path.exists(conf) else None), r.stdout
+        self.assertEqual(run("log_min_messages = warning\n")[0], "log_min_messages = warning\n")     # no database yet: left alone
+        open(os.path.join(data, "PG_VERSION"), "w").write("18\n")
+        after, said = run("log_min_messages = warning\n")                         # what a power cut left
+        self.assertEqual(after, "listen_addresses = '*'\nmax_connections = 100\n")
+        self.assertIn("putting the image's own back", said)
+        self.assertEqual(oct(os.stat(conf).st_mode & 0o777), "0o600")
+        kept = "listen_addresses = '*'\nmax_connections = 5000\n"
+        self.assertEqual(run(kept), (kept, ""))                                   # a good file is not touched
+
     def test_the_cache_mirrors_registries_behind_the_proxy_and_proxies_apt(self):
         m = json.loads(json.dumps(SH3))
         m["node"]["modules"] = ["vpn-client", "reverse-proxy", "cache"]
@@ -1184,8 +1247,9 @@ class TestAccess(unittest.TestCase):
         def admin(name):
             nx = ms.get(name).nginx
             return [bool(e.get("admin")) for e in ([nx] if nx.get("server_name") else []) + list(nx.get("servers") or [])]
-        for name in ("control", "portainer", "dns", "vpn-server", "backup-server", "cache"):
+        for name in ("portainer", "dns", "vpn-server", "backup-server", "cache"):
             self.assertEqual(admin(name), [True], name)
+        self.assertEqual(admin("control"), [True, False])           # the control page is one, its status page is not
         for name in ("cloud", "vault", "paperless", "git"):
             self.assertFalse(any(admin(name)), name)
 
