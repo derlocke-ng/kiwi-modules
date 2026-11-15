@@ -1203,6 +1203,63 @@ class TestAccess(unittest.TestCase):
         self.assertNotIn("deny 10.8.1.0/24;", cloud.split("location / {", 1)[1])        # no rules of its own there
 
 
+class TestOnion(unittest.TestCase):
+    """Hidden services: Tor in the VPN client's network, the proxy's .onion sites."""
+    setUp, tearDown, render, write = TestRender.setUp, TestRender.tearDown, TestRender.render, TestRender.write
+    KEYS = {"vault": {"address": "a" * 56 + ".onion", "secret": "c2VjcmV0", "public": "cHVibGlj", "clients": {}},
+            "cloud": {"address": "b" * 56 + ".onion", "secret": "c2VjcmV0Mg==", "public": "cHVibGljMg==", "clients": {"anna": "ANNAKEY"}}}
+
+    def node(self, name, **change):
+        m = json.loads(json.dumps(SH3))
+        m["node"]["modules"] = ["vpn-client", "reverse-proxy", "cloud", "vault", "onion"]
+        m["node"].pop("preset", None)
+        m["node"]["onion"] = {"services": {"vault": {}, "cloud": {"clients": ["anna"]}}, "keys": self.KEYS}
+        m["node"]["reverse-proxy"]["onion"] = {"vault.sh3.home": self.KEYS["vault"]["address"], "cloud.sh3.home": self.KEYS["cloud"]["address"]}
+        m["node"].update(change)
+        out = self.render(name, m)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            compose = yaml.safe_load(f)
+        return out, compose
+
+    def test_tor_shares_the_vpn_clients_network_and_only_serves(self):
+        out, compose = self.node("sh3-onion")
+        svc = compose["services"]["kn-onion"]
+        self.assertEqual(svc["network_mode"], "service:kn-vpn-client")      # leaves at the master, never from home
+        self.assertNotIn("ports", svc)
+        self.assertEqual((svc["entrypoint"], svc["command"]), ("/bin/sh", ["/etc/tor/start.sh"]))
+        with open(os.path.join(out, "kn-onion", "etc", "torrc")) as f:
+            torrc = f.read()
+        self.assertIn("SocksPort 0", torrc)
+        self.assertEqual(torrc.count("HiddenServiceDir /var/lib/tor/onion/"), 2)
+        self.assertRegex(torrc, r"HiddenServicePort 80 [0-9.]+:8043")
+        start = os.path.join(out, "kn-onion", "etc", "start.sh")
+        self.assertEqual(subprocess.run(["sh", "-n", start]).returncode, 0)
+        with open(start) as f:
+            script = f.read()
+        self.assertIn("printf '%s\\n' 'descriptor:x25519:ANNAKEY' > \"$D/cloud/authorized_clients/anna.auth\"", script)
+        self.assertNotIn("vault/authorized_clients/anna", script)             # open to anyone with the address
+        self.assertIn("exec su-exec tor tor -f /etc/tor/torrc", script)
+        self.assertEqual(os.stat(start).st_mode & 0o077, 0)                   # it carries the services' keys
+
+    def test_the_proxy_answers_a_hidden_service_as_that_one_site(self):
+        out, _compose = self.node("sh3-onion-nginx")
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        site = nginx.split("server_name %s;" % self.KEYS["vault"]["address"], 1)[1].split("\n    server {", 1)[0]
+        before = nginx.split("server_name %s;" % self.KEYS["vault"]["address"], 1)[0].rsplit("server {", 1)[1]
+        self.assertIn("listen 8043;", before)
+        self.assertNotIn("ssl", before)
+        self.assertIn("proxy_set_header Host vault.sh3.home;", site)          # its usual name, and https
+        self.assertIn("proxy_set_header X-Forwarded-Proto https;", site)
+        self.assertIn("proxy_redirect https://vault.sh3.home/ /;", site)
+        self.assertNotIn("$remote_addr", site)                               # a stranger's circuit is nobody's address
+        self.assertIn("listen 8043 default_server;", nginx)                  # another name on that port: nothing
+        self.assertNotIn("8043", yaml.safe_dump(_compose["services"]["kn-nginx"].get("ports", [])))   # not published
+        plain = self.render("sh3-no-onion", json.loads(json.dumps(SH3)))
+        with open(os.path.join(plain, "kn-nginx", "nginx.conf")) as f:
+            self.assertNotIn("8043", f.read())
+
+
 class TestMeshAddress(unittest.TestCase):
     def test_a_master_exiting_through_another_network_keeps_its_own_address(self):
         conf = {"vpn-client/wireguard_config": b"[Interface]\nAddress = 10.10.5.2/32\n"}
