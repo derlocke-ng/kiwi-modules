@@ -1118,6 +1118,79 @@ class TestFederation(unittest.TestCase):
         with open(os.path.join(self.render("sh3-nostatus", m), "kn-nginx", "nginx.conf")) as f:
             self.assertNotIn("status.sh3.home", f.read())
 
+    def games_machine(self, **games):
+        m = json.loads(json.dumps(SH3))
+        m["node"]["modules"] = ["vpn-client", "games"]
+        m["node"].pop("preset", None)
+        for k in ("cloud", "vault", "reverse-proxy", "portainer"):
+            m["node"].pop(k, None)
+        m["node"]["games"] = games
+        return m
+
+    def test_game_servers_each_get_a_container_a_folder_and_their_ports(self):
+        out = self.render("sh3-games", self.games_machine(eula=True, servers={
+            "survival": {"game": "minecraft", "memory": "4G", "name": "Our world"},
+            "doom": {"game": "zandronum"},
+            "lab": {"game": "abiotic-factor", "port": 7800, "password": "join-me", "env": {"MaxServerPlayers": "4"}}}))
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            svcs = yaml.safe_load(f)["services"]
+        mc, doom, lab = svcs["kn-game-survival"], svcs["kn-game-doom"], svcs["kn-game-lab"]
+        self.assertEqual(mc["image"], "docker.io/itzg/minecraft-server:latest")
+        self.assertEqual(mc["ports"], ["25565:25565/tcp"])
+        for e in ("EULA=TRUE", "MEMORY=4G", "MOTD=Our world", "UID=1000"):
+            self.assertIn(e, mc["environment"])
+        self.assertEqual(mc["volumes"], ["/home/user/docker/kn-games/survival/data:/data:z"])
+        self.assertEqual(doom["command"], "zandronum-server -port 10666 -iwad /data/freedoom2.wad +sv_hostname doom +deathmatch 1 +map MAP01")
+        self.assertEqual(doom["ports"], ["10666:10666/udp"])
+        # another first port: every port of the server moves with it, inside it stays the game's own
+        self.assertEqual(lab["ports"], ["7800:7777/udp", "27038:27015/udp"])
+        self.assertIn("ServerPassword=join-me", lab["environment"])
+        self.assertIn("MaxServerPlayers=4", lab["environment"])             # the server's own setting over the catalog's
+        self.assertNotIn("MaxServerPlayers=6", lab["environment"])
+        # what it keeps is backed up, the game it downloads is not
+        self.assertEqual(sorted(lab["volumes"]), ["/home/user/docker/kn-games-files/lab/game:/server:z",
+                                                  "/home/user/docker/kn-games/lab/saves:/server/AbioticFactor/Saved:z"])
+        with open(os.path.join(out, "stack.sh")) as f:
+            sh = f.read()
+        dirs = re.search(r"KS_STACK_DIRS=\(([^)]*)\)", sh).group(1)
+        for d in ("'kn-games/survival/data'", "'kn-games/doom/data'", "'kn-games/lab/saves'", "'kn-games-files/lab/game'"):
+            self.assertIn(d, dirs)
+        self.assertIn("KS_STACK_PORTS=('25565/tcp' '10666/udp' '7800/udp' '27038/udp')", sh)
+        with open(os.path.join(out, "kn-vpn-client", "post-rules.txt")) as f:
+            rules = f.read()
+        for proto, port in (("tcp", 25565), ("udp", 10666), ("udp", 7800), ("udp", 27038)):      # from the VPN, at the mesh address
+            self.assertIn("-d 10.8.0.25 -p %s --dport %d -j DNAT --to-destination 172.128.0.1:%d" % (proto, port, port), rules)
+        with open(os.path.join(out, "quadlets", "kn-game-survival.container")) as f:
+            unit = f.read()
+        self.assertIn("PublishPort=25565:25565/tcp", unit)
+        self.assertIn("StopTimeout=90", unit)
+
+    def test_game_servers_say_what_is_missing(self):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            rc = cli.main(["render", self.write("g1", self.games_machine(servers={"a": {"game": "minecraft"}})), "-o", self.tmp + "/g1"])
+        self.assertEqual(rc, 1)
+        self.assertIn("needs its licence accepted", err.getvalue())
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            rc = cli.main(["render", self.write("g2", self.games_machine(servers={"a": {"game": "pong"}, "B b": {"game": "terraria"}})),
+                           "-o", self.tmp + "/g2"])
+        self.assertEqual(rc, 1)
+        self.assertIn("no such game: pong", err.getvalue())
+        # a game of one's own: one more entry of the catalog
+        from kiwimodules import modules
+        catalog = dict(next(s.default for s in modules.discover().get("games").settings if s.key == "catalog"))
+        catalog["pong"] = {"title": "Pong", "image": "example.org/pong:1", "ports": ["4000/udp"], "data": {"scores": "/scores"}}
+        out = self.render("g3", self.games_machine(servers={"p": {"game": "pong"}}, catalog=catalog))
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            pong = yaml.safe_load(f)["services"]["kn-game-p"]
+        self.assertEqual((pong["image"], pong["ports"], pong["volumes"]),
+                         ("example.org/pong:1", ["4000:4000/udp"], ["/home/user/docker/kn-games/p/scores:/scores:z"]))
+        # no server at all: the module is there and starts nothing
+        out = self.render("g4", self.games_machine())
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            self.assertFalse([n for n in yaml.safe_load(f)["services"] if "game" in n])
+
     def test_nextclouds_database_gets_its_settings_back_after_a_power_cut(self):
         out = self.render("sh3-dbguard", json.loads(json.dumps(SH3)))
         with open(os.path.join(out, "docker-compose.yml")) as f:
