@@ -1142,6 +1142,7 @@ class TestFederation(unittest.TestCase):
         self.assertIn("chat.example.org 10.8.0.25:8443;", nginx)
         self.assertIn("default 127.0.0.1:8443;", nginx)
         self.assertIn("ssl_preread on;", nginx)
+        self.assertEqual(nginx.count("limit_conn kiwi_door 80;"), 2)       # one address, so many connections at once: the door and the port
         self.assertIn("listen 5222;\n        proxy_pass 10.8.0.25:15222;\n        proxy_protocol on;", nginx)
         self.assertNotIn("listen 443 ssl", nginx)                      # its own sites moved behind the stream block
         self.assertIn("listen 127.0.0.1:8443 ssl proxy_protocol;", nginx)
