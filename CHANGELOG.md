@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.40.0 — game servers
+
+- **A new module, `games`**: game servers for the people on a network. `servers` lists
+  them by name, each with its game:
+
+  ```yaml
+  games:
+    eula: true                      # Minecraft's licence
+    servers:
+      survival: { game: minecraft, memory: 4G, name: Our world }
+      doom: { game: zandronum }
+      lab: { game: abiotic-factor, port: 7800, password: "..." }
+  ```
+
+  Every server is one container with one folder (`kn-games/<server>`, backed up; what
+  a game downloads goes to `kn-games-files/<server>`, which is not). Its ports open on
+  the machine's address at home and, for the VPN, at its mesh address. `port` moves a
+  server whose usual port is taken; its other ports move with it.
+- The catalog knows Minecraft (Java and Bedrock), Enshrouded, Abiotic Factor, Zandronum,
+  Valheim, Factorio, Satisfactory, Palworld and Terraria, each with the image, the ports
+  and the settings its image documents. `catalog` takes more. Run and seen working on a
+  test machine: Minecraft (a status query answered) and Zandronum (with Freedoom, which
+  is put into the server's folder by hand). The others are not tried here.
+- For modules: a `firewall` rule and a `bind_mounts` path with `each` may come out as
+  several; `x is match(pattern)` in `validate`.
+
 ## 0.39.0 — Nextcloud survives a power cut, and a status page
 
 - **cloud: the database's settings come back after a power cut.** Nextcloud's database

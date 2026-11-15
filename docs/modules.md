@@ -51,6 +51,7 @@ as profiles of their own. They are kept for files that already use them.
 | `immich` | node | Immich, photos and videos from your phone. |
 | `paperless` | node | Paperless-ngx, scanned documents with text recognition and search. |
 | `git` | node | Forgejo, git hosting with a web page. Git over SSH has a port of its own, 2223. |
+| `games` | node | Game servers: Minecraft (Java and Bedrock), Enshrouded, Abiotic Factor, Zandronum, Valheim, Factorio, Satisfactory, Palworld, Terraria, or any other from an image (`catalog`). One container and one folder per entry of `servers`; their ports open at home and at the node's VPN address. |
 | `downloader` | node | Transmission and JDownloader. They share the VPN client's network, so they have no connection without the tunnel. |
 | `sftp` | node | An SFTP server on its own port, to fetch downloads from the LAN or the mesh. |
 | `gateway` | node | Routes LAN clients that use this machine as their gateway through the VPN client. |
