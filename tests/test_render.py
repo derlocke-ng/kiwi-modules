@@ -1271,6 +1271,37 @@ class TestFederation(unittest.TestCase):
         self.assertIn("client_max_body_size 25m;", site)
         self.assertIn("http://kn-paste:8080", site)
 
+    def test_sites_strangers_reach_are_rate_limited_and_fail2ban_reads_it(self):
+        pub = self.xmpp_master(xmpp_domain="chat.example.org")
+        pub["master"]["modules"] = list(pub["master"]["modules"]) + ["fail2ban"]
+        pub["master"].setdefault("reverse-proxy", {}).update(public=True, acme_email="me@example.org")
+        out = self.render("lim1", pub)
+        with open(os.path.join(out, "km-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        self.assertIn("limit_req_zone $binary_remote_addr zone=kiwi_public:10m rate=20r/s;", nginx)
+        public = nginx.split("server_name chat.example.org;", 1)[1].split("\n    server {", 1)[0]
+        self.assertIn("limit_req zone=kiwi_public burst=80 nodelay;", public)
+        self.assertIn("limit_conn kiwi_conn 60;", public)
+        mesh = nginx.split("server_name jabber.hub1.home;", 1)[1].split("\n    server {", 1)[0]
+        self.assertNotIn("limit_req", mesh)                                    # the VPN's own sites are not limited
+        with open(os.path.join(out, "km-fail2ban", "config", "fail2ban", "jail.d", "kiwi.local")) as f:
+            jail = f.read()
+        for name in ("[sshd]", "[nginx-limit-req]", "[kiwi-nginx-refused]", "[kiwi-nginx-probe]", "[recidive]"):
+            self.assertIn(name, jail)
+        self.assertIn("recidive-forward, chain=FORWARD", jail)
+        with open(os.path.join(out, "km-fail2ban", "config", "fail2ban", "filter.d", "kiwi-nginx-refused.conf")) as f:
+            rule = re.search(r"failregex = (.*)", f.read()).group(1).replace("<HOST>", r"(?P<host>\S+)")
+        hit = '203.0.113.9 - - [15/Nov/2026:12:00:00 +0100] "POST /login HTTP/2.0" 401 12 "-" "curl" "-"'
+        fine = '203.0.113.9 - - [15/Nov/2026:12:00:00 +0100] "GET / HTTP/2.0" 200 12 "-" "curl" "-"'
+        self.assertEqual(re.match(rule, hit).group("host"), "203.0.113.9")
+        self.assertIsNone(re.match(rule, fine))
+        # rate_limit: 0 takes the limits out; a machine without public or hidden sites has none to begin with
+        pub["master"]["reverse-proxy"]["rate_limit"] = 0
+        with open(os.path.join(self.render("lim2", pub), "km-nginx", "nginx.conf")) as f:
+            self.assertNotIn("limit_req", f.read())
+        with open(os.path.join(self.render("lim3", json.loads(json.dumps(SH3))), "kn-nginx", "nginx.conf")) as f:
+            self.assertNotIn("limit_req", f.read())
+
     def games_machine(self, **games):
         m = json.loads(json.dumps(SH3))
         m["node"]["modules"] = ["vpn-client", "games"]

@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.44.0 — a pastebin, rate limits, and fail2ban that acts on them
+
+- **A new module, `paste`**: PrivateBin, a page to put a text or a file on and pass its
+  link along; it is encrypted in the browser. `paste.<hostname>` for the mesh; on a
+  master a public name (`paste_domain`); for strangers elsewhere a hidden service
+  (`onion: { services: { paste: {} } }`). Settings: title, how long a paste is kept,
+  its largest size, files on or off. Its pastes are a volume, in the backup.
+- **reverse-proxy: rate limits for sites strangers reach.** One address may send
+  `rate_limit` (20) requests a second to a public site, four times that at once; more
+  gets 429. A hidden service's visitors look like one address, so there the limit is the
+  site's, three times as high. Sites of the VPN are not limited. Clients that send or
+  read too slowly are let go.
+- **fail2ban: three more jails.** `nginx-limit-req` bans who keeps hitting the rate
+  limit, `kiwi-nginx-refused` who is refused twenty times (wrong passwords, closed
+  pages), on a master with public sites; `recidive` puts who was banned three times in
+  a day out for a week, on every machine.
+- Tried on a test master: 500 fast requests from another server to a public site got
+  some answers, some 429, and then a ban; the site did not answer that address until
+  the ban was lifted. PrivateBin by hand with the module's settings: a paste was stored
+  and read back.
+
 ## 0.43.0 — Jabber with a registration page, a captcha, and three doors
 
 - **xmpp is ejabberd now** (it was Prosody for two releases): what was asked for is built
