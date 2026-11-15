@@ -9,7 +9,7 @@
     config as a hidden service: every site of the machine was down. The site's own one
     is left out there.
   - **Sites usable over Tor are marked** (`onion: true` in a module's nginx block): Git,
-    BTCPay, Jabber, the pastebin, the hub, the relay, Nextcloud, the status page. Each
+    BTCPay, Jabber, the pastebin, the hub, the relay, Nextcloud, Immich, the status page. Each
     was opened through Tor; the mark says what was tried. kiwi-server offers only those.
   - **Paperless** as a hidden service: it is told its `.onion` address (setting `onion`,
     filled in by kiwi-server), so a login sent from there is taken instead of refused.
