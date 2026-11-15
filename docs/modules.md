@@ -56,7 +56,7 @@ as profiles of their own. They are kept for files that already use them.
 | `gateway` | node | Routes LAN clients that use this machine as their gateway through the VPN client. |
 | `dhcp-relay` | node | Passes the LAN's DHCP requests on to Pi-hole, so that Pi-hole can be the LAN's DHCP server. |
 | `tang` | node | Tang servers, which let the encrypted machines of the network unlock their disks at boot without anyone typing a key. |
-| `control` | node | The control node: kiwi-server with web pages, reachable from the mesh. |
+| `control` | node | The control node: kiwi-server with web pages, reachable from the mesh; and a status page without a login at `status.<hostname>` (`status_page: false` switches it off). |
 | `nostr-relay` | master | strfry, a nostr relay, behind the reverse proxy. A hub keeps its data on it. |
 | `hub` | master | A hub built on kiwi-framework (Armory or your own fork) as a container behind the reverse proxy. |
 
