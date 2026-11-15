@@ -9,7 +9,9 @@ module:
   node_types: [master]
 
 dependencies:
-  required: [reverse-proxy]
+  # it shares the WireGuard server's network, as the master's proxy does: clients on the VPN
+  # reach it at the master's mesh address
+  required: [vpn-server, reverse-proxy]
   optional: [vpn-client]
 
 network:
@@ -19,9 +21,7 @@ network:
 
 firewall:
   scope: vpn-client
-  rules:
-    # clients on the VPN: the chat port of the mesh address goes on to the container
-    - "-t nat -A PREROUTING -d ${VPN_IP} -p tcp --dport 5222 -j DNAT --to-destination {{ container_ip }}:5222"
+  rules: []
 
 templates:
   compose: docker-compose.yml.j2
@@ -57,7 +57,7 @@ logins:
 nginx:
   upstream:
     name: prosody
-    server: "{{ container_prefix }}-xmpp:5280"
+    server: "{{ '127.0.0.1' if module_config.get('reverse-proxy', {}).get('network_mode') == 'vpn-server' else container_prefix ~ '-vpn-server' }}:5280"
   server_name: "{{ xmpp_host }}"
   proxy_pass: "http://prosody"
   websocket: true

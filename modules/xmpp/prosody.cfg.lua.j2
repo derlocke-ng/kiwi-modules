@@ -34,7 +34,7 @@ log = { info = "*console" }
 http_ports = { 5280 }
 http_interfaces = { "*" }
 https_ports = { }
-trusted_proxies = { "{{ docker_subnet }}" }
+trusted_proxies = { "127.0.0.1", "{{ docker_subnet }}" }
 http_external_url = "https://{{ xmpp_host }}/"
 consider_websocket_secure = true
 consider_bosh_secure = true

@@ -1130,6 +1130,8 @@ class TestFederation(unittest.TestCase):
         with open(os.path.join(out, "docker-compose.yml")) as f:
             x = yaml.safe_load(f)["services"]["km-xmpp"]
         self.assertNotIn("ports", x)                                          # nothing of it is on the Internet
+        self.assertEqual(x["network_mode"], "service:km-vpn-server")          # at the master's mesh address, as its proxy is
+        self.assertNotIn("5222", str(yaml.safe_load(open(os.path.join(out, "docker-compose.yml")))["services"]["km-vpn-server"]["ports"]))
         self.assertIn("/home/user/docker/km-nginx:/kiwi-certs:ro,z", x["volumes"])       # the fleet CA's certificate
         self.assertEqual((x["entrypoint"], x["command"]), (["/bin/sh"], ["/kiwi-start.sh"]))
         self.assertIn("KIWI_ADMIN=admin@chat.hub1.home", x["environment"])
@@ -1142,7 +1144,7 @@ class TestFederation(unittest.TestCase):
         with open(os.path.join(out, "km-nginx", "nginx.conf")) as f:
             site = f.read().split("server_name chat.hub1.home;", 1)[1].split("\n    server {", 1)[0]
         self.assertIn("client_max_body_size 50m;", site)
-        self.assertIn("http://km-xmpp:5280", site)
+        self.assertIn(":5280", site)
         script = os.path.join(out, "km-xmpp", "start.sh")
         self.assertEqual(subprocess.run(["sh", "-n", script]).returncode, 0)
         with open(script) as f:
@@ -1157,7 +1159,10 @@ class TestFederation(unittest.TestCase):
         out = self.render("x2", pub)
         with open(os.path.join(out, "docker-compose.yml")) as f:
             x = yaml.safe_load(f)["services"]["km-xmpp"]
-        self.assertEqual(x["ports"], ["5222:5222", "5269:5269"])
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            wg = yaml.safe_load(f)["services"]["km-vpn-server"]
+        self.assertIn("5222:5222/tcp", wg["ports"])                           # published where the network is
+        self.assertIn("5269:5269/tcp", wg["ports"])
         self.assertIn("/home/user/docker/km-nginx/acme/chat.example.org:/kiwi-certs:ro,z", x["volumes"])
         with open(os.path.join(out, "km-xmpp", "prosody.cfg.lua")) as f:
             conf = f.read()

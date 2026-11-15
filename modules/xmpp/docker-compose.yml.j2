@@ -9,14 +9,9 @@ services:
       - TZ={{ timezone }}
       - KIWI_ADMIN={{ admin_user }}@{{ xmpp_host }}
       - KIWI_ADMIN_PASSWORD={{ admin_password }}
-    networks:
-      {{ network_name }}:
-        ipv4_address: {{ container_ip }}
-{% if xmpp_public %}
-    ports:
-      - "5222:5222"
-      - "5269:5269"
-{% endif %}
+    # in the WireGuard server's network: 5222 answers at the master's mesh address, and the
+    # WireGuard server publishes 5222 and 5269 for a public name
+    network_mode: "service:{{ container_prefix }}-vpn-server"
     restart: unless-stopped
     logging:
       driver: json-file
