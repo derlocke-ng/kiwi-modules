@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.36.1 — the proxy starts with a hidden service
+
+- reverse-proxy: with a hidden service, nginx did not start
+  (`could not build server_names_hash`): a `.onion` name is 62 characters, more than its
+  table of names takes by default. The table is made bigger when a machine has hidden
+  services. Found on the first real machine.
+
 ## 0.36.0 — hidden services
 
 - New module `onion`: sites of a machine as Tor hidden services, for people who are not

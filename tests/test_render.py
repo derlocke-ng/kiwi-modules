@@ -1254,10 +1254,32 @@ class TestOnion(unittest.TestCase):
         self.assertIn("proxy_redirect https://vault.sh3.home/ /;", site)
         self.assertNotIn("$remote_addr", site)                               # a stranger's circuit is nobody's address
         self.assertIn("listen 8043 default_server;", nginx)                  # another name on that port: nothing
+        self.assertIn("server_names_hash_bucket_size 128;", nginx)           # or nginx does not start: the name is 62 long
+        self.check_with_nginx(os.path.join(out, "kn-nginx", "nginx.conf"))
         self.assertNotIn("8043", yaml.safe_dump(_compose["services"]["kn-nginx"].get("ports", [])))   # not published
         plain = self.render("sh3-no-onion", json.loads(json.dumps(SH3)))
         with open(os.path.join(plain, "kn-nginx", "nginx.conf")) as f:
             self.assertNotIn("8043", f.read())
+
+
+    def check_with_nginx(self, conf):
+        """nginx itself reads the file, where podman and its image are here (not in CI): a
+        hidden service's name once kept the proxy of a real machine from starting."""
+        import shutil
+        if not shutil.which("podman") or subprocess.run(["podman", "image", "exists", "docker.io/library/nginx:1"]).returncode:
+            return
+        with open(conf) as f:
+            text = f.read()
+        # nothing to proxy to and no certificates here: only the names and the syntax are asked
+        import re
+        text = re.sub(r"ssl_certificate(_key)?\s+[^;]+;", "", text)
+        text = re.sub(r"listen 443 ssl( default_server)?;", lambda m: "listen 8443%s;" % (m.group(1) or ""), text).replace("http2 on;", "")
+        tmp = conf + ".check"
+        with open(tmp, "w") as f:
+            f.write(text)
+        r = subprocess.run(["podman", "run", "--rm", "--network", "none", "-v", "%s:/etc/nginx/nginx.conf:ro,z" % tmp,
+                            "docker.io/library/nginx:1", "nginx", "-t"], capture_output=True, text=True)
+        self.assertNotIn("server_names_hash", r.stderr)
 
 
 class TestMeshAddress(unittest.TestCase):
