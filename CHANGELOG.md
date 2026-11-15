@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.38.0 — admin pages, and every app
+
+- A module's site can be an admin page (`admin: true` in its `nginx:` block): the
+  control page, Portainer, Pi-hole, the WireGuard page, the backup server and the cache
+  are. `Renderer.admin_names` lists them for a machine; kiwi-server refuses them to VPN
+  groups and linked networks that were not given the admin pages.
+- vpn-server: `reach: [apps]` gives a group the web pages of every node and nothing else
+  of them: no SSH, no other port. A new default group `family` has it.
+- The `admin` switch of a group now reads: the admin pages of the master and of every
+  node.
+
 ## 0.37.0 — git hosting
 
 - New module `git`: Forgejo for a node, at `git.<hostname>` behind the reverse proxy,

@@ -1169,6 +1169,26 @@ class TestAccess(unittest.TestCase):
         self.assertIn("iptables -A FORWARD -s 10.8.5.0/24 -d 10.8.0.99 -j ACCEPT", f)          # an address as written
         self.assertIn("iptables -A FORWARD -s 10.8.5.0/24 -d 10.8.0.6 -j DROP", f)             # the other nodes, one by one
 
+    def test_apps_are_the_web_pages_of_every_node_and_nothing_else(self):
+        start = self.start_of("gate-apps", {"family": {"subnet": "10.8.5.0/24", "reach": ["apps"]}})
+        f = [x for x in start.splitlines() if "-s 10.8.5.0/24" in x and "FORWARD" in x]
+        for ip in ("10.8.0.6", "10.8.0.25", "10.8.0.9"):
+            self.assertIn("iptables -A FORWARD -s 10.8.5.0/24 -d %s -p tcp --dport 443 -j ACCEPT" % ip, f)
+            self.assertIn("iptables -A FORWARD -s 10.8.5.0/24 -d %s -j DROP" % ip, f)          # no SSH, nothing else
+            self.assertNotIn("iptables -A FORWARD -s 10.8.5.0/24 -d %s -j ACCEPT" % ip, f)
+
+    def test_the_admin_pages_are_marked(self):
+        from kiwimodules import modules
+        ms = modules.discover()
+
+        def admin(name):
+            nx = ms.get(name).nginx
+            return [bool(e.get("admin")) for e in ([nx] if nx.get("server_name") else []) + list(nx.get("servers") or [])]
+        for name in ("control", "portainer", "dns", "vpn-server", "backup-server", "cache"):
+            self.assertEqual(admin(name), [True], name)
+        for name in ("cloud", "vault", "paperless", "git"):
+            self.assertFalse(any(admin(name)), name)
+
     def test_a_node_refuses_a_group_the_names_it_was_not_given(self):
         m = json.loads(json.dumps(SH3))
         m["node"].setdefault("reverse-proxy", {})["access"] = {
