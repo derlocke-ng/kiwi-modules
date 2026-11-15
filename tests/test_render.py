@@ -830,6 +830,15 @@ class TestRender(unittest.TestCase):
             stack = f.read()
         self.assertIn("192.168.1.25 sh3.home", stack)         # the host's own /etc/hosts
         self.assertIn("10.8.0.1 gate.home", stack)
+        # a name whose service answers at the mesh address only keeps it, also on this LAN
+        data = dict(data, dns_records=data["dns_records"] + [["10.8.0.25", "jabber.sh3.home"]], mesh_only=["jabber.sh3.home"])
+        out = self.render("lan2", data)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            compose = f.read()
+        self.assertIn("10.8.0.25 jabber.sh3.home", compose)
+        self.assertIn("192.168.1.25 cloud.sh3.home", compose)
+        with open(os.path.join(out, "stack.sh")) as f:
+            self.assertIn("10.8.0.25 jabber.sh3.home", f.read())
 
     def test_an_empty_blocklist_is_fetched_again(self):
         """Pi-hole's own fetch at its start fails where the machine resolves through it: a timer
@@ -1207,6 +1216,8 @@ class TestFederation(unittest.TestCase):
                                    lan_addresses=mm.lan_addresses)
         names, ports = modmod.Renderer(ms).exposure(spec)
         self.assertEqual(names, ["chat.example.org"])
+        # Jabber's ports on a node are at its mesh address only: its names say so
+        self.assertEqual(sorted(modmod.Renderer(ms).mesh_only_names(spec)), ["chat.example.org", "jabber.sh3.home"])
         self.assertEqual(ports, [{"port": 5222, "to": 15222, "proxy_protocol": True},
                                  {"port": 5223, "to": 15223, "proxy_protocol": True},
                                  {"port": 5269, "to": 15269, "proxy_protocol": True}])
