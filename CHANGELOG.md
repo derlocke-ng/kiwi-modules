@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.46.0 — a node's service open to the Internet, through the master
+
+- **`reverse-proxy: { public: true }` on a node.** A site whose name is outside the fleet's
+  domain is then open to the Internet without opening anything at home: the master hands
+  the name on to the node through the VPN, still encrypted, and the node holds the Let's
+  Encrypt certificate (the master forwards Let's Encrypt's question too). Each connection
+  comes with the visitor's address in front (PROXY protocol), so the node's rate limits
+  count the real visitor. On the VPN the name is the node's own.
+  - The master's own sites move behind that door (its proxy's `stream` block on 443) and
+    still see who asks. A master that hands nothing on is as it was.
+  - Generated settings: `reverse-proxy.exposed` (master: names and ports) and
+    `reverse-proxy.via` (node: the master's mesh address). `Renderer.exposure(spec)` lists
+    a node's public names and ports for kiwi-server.
+  - A module names ports to hand on with `expose: ports:` ("5222:15222/proxy").
+- **`xmpp` runs on a node** (and still on a master): in the network of the machine's door
+  to the VPN. With a public name the master hands Jabber's ports 5222, 5223 and 5269 on.
+  A hidden service on the node works as on a master. A new certificate is in use within a
+  minute during the first hour.
+- The master's Jabber and handed-on ports answer the Internet by the real interface when
+  the master leaves through a VPN exit.
+- Tried with a node behind a master: certificate fetched, logins from the Internet, the
+  VPN and Tor, the page for new accounts with its captcha on all three.
+
 ## 0.45.0 — Firefox Sync
 
 - **A new module, `firefox-sync`**: Mozilla's own sync server (syncstorage-rs) with a
