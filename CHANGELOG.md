@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.41.0 — Jabber
+
+- **A new module, `xmpp`**, for a master: Prosody, a Jabber (XMPP) server. Chats, group
+  rooms (`rooms.<name>`), files, and message history that a new device shows.
+  - By default at `chat.<hostname>`, a mesh name: for people on the VPN, with the fleet
+    CA's certificate, no other server reached.
+  - With `xmpp_domain: chat.example.org` (a public name that points at the master): open
+    to the Internet on 5222 and 5269, Let's Encrypt's certificate from the reverse
+    proxy, and people on other servers can be written to.
+  - The admin's account is made at the first start with the password of the settings.
+    Nobody else can register: the admin invites people from a Jabber app, and each
+    makes an account with a password of their own.
+  - A renewed certificate is loaded within the hour.
+- Run by hand on a test machine with the module's files: it starts, its own check
+  passes, the admin logs in with the right password and not with a wrong one. Not
+  tried: a public name (it needs one in DNS), a client app, rooms and files.
+
 ## 0.40.0 — game servers
 
 - **A new module, `games`**: game servers for the people on a network. `servers` lists
