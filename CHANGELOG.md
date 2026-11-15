@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.48.1 — Jabber's accounts stay with their name
+
+- When one Jabber service became two (`separate: true`), the public one started with no
+  accounts: the accounts of the public name stayed in the first service's data. Each name
+  now has a folder of its own (`hosts/<name>`), made once from the old layout's folder that
+  holds that name's accounts. Switching between one service and two keeps every account.
+- The public instance is stopped too while a backup saves Jabber's data.
+- Tried on a test node: two services to one and back, the accounts with their names
+  throughout; logins from the Internet and the VPN after.
+
 ## 0.48.0 — a game server open to the Internet, through the master
 
 - **`games: servers: <name>: public: true`**: players outside the VPN join at the master's

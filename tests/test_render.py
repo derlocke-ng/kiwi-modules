@@ -1305,7 +1305,14 @@ class TestFederation(unittest.TestCase):
         pub = svcs["km-xmpp-public"]
         self.assertEqual(pub["ports"], ["5222:5222", "5223:5223", "5269:5269"])
         self.assertNotIn("network_mode", pub)
-        self.assertIn("/home/user/docker/km-xmpp/public/database:/opt/ejabberd/database:z", pub["volumes"])
+        self.assertIn("/home/user/docker/km-xmpp:/kiwi-xmpp:z", pub["volumes"])           # each name's folder under hosts/
+        env = dict(e.split("=", 1) for e in pub["environment"])
+        self.assertEqual((env["KIWI_HOST"], env["KIWI_OLD"], env["KIWI_OTHER"]), ("chat.example.org", "public", "data"))
+        with open(os.path.join(out, "km-xmpp", "start.sh")) as f:
+            start = f.read()
+        self.assertIn('d=$X/hosts/$host', start)
+        self.assertIn('for o in "$KIWI_OLD" "$KIWI_OTHER"', start)          # the old folder that holds the name's accounts
+        self.assertEqual(subprocess.run(["sh", "-n", os.path.join(out, "km-xmpp", "start.sh")]).returncode, 0)
         self.assertNotIn("5222", str(svcs["km-vpn-server"]["ports"]))
         self.assertIn("http://km-xmpp-public:5280", nginx.split("server_name chat.example.org;", 1)[1].split("\n    server {", 1)[0])
         err = io.StringIO()
