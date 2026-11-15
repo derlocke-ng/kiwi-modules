@@ -1137,6 +1137,7 @@ class TestFederation(unittest.TestCase):
         self.assertNotIn("listen 443 ssl", nginx)                      # its own sites moved behind the stream block
         self.assertIn("listen 127.0.0.1:8443 ssl proxy_protocol;", nginx)
         self.assertIn("real_ip_header proxy_protocol;", nginx)        # and still see who asks
+        self.assertIn("port_in_redirect off;", nginx)                 # a redirect names no inner port
         self.assertIn("proxy_pass http://10.8.0.25:80;", nginx)       # Let's Encrypt's question goes to the node
         with open(os.path.join(out, "docker-compose.yml")) as f:
             ports = yaml.safe_load(f)["services"]["km-vpn-server"]["ports"]
@@ -1171,6 +1172,7 @@ class TestFederation(unittest.TestCase):
         block = nginx[nginx.index("server_name chat.example.org;") - 400:nginx.index("server_name chat.example.org;") + 400]
         self.assertIn("listen 8443 ssl proxy_protocol;", block)
         self.assertIn("listen 443 ssl;", block)                        # and from the VPN, directly
+        self.assertIn("port_in_redirect off;", nginx)
         self.assertIn("set_real_ip_from 10.8.0.1;", block)
         self.assertIn("/etc/nginx/acme/chat.example.org/fullchain.pem", block)
         internal = nginx[nginx.index("server_name jabber.sh3.home;") - 200:nginx.index("server_name jabber.sh3.home;") + 300]
