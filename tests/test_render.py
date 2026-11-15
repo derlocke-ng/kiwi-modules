@@ -1080,6 +1080,23 @@ class TestFederation(unittest.TestCase):
         self.assertIn("/home/user/docker/km-nginx/log:/var/log/nginx:z", svcs["km-nginx"]["volumes"])
         self.assertTrue(os.path.isfile(os.path.join(out, "host-units", "km-nginx-logs.timer")))
 
+    def test_fail2ban_on_a_master_never_bans_the_networks_own_addresses(self):
+        m = TestRender.public_hub(self)
+        m["master"] = dict(m["master"], modules=list(m["master"].get("modules") or
+                           ["vpn-client", "vpn-server", "dns", "tor", "reverse-proxy", "nostr-relay", "hub"]) + ["fail2ban"])
+        out = self.render("hub-f2b-own", m)
+        units = os.path.join(out, "host-units")
+        self.assertTrue(os.path.isfile(os.path.join(units, "kn-fail2ban-own.timer")))
+        with open(os.path.join(units, "kn-fail2ban-own.service")) as f:
+            self.assertIn("/bin/sh /home/user/docker/kiwi/fail2ban-own.sh", f.read())
+        with open(os.path.join(out, "kiwi", "fail2ban-own.sh")) as f:
+            sh = f.read()
+        self.assertIn("km-vpn-server wg show wg0 dump", sh)
+        self.assertIn("addignoreip", sh)
+        self.assertIn("{{.State.StartedAt}}", sh)
+        r = subprocess.run(["sh", "-n", os.path.join(out, "kiwi", "fail2ban-own.sh")], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
     def test_control_is_for_the_mesh_and_a_node_takes_ssh_from_it(self):
         m = json.loads(json.dumps(SH3))
         m["node"]["modules"] = ["vpn-client", "reverse-proxy", "control"]

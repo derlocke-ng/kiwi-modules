@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.49.1 — a master never bans its own network
+
+- **fail2ban on a master leaves the network's own addresses alone**: every minute it reads
+  where the machines' VPN tunnels come from (a home's public address) and tells every jail to
+  ignore those addresses and let them out. Before, someone at home who loaded a public page
+  too often locked the whole home out of the public names.
+
 ## 0.49.0 — plain names, fewer settings in view
 
 - **The modules are called what they do**: *Files (Nextcloud)*, *Ad blocker (Pi-hole)*,
