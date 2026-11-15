@@ -1118,6 +1118,56 @@ class TestFederation(unittest.TestCase):
         with open(os.path.join(self.render("sh3-nostatus", m), "kn-nginx", "nginx.conf")) as f:
             self.assertNotIn("status.sh3.home", f.read())
 
+    def xmpp_master(self, **xmpp):
+        m = json.loads(json.dumps(MACHINES["hub1"]))
+        m["master"]["modules"] = list(m["master"]["modules"]) + ["xmpp"]
+        if xmpp:
+            m["master"]["xmpp"] = xmpp
+        return m
+
+    def test_jabber_is_for_the_mesh_until_it_has_a_public_name(self):
+        out = self.render("x1", self.xmpp_master(upload_mb=50))
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            x = yaml.safe_load(f)["services"]["km-xmpp"]
+        self.assertNotIn("ports", x)                                          # nothing of it is on the Internet
+        self.assertIn("/home/user/docker/km-nginx:/kiwi-certs:ro,z", x["volumes"])       # the fleet CA's certificate
+        self.assertEqual((x["entrypoint"], x["command"]), (["/bin/sh"], ["/kiwi-start.sh"]))
+        self.assertIn("KIWI_ADMIN=admin@chat.hub1.home", x["environment"])
+        with open(os.path.join(out, "km-xmpp", "prosody.cfg.lua")) as f:
+            conf = f.read()
+        for words in ('admins = { "admin@chat.hub1.home" }', '"s2s";', "allow_registration = false", "registration_invite_only = true",
+                      'VirtualHost "chat.hub1.home"', 'Component "rooms.chat.hub1.home" "muc"', "http_file_share_size_limit = 50 * 1024 * 1024"):
+            self.assertIn(words, conf)
+        self.assertNotIn('"dialback"', conf)
+        with open(os.path.join(out, "km-nginx", "nginx.conf")) as f:
+            site = f.read().split("server_name chat.hub1.home;", 1)[1].split("\n    server {", 1)[0]
+        self.assertIn("client_max_body_size 50m;", site)
+        self.assertIn("http://km-xmpp:5280", site)
+        script = os.path.join(out, "km-xmpp", "start.sh")
+        self.assertEqual(subprocess.run(["sh", "-n", script]).returncode, 0)
+        with open(script) as f:
+            text = f.read()
+        self.assertIn("unset KIWI_ADMIN_PASSWORD", text)
+        self.assertNotIn("register \"$admin\"", text)                         # the password is on no command line
+        with open(os.path.join(out, "stack.sh")) as f:
+            self.assertNotIn("5222/tcp", f.read())
+        # a public name: clients and other servers from the Internet, Let's Encrypt's certificate
+        pub = self.xmpp_master(xmpp_domain="chat.example.org")
+        pub["master"].setdefault("reverse-proxy", {}).update(public=True, acme_email="me@example.org")
+        out = self.render("x2", pub)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            x = yaml.safe_load(f)["services"]["km-xmpp"]
+        self.assertEqual(x["ports"], ["5222:5222", "5269:5269"])
+        self.assertIn("/home/user/docker/km-nginx/acme/chat.example.org:/kiwi-certs:ro,z", x["volumes"])
+        with open(os.path.join(out, "km-xmpp", "prosody.cfg.lua")) as f:
+            conf = f.read()
+        self.assertIn('"dialback";', conf)
+        self.assertNotIn('"s2s";', conf)
+        with open(os.path.join(out, "stack.sh")) as f:
+            sh = f.read()
+        self.assertIn("'5222/tcp'", sh)
+        self.assertIn("'5269/tcp'", sh)
+
     def games_machine(self, **games):
         m = json.loads(json.dumps(SH3))
         m["node"]["modules"] = ["vpn-client", "games"]
@@ -1652,7 +1702,7 @@ class TestRotateAttribute(unittest.TestCase):
         self.assertEqual(marked, [
             "backup.server_password", "cloud.imaginary_secret", "cloud.onlyoffice_secret", "cloud.redis_password", "cloud.talk_internal_secret",
             "cloud.whiteboard_secret", "dns.pihole_password", "downloader.transmission_password", "git.admin_password",
-            "paperless.secret_key", "sftp.sftp_password", "vpn-server.wg_password"])
+            "paperless.secret_key", "sftp.sftp_password", "vpn-server.wg_password", "xmpp.admin_password"])
 
 
 
@@ -1769,7 +1819,7 @@ class TestLogins(unittest.TestCase):
         ms = modmod.discover()
         self.assertEqual(sorted(m.name for m in ms.modules.values() if m.logins),
                          ["cloud", "control", "dns", "downloader", "git", "immich", "opencloud", "paperless", "portainer",
-                          "sftp", "vault", "vpn-server"])
+                          "sftp", "vault", "vpn-server", "xmpp"])
         for mod in ms.modules.values():
             secrets = {s.key for s in mod.settings if s.type == "secret"}
             names = {s.key for s in mod.settings} | set(mod.derived)
