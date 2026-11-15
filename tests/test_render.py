@@ -1302,6 +1302,27 @@ class TestFederation(unittest.TestCase):
         with open(os.path.join(self.render("lim3", json.loads(json.dumps(SH3))), "kn-nginx", "nginx.conf")) as f:
             self.assertNotIn("limit_req", f.read())
 
+    def test_firefox_sync_is_mozillas_server_with_its_database(self):
+        m = json.loads(json.dumps(SH3))
+        m["node"]["modules"] = ["vpn-client", "reverse-proxy", "firefox-sync"]
+        m["node"].pop("preset", None)
+        for k in ("cloud", "vault", "portainer"):
+            m["node"].pop(k, None)
+        out = self.render("sh3-ffsync", m)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            svcs = yaml.safe_load(f)["services"]
+        env = dict(e.split("=", 1) for e in svcs["kn-ffsync"]["environment"])
+        dbenv = dict(e.split("=", 1) for e in svcs["kn-ffsync-db"]["environment"])
+        self.assertEqual(env["SYNC_TOKENSERVER__INIT_NODE_URL"], "https://ffsync.sh3.home")      # where browsers find their data
+        self.assertEqual(env["SYNC_SYNCSTORAGE__DATABASE_URL"], "postgres://sync:%s@kn-ffsync-db:5432/syncserver" % dbenv["POSTGRES_PASSWORD"])
+        self.assertEqual(env["SYNC_TOKENSERVER__DATABASE_URL"], env["SYNC_SYNCSTORAGE__DATABASE_URL"])
+        self.assertTrue(len(env["SYNC_MASTER_SECRET"]) >= 20 and len(dbenv["POSTGRES_PASSWORD"]) >= 20)       # from the seed
+        self.assertEqual(env["SYNC_TOKENSERVER__NODE_TYPE"], "postgres")
+        self.assertEqual(svcs["kn-ffsync-db"]["volumes"], ["/home/user/docker/kn-ffsync/db:/var/lib/postgresql:z"])
+        self.assertNotIn("ports", svcs["kn-ffsync"])
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            self.assertIn("http://kn-ffsync:8000", f.read().split("server_name ffsync.sh3.home;", 1)[1].split("\n    server {", 1)[0])
+
     def games_machine(self, **games):
         m = json.loads(json.dumps(SH3))
         m["node"]["modules"] = ["vpn-client", "games"]

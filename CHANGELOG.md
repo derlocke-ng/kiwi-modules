@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.45.0 — Firefox Sync
+
+- **A new module, `firefox-sync`**: Mozilla's own sync server (syncstorage-rs) with a
+  PostgreSQL database, wired as Mozilla's stand-alone set-up wires them, at
+  `ffsync.<hostname>`. Bookmarks, tabs, passwords and history of your Firefox browsers
+  are then kept on this machine, encrypted by the browser. In Firefox: `about:config`,
+  `identity.sync.tokenserver.uri` = `https://ffsync.<hostname>/1.0/sync/1.5`, before
+  signing in to sync.
+  - The login still goes through a Mozilla account: the server asks Mozilla who someone
+    is. Running Mozilla's accounts server too is not part of this.
+  - Mozilla's image is for x86-64 only.
+- Run by hand on a test machine with the module's settings: the server says that it and
+  its database are fine, and its token door answers 401 without a login. Not tried: a
+  browser syncing (it needs a Mozilla account).
+
 ## 0.44.0 — a pastebin, rate limits, and fail2ban that acts on them
 
 - **A new module, `paste`**: PrivateBin, a page to put a text or a file on and pass its
