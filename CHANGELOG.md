@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.46.1 — a node without a mesh address yet is told what it needs again
+
+- 0.46.0 made every node with a reverse proxy and no mesh address yet (not enrolled) stop
+  with "modules/reverse-proxy firewall: ${VPN_IP} is not set" instead of the sentence that
+  says what to do. The new rules name the address the way the templates do.
+
 ## 0.46.0 — a node's service open to the Internet, through the master
 
 - **`reverse-proxy: { public: true }` on a node.** A site whose name is outside the fleet's
