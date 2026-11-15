@@ -1122,7 +1122,7 @@ class TestFederation(unittest.TestCase):
         self.assertNotIn("deny all;", site)                                       # no admin page: the access rules decide
         from kiwimodules import modules
         nx = modules.discover().get("control").nginx
-        self.assertEqual([bool(e.get("admin")) for e in nx["servers"]], [False])
+        self.assertEqual([bool(e.get("admin")) for e in nx["servers"]], [False, False])     # the status page, and the one for the Internet
         m["node"]["control"] = {"status_page": False}
         with open(os.path.join(self.render("sh3-nostatus", m), "kn-nginx", "nginx.conf")) as f:
             self.assertNotIn("status.sh3.home", f.read())
@@ -1631,7 +1631,7 @@ class TestAccess(unittest.TestCase):
             return [bool(e.get("admin")) for e in ([nx] if nx.get("server_name") else []) + list(nx.get("servers") or [])]
         for name in ("portainer", "dns", "vpn-server", "backup-server", "cache"):
             self.assertEqual(admin(name), [True], name)
-        self.assertEqual(admin("control"), [True, False])           # the control page is one, its status page is not
+        self.assertEqual(admin("control"), [True, False, False])    # the control page is one, its status pages are not
         for name in ("cloud", "vault", "paperless", "git"):
             self.assertFalse(any(admin(name)), name)
 
