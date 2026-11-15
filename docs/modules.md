@@ -39,6 +39,7 @@ as profiles of their own. They are kept for files that already use them.
 | `dns` | master, node | Pi-hole, a resolver that blocks advertising, for the mesh or the LAN. |
 | `reverse-proxy` | master, node | nginx with TLS, with one address per service that the other modules announce. |
 | `tor` | master, node | A Tor SOCKS5 proxy for the clients in the mesh. |
+| `onion` | master, node | Sites of the machine as Tor hidden services, for people who are not on the VPN. Tor shares the VPN client's network: it leaves at the master, never through the machine's own connection. |
 | `fail2ban` | master, node | Blocks addresses that keep failing to log in over SSH. |
 | `portainer` | master, node | Portainer CE, a web page for the containers on the machine. |
 | `backup` | master, node | Saves the machine's data with restic, encrypted, to a node that runs `backup-server`, every night. |

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.36.0 — hidden services
+
+- New module `onion`: sites of a machine as Tor hidden services, for people who are not
+  on the VPN. `services` names them (`git: {}` for anyone with the address,
+  `cloud: { clients: [anna] }` for named keys only); kiwi-server fills in the keys and
+  addresses, which derive from the fleet's seed.
+- Tor shares the VPN client's network: what it sends goes through the mesh and leaves at
+  the master, through its VPN exit or from its own address. It never leaves through a
+  home connection. Without a VPN client on a node it gets no network at all.
+- reverse-proxy: `onion`, site name -> address. Each such site gets one more server on
+  port 8043, which is not published. The service hears its usual name and https, so it
+  does not send a stranger to a name only the VPN knows; the allow lists and shut-out
+  rules for the mesh do not apply there.
+
 ## 0.35.1 — the control page stays shut for who was not given it
 
 - reverse-proxy: a site with allow and deny lines of its own (the control page: the mesh,
