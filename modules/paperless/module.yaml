@@ -50,6 +50,8 @@ nginx:
     name: paperless
     server: "{{ container_prefix }}-paperless:8000"
   server_name: "{{ paperless_host }}"
+  # usable as a hidden service: its page and its login form were tried through Tor (it is told its address)
+  onion: true
   proxy_pass: "http://paperless"
   websocket: true
   client_max_body_size: "0"
