@@ -1692,6 +1692,10 @@ class TestOnion(unittest.TestCase):
         with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
             nginx = f.read()
         self.assertIn("port_in_redirect off;", nginx)             # a redirect at a hidden service names no port 8043
+        # Nextcloud's site has a proxy_redirect of its own: at its hidden service only one is left (nginx refuses two)
+        at = nginx.index("server_name %s;" % self.KEYS["cloud"]["address"])
+        end = nginx.index("\n    }\n", at)
+        self.assertEqual(nginx[at:end].split("location / {")[1].split("}")[0].count("proxy_redirect "), 1)
         self.assertNotIn("8044", nginx)
         with open(os.path.join(out, "kn-onion", "etc", "torrc")) as f:
             self.assertNotIn("HiddenServicePort 443", f.read())
@@ -1718,6 +1722,28 @@ class TestOnion(unittest.TestCase):
         with open(os.path.join(out, "docker-compose.yml")) as f:
             vols = yaml.safe_load(f)["services"]["kn-nginx"]["volumes"]
         self.assertTrue(any(v.endswith("/etc/nginx/onion-fullchain.pem:ro,z") for v in vols))
+
+    def test_the_authenticator_is_for_the_vpn_and_keeps_its_key(self):
+        m = json.loads(json.dumps(SH3))
+        m["node"]["modules"] = ["vpn-client", "reverse-proxy", "authenticator"]
+        m["node"].pop("preset", None); m["node"].pop("cloud", None)
+        out = self.render("sh3-auth", m)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            svc = yaml.safe_load(f)["services"]["kn-auth"]
+        env = dict(e.split("=", 1) for e in svc["environment"])
+        self.assertEqual(len(env["APP_KEY"]), 32)                     # from the seed: the same at every render
+        self.assertEqual(env["APP_URL"], "https://auth.sh3.home")
+        self.assertEqual(env["WEBAUTHN_ID"], "auth.sh3.home")
+        self.assertNotIn("ports", svc)
+        self.assertTrue(any(v.endswith("/kn-auth/data:/2fauth:z") for v in svc["volumes"]))
+        with open(os.path.join(self.render("sh3-auth2", m), "docker-compose.yml")) as f:
+            again = dict(e.split("=", 1) for e in yaml.safe_load(f)["services"]["kn-auth"]["environment"])
+        self.assertEqual(again["APP_KEY"], env["APP_KEY"])
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            self.assertIn("server_name auth.sh3.home;", f.read())
+        # the secrets of one's logins are not for a public name
+        m["node"]["authenticator"] = {"auth_hostname": "auth.example.org"}
+        self.assertNotEqual(cli.main(["render", self.write("sh3-auth3", m), "-o", os.path.join(self.tmp, "auth3.bundle")]), 0)
 
     def test_tor_shares_the_vpn_clients_network_and_only_serves(self):
         out, compose = self.node("sh3-onion")

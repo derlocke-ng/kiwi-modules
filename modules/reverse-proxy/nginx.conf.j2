@@ -57,7 +57,9 @@
 {% endfor %}
 {% endif %}
 {% for d in s.extra_directives %}
-{% if not (hidden and (d.startswith('allow ') or d.startswith('deny '))) %}
+{# at a hidden service: no allow or deny (they are about the VPN's addresses), and no proxy_redirect of the
+   site's own: the one above is there already, and nginx does not start with two #}
+{% if not (hidden and (d.startswith('allow ') or d.startswith('deny ') or d.startswith('proxy_redirect '))) %}
             {{ d }}
 {% endif %}
 {% endfor %}
