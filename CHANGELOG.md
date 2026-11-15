@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.42.0 — BTCPay Server
+
+- **A new module, `btcpay`**, for a node: BTCPay Server with its own Bitcoin node,
+  NBXplorer and PostgreSQL, wired as the project's own set-up wires them and pinned to
+  its versions. At `pay.<hostname>` behind the reverse proxy; with the `onion` module
+  (`onion: { services: { pay: {} } }`) a hidden service for strangers.
+  - The four containers share the VPN client's network: the Bitcoin node reaches the
+    Bitcoin network through the VPN, never through the machine's own line, and listens
+    for nobody. Database and node answer on 127.0.0.1 only.
+  - The admin's account is made at the first start with the password of the settings,
+    before the page is reachable: BTCPay gives the first account to whoever makes it.
+  - `network`: mainnet, testnet, signet or regtest. `prune_mb` (5000) is how much of
+    the chain is kept; the first sync of mainnet takes days.
+  - The backup holds the database, BTCPay's and NBXplorer's folders: stores, invoices,
+    wallet keys. Not the chain.
+- Run by hand on a test machine in regtest, wired as the module does: the admin was
+  made, a store, a wallet and an invoice came from the API with the admin's login, a
+  payment from the test node settled the invoice, a point-of-sale page opened without
+  a login. Not tried: mainnet (the sync), the hidden service, Lightning (not part of it).
+
 ## 0.41.1 — Jabber answers on the VPN
 
 - xmpp: the server shares the WireGuard server's network, as the master's reverse proxy

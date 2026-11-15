@@ -1173,6 +1173,47 @@ class TestFederation(unittest.TestCase):
         self.assertIn("'5222/tcp'", sh)
         self.assertIn("'5269/tcp'", sh)
 
+    def test_btcpay_runs_behind_the_vpn_client_and_makes_its_admin_first(self):
+        m = json.loads(json.dumps(SH3))
+        m["node"]["modules"] = ["vpn-client", "reverse-proxy", "btcpay"]
+        m["node"].pop("preset", None)
+        for k in ("cloud", "vault", "portainer"):
+            m["node"].pop(k, None)
+        out = self.render("sh3-pay", m)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            svcs = yaml.safe_load(f)["services"]
+        four = ["kn-btcpay-db", "kn-btcpay-bitcoind", "kn-btcpay-nbxplorer", "kn-btcpay"]
+        for name in four:                                   # the node's traffic leaves through the VPN, not the home's line
+            self.assertEqual(svcs[name]["network_mode"], "service:kn-vpn-client", name)
+            self.assertNotIn("ports", svcs[name])
+        btc = svcs["kn-btcpay-bitcoind"]
+        self.assertIn("-rpcbind=127.0.0.1:43782", btc["command"])
+        self.assertIn("-bind=127.0.0.1", btc["command"])
+        self.assertIn("-prune=5000", btc["command"])
+        self.assertIn("BITCOIN_NETWORK=mainnet", btc["environment"])
+        self.assertIn("CREATE_WALLET=false", btc["environment"])
+        self.assertIn("listen_addresses=127.0.0.1", svcs["kn-btcpay-db"]["command"])
+        self.assertTrue(all("\n" not in str(e) for name in four for e in svcs[name].get("environment") or []))   # a unit file holds no line breaks
+        pay = svcs["kn-btcpay"]
+        self.assertEqual((pay["entrypoint"], pay["command"]), (["/bin/bash"], ["/kiwi-start.sh"]))
+        self.assertIn("KIWI_ADMIN=admin@sh3.home", pay["environment"])
+        self.assertIn("BTCPAY_BTCEXPLORERURL=http://127.0.0.1:32838/", pay["environment"])
+        script = os.path.join(out, "kn-btcpay", "start.sh")
+        self.assertEqual(subprocess.run(["bash", "-n", script]).returncode, 0)
+        with open(script) as f:
+            text = f.read()
+        self.assertIn("unset KIWI_ADMIN_PASSWORD", text)
+        self.assertIn("POST /api/v1/users", text)
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            site = f.read().split("server_name pay.sh3.home;", 1)[1].split("\n    server {", 1)[0]
+        self.assertIn("http://kn-vpn-client:49392", site)
+        # a chain of one's own for trying it: the node gets a wallet, nothing is pruned when 0
+        m["node"]["btcpay"] = {"network": "regtest", "prune_mb": 0}
+        with open(os.path.join(self.render("sh3-pay2", m), "docker-compose.yml")) as f:
+            btc = yaml.safe_load(f)["services"]["kn-btcpay-bitcoind"]
+        self.assertIn("CREATE_WALLET=true", btc["environment"])
+        self.assertFalse([a for a in btc["command"] if a.startswith("-prune")])
+
     def games_machine(self, **games):
         m = json.loads(json.dumps(SH3))
         m["node"]["modules"] = ["vpn-client", "games"]
@@ -1823,7 +1864,7 @@ class TestLogins(unittest.TestCase):
         from kiwimodules import modules as modmod
         ms = modmod.discover()
         self.assertEqual(sorted(m.name for m in ms.modules.values() if m.logins),
-                         ["cloud", "control", "dns", "downloader", "git", "immich", "opencloud", "paperless", "portainer",
+                         ["btcpay", "cloud", "control", "dns", "downloader", "git", "immich", "opencloud", "paperless", "portainer",
                           "sftp", "vault", "vpn-server", "xmpp"])
         for mod in ms.modules.values():
             secrets = {s.key for s in mod.settings if s.type == "secret"}
