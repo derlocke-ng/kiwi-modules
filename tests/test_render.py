@@ -1122,7 +1122,7 @@ class TestFederation(unittest.TestCase):
         self.assertNotIn("deny all;", site)                                       # no admin page: the access rules decide
         from kiwimodules import modules
         nx = modules.discover().get("control").nginx
-        self.assertEqual([bool(e.get("admin")) for e in nx["servers"]], [False])
+        self.assertEqual([bool(e.get("admin")) for e in nx["servers"]], [False, False])     # the status page, and the one for the Internet
         m["node"]["control"] = {"status_page": False}
         with open(os.path.join(self.render("sh3-nostatus", m), "kn-nginx", "nginx.conf")) as f:
             self.assertNotIn("status.sh3.home", f.read())
@@ -1631,7 +1631,7 @@ class TestAccess(unittest.TestCase):
             return [bool(e.get("admin")) for e in ([nx] if nx.get("server_name") else []) + list(nx.get("servers") or [])]
         for name in ("portainer", "dns", "vpn-server", "backup-server", "cache"):
             self.assertEqual(admin(name), [True], name)
-        self.assertEqual(admin("control"), [True, False])           # the control page is one, its status page is not
+        self.assertEqual(admin("control"), [True, False, False])    # the control page is one, its status pages are not
         for name in ("cloud", "vault", "paperless", "git"):
             self.assertFalse(any(admin(name)), name)
 
@@ -1686,6 +1686,64 @@ class TestOnion(unittest.TestCase):
         with open(os.path.join(out, "docker-compose.yml")) as f:
             compose = yaml.safe_load(f)
         return out, compose
+
+    def test_a_hidden_service_answers_https_when_asked_to_and_names_no_inner_port(self):
+        out, _compose = self.node("sh3-onion-plain")
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        self.assertIn("port_in_redirect off;", nginx)             # a redirect at a hidden service names no port 8043
+        # Nextcloud's site has a proxy_redirect of its own: at its hidden service only one is left (nginx refuses two)
+        at = nginx.index("server_name %s;" % self.KEYS["cloud"]["address"])
+        end = nginx.index("\n    }\n", at)
+        self.assertEqual(nginx[at:end].split("location / {")[1].split("}")[0].count("proxy_redirect "), 1)
+        self.assertNotIn("8044", nginx)
+        with open(os.path.join(out, "kn-onion", "etc", "torrc")) as f:
+            self.assertNotIn("HiddenServicePort 443", f.read())
+        # tls: Tor hands 443 over too, and the proxy answers it with a certificate for the addresses
+        m = json.loads(json.dumps(SH3))
+        m["node"]["modules"] = ["vpn-client", "reverse-proxy", "vault", "onion"]
+        m["node"].pop("preset", None); m["node"].pop("cloud", None)
+        m["node"]["onion"] = {"services": {"vault": {}}, "keys": {"vault": self.KEYS["vault"]}, "tls": True}
+        m["node"]["reverse-proxy"]["onion"] = {"vault.sh3.home": self.KEYS["vault"]["address"]}
+        self.assertNotEqual(cli.main(["render", self.write("sh3-onion-nocert", m), "-o", os.path.join(self.tmp, "nocert.bundle")]), 0)
+        m["node"]["reverse-proxy"].update(onion_fullchain=TLS["tls_fullchain"], onion_privkey=TLS["tls_privkey"])
+        out = self.render("sh3-onion-tls", m)
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        at = nginx.index("server_name %s;" % self.KEYS["vault"]["address"])
+        block = nginx[at - 400:at]
+        self.assertIn("listen 8043;", block)
+        self.assertIn("listen 8044 ssl;", block)
+        self.assertIn("ssl_certificate     /etc/nginx/onion-fullchain.pem;", block)
+        self.assertIn("listen 8044 ssl default_server;", nginx)
+        with open(os.path.join(out, "kn-onion", "etc", "torrc")) as f:
+            self.assertRegex(f.read(), r"HiddenServicePort 443 [0-9.]+:8044")
+        self.assertTrue(os.path.isfile(os.path.join(out, "kn-nginx", "onion-privkey.pem")))
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            vols = yaml.safe_load(f)["services"]["kn-nginx"]["volumes"]
+        self.assertTrue(any(v.endswith("/etc/nginx/onion-fullchain.pem:ro,z") for v in vols))
+
+    def test_the_authenticator_is_for_the_vpn_and_keeps_its_key(self):
+        m = json.loads(json.dumps(SH3))
+        m["node"]["modules"] = ["vpn-client", "reverse-proxy", "authenticator"]
+        m["node"].pop("preset", None); m["node"].pop("cloud", None)
+        out = self.render("sh3-auth", m)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            svc = yaml.safe_load(f)["services"]["kn-auth"]
+        env = dict(e.split("=", 1) for e in svc["environment"])
+        self.assertEqual(len(env["APP_KEY"]), 32)                     # from the seed: the same at every render
+        self.assertEqual(env["APP_URL"], "https://auth.sh3.home")
+        self.assertEqual(env["WEBAUTHN_ID"], "auth.sh3.home")
+        self.assertNotIn("ports", svc)
+        self.assertTrue(any(v.endswith("/kn-auth/data:/2fauth:z") for v in svc["volumes"]))
+        with open(os.path.join(self.render("sh3-auth2", m), "docker-compose.yml")) as f:
+            again = dict(e.split("=", 1) for e in yaml.safe_load(f)["services"]["kn-auth"]["environment"])
+        self.assertEqual(again["APP_KEY"], env["APP_KEY"])
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            self.assertIn("server_name auth.sh3.home;", f.read())
+        # the secrets of one's logins are not for a public name
+        m["node"]["authenticator"] = {"auth_hostname": "auth.example.org"}
+        self.assertNotEqual(cli.main(["render", self.write("sh3-auth3", m), "-o", os.path.join(self.tmp, "auth3.bundle")]), 0)
 
     def test_tor_shares_the_vpn_clients_network_and_only_serves(self):
         out, compose = self.node("sh3-onion")
