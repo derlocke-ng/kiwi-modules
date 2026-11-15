@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.47.1 — the master's door counts connections; a password with a dash
+
+- What a master hands on to a node passes its limits on the node, which cannot keep an
+  address out. The master's door (443 and the handed-on ports) now lets one address hold
+  four times `rate_limit` connections at once (80 by default).
+- Jabber's admin password may start with a dash: it was read as an option of `su`, and
+  the account was not made.
+- The pastebin's help says that a public name works on a node too.
+
 ## 0.47.0 — hidden services reworked, an authenticator, a public status page
 
 - **Hidden services**
