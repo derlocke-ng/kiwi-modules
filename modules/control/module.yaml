@@ -55,6 +55,8 @@ nginx:
     # for at this name, the control part is asked for /status and nothing else. It is no admin
     # page: who may reach this machine's web pages may open it.
     - server_name: "{{ status_hostname or 'status.' ~ hostname }}"
+      # usable as a hidden service: the status page reads only; tried through Tor
+      onion: true
       site: status
       proxy_pass: "http://control/status"
       when: status_page
@@ -62,6 +64,8 @@ nginx:
     # the same for strangers, under a public name: only what is open to the Internet, and whether it
     # works. Whatever is asked for at this name, the control part is asked for /status/public.
     - server_name: "{{ public_status_hostname }}"
+      # usable as a hidden service: the status page reads only; tried through Tor
+      onion: true
       site: status-public
       proxy_pass: "http://control/status/public"
       when: public_status_hostname

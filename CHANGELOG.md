@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.47.0 — hidden services reworked, an authenticator, a public status page
+
+- **Hidden services**
+  - A redirect at a hidden service named the proxy's inner port (`http://….onion:8043/login`),
+    which Tor does not carry: BTCPay's login was unreachable that way. Fixed.
+  - A site with a `proxy_redirect` of its own (Nextcloud) made nginx refuse the whole
+    config as a hidden service: every site of the machine was down. The site's own one
+    is left out there.
+  - **Sites usable over Tor are marked** (`onion: true` in a module's nginx block): Git,
+    BTCPay, Jabber, the pastebin, the hub, the relay, Nextcloud, the status page. Each
+    was opened through Tor; the mark says what was tried. kiwi-server offers only those.
+  - **Paperless** as a hidden service: it is told its `.onion` address (setting `onion`,
+    filled in by kiwi-server), so a login sent from there is taken instead of refused.
+  - **https at the address**: the onion module's `tls: true` hands port 443 over too, and
+    the proxy answers it with one certificate for the machine's addresses
+    (`reverse-proxy.onion_fullchain`, `onion_privkey`, from kiwi-server).
+- **A new module, `authenticator`**: 2FAuth 9.0.1 at `auth.<hostname>`, the six-digit
+  codes of two-factor logins in a page of one's own. For the VPN only (a public name is
+  refused); its key comes from the fleet's seed; its database is in the backup.
+- **A public status page**: the control module's `public_status_hostname` adds a site that
+  asks the control part for `/status/public` only: the services open to the Internet.
+- Tried on test machines: every hidden service of the test network through Tor (pages,
+  files, login forms); the authenticator's pages over the VPN.
+
 ## 0.46.2 — a name that keeps its mesh address at home
 
 - A module's site can say `mesh_only:` (in its nginx block): its service answers at the
