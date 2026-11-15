@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.48.0 — a game server open to the Internet, through the master
+
+- **`games: servers: <name>: public: true`**: players outside the VPN join at the master's
+  address, and the master hands the game's ports on to the machine, TCP and UDP, as they
+  are. Nothing is opened at home.
+  - A module's `expose: ports:` takes `25565/tcp` and `10666/udp` beside `5222:15222/proxy`;
+    the master's proxy forwards UDP too, and its WireGuard server publishes the ports and
+    answers by the real interface.
+  - A node's ports are handed on whether or not it has a public web site.
+- The notes on the sites usable over Tor say what was tried since (logins through Tor).
+- Tried on a test node behind the master: Minecraft answers the server list's question at
+  the master's address (TCP), Zandronum the launcher's (UDP).
+
 ## 0.47.1 — the master's door counts connections; a password with a dash
 
 - What a master hands on to a node passes its limits on the node, which cannot keep an
