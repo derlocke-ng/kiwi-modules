@@ -1153,6 +1153,9 @@ class TestFederation(unittest.TestCase):
         self.assertNotIn("stream {", plain)
         self.assertNotIn("8443", plain)
 
+        # the new rules ask for no mesh address where they do not apply (a node not enrolled yet)
+        from kiwimodules import modules as mods
+        self.assertNotIn("${VPN_IP}", " ".join(mods.discover().get("reverse-proxy").firewall_rules))
         # the node: Jabber with a public name, in the VPN client's network
         n = json.loads(json.dumps(SH3))
         n["node"]["modules"] = ["vpn-client", "reverse-proxy", "xmpp"]
