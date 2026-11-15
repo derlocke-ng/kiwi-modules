@@ -1125,53 +1125,86 @@ class TestFederation(unittest.TestCase):
             m["master"]["xmpp"] = xmpp
         return m
 
-    def test_jabber_is_for_the_mesh_until_it_has_a_public_name(self):
-        out = self.render("x1", self.xmpp_master(upload_mb=50))
-        with open(os.path.join(out, "docker-compose.yml")) as f:
-            x = yaml.safe_load(f)["services"]["km-xmpp"]
-        self.assertNotIn("ports", x)                                          # nothing of it is on the Internet
-        self.assertEqual(x["network_mode"], "service:km-vpn-server")          # at the master's mesh address, as its proxy is
-        self.assertNotIn("5222", str(yaml.safe_load(open(os.path.join(out, "docker-compose.yml")))["services"]["km-vpn-server"]["ports"]))
-        self.assertIn("/home/user/docker/km-nginx:/kiwi-certs:ro,z", x["volumes"])       # the fleet CA's certificate
-        self.assertEqual((x["entrypoint"], x["command"]), (["/bin/sh"], ["/kiwi-start.sh"]))
-        self.assertIn("KIWI_ADMIN=admin@chat.hub1.home", x["environment"])
-        with open(os.path.join(out, "km-xmpp", "prosody.cfg.lua")) as f:
-            conf = f.read()
-        for words in ('admins = { "admin@chat.hub1.home" }', '"s2s";', "allow_registration = false", "registration_invite_only = true",
-                      'VirtualHost "chat.hub1.home"', 'Component "rooms.chat.hub1.home" "muc"', "http_file_share_size_limit = 50 * 1024 * 1024"):
-            self.assertIn(words, conf)
-        self.assertNotIn('"dialback"', conf)
-        with open(os.path.join(out, "km-nginx", "nginx.conf")) as f:
-            site = f.read().split("server_name chat.hub1.home;", 1)[1].split("\n    server {", 1)[0]
+    def test_jabber_is_one_service_with_three_doors_or_two_apart(self):
+        def rendered(name, **xmpp):
+            m = self.xmpp_master(**xmpp)
+            if xmpp.get("xmpp_domain"):
+                m["master"].setdefault("reverse-proxy", {}).update(public=True, acme_email="me@example.org")
+            out = self.render(name, m)
+            with open(os.path.join(out, "docker-compose.yml")) as f:
+                svcs = yaml.safe_load(f)["services"]
+            conf = {}
+            for fn in ("ejabberd.yml", "ejabberd-public.yml"):
+                path = os.path.join(out, "km-xmpp", fn)
+                if os.path.isfile(path):
+                    with open(path) as f:
+                        conf[fn] = yaml.safe_load(f)
+            with open(os.path.join(out, "km-nginx", "nginx.conf")) as f:
+                nginx = f.read()
+            return out, svcs, conf, nginx
+        # for the VPN only: one service in the WireGuard server's network, no other server reached
+        out, svcs, conf, nginx = rendered("x1", upload_mb=50)
+        x, c = svcs["km-xmpp"], conf["ejabberd.yml"]
+        self.assertEqual(x["network_mode"], "service:km-vpn-server")
+        self.assertNotIn("km-xmpp-public", svcs)
+        self.assertNotIn("5222", str(svcs["km-vpn-server"]["ports"]))
+        self.assertIn("/home/user/docker/km-nginx:/kiwi-certs:ro,z", x["volumes"])           # the fleet CA's certificate
+        self.assertEqual((x["user"], x["entrypoint"], x["command"]), ("0:0", ["/bin/sh"], ["/kiwi-start.sh"]))
+        self.assertIn("ERLANG_NODE_ARG=ejabberd@localhost", x["environment"])
+        self.assertEqual((c["hosts"], c["s2s_access"]), (["jabber.hub1.home"], "none"))
+        self.assertEqual([l["port"] for l in c["listen"]], [5222, 5223, 5280])
+        self.assertEqual(c["listen"][-1]["ip"], "127.0.0.1")                                 # the proxy shares the network
+        self.assertEqual(c["listen"][-1]["request_handlers"]["/register"], "mod_register_web")
+        self.assertEqual((c["captcha_cmd"], c["captcha_url"]), ("/usr/local/bin/captcha.sh", "https://jabber.hub1.home/captcha"))
+        self.assertTrue(c["modules"]["mod_register"]["captcha_protected"])
+        self.assertEqual(c["access_rules"]["register"], {"allow": "all"})
+        self.assertEqual(c["modules"]["mod_http_upload"]["max_size"], 50 * 1024 * 1024)
+        self.assertEqual(c["acl"]["admin"]["user"], ["admin@jabber.hub1.home"])
+        self.assertIn("mod_fail2ban", c["modules"])
+        self.assertNotIn("mod_s2s_dialback", c["modules"])
+        site = nginx.split("server_name jabber.hub1.home;", 1)[1].split("\n    server {", 1)[0]
         self.assertIn("client_max_body_size 50m;", site)
-        self.assertIn(":5280", site)
+        self.assertIn("http://127.0.0.1:5280", site)
         script = os.path.join(out, "km-xmpp", "start.sh")
         self.assertEqual(subprocess.run(["sh", "-n", script]).returncode, 0)
         with open(script) as f:
             text = f.read()
         self.assertIn("unset KIWI_ADMIN_PASSWORD", text)
-        self.assertNotIn("register \"$admin\"", text)                         # the password is on no command line
-        with open(os.path.join(out, "stack.sh")) as f:
-            self.assertNotIn("5222/tcp", f.read())
-        # a public name: clients and other servers from the Internet, Let's Encrypt's certificate
-        pub = self.xmpp_master(xmpp_domain="chat.example.org")
-        pub["master"].setdefault("reverse-proxy", {}).update(public=True, acme_email="me@example.org")
-        out = self.render("x2", pub)
-        with open(os.path.join(out, "docker-compose.yml")) as f:
-            x = yaml.safe_load(f)["services"]["km-xmpp"]
-        with open(os.path.join(out, "docker-compose.yml")) as f:
-            wg = yaml.safe_load(f)["services"]["km-vpn-server"]
-        self.assertIn("5222:5222/tcp", wg["ports"])                           # published where the network is
-        self.assertIn("5269:5269/tcp", wg["ports"])
-        self.assertIn("/home/user/docker/km-nginx/acme/chat.example.org:/kiwi-certs:ro,z", x["volumes"])
-        with open(os.path.join(out, "km-xmpp", "prosody.cfg.lua")) as f:
-            conf = f.read()
-        self.assertIn('"dialback";', conf)
-        self.assertNotIn('"s2s";', conf)
-        with open(os.path.join(out, "stack.sh")) as f:
-            sh = f.read()
-        self.assertIn("'5222/tcp'", sh)
-        self.assertIn("'5269/tcp'", sh)
+        self.assertIn("exec su ejabberd", text)
+        # nobody may register: the rule says so
+        self.assertEqual(rendered("x1b", registration=False)[2]["ejabberd.yml"]["access_rules"]["register"], {"deny": "all"})
+        # a public name, one service: the name after the @ is the public one, the WireGuard server
+        # publishes the ports, the VPN's name stays a door, Tor is a third (its own name too)
+        out, svcs, conf, nginx = rendered("x2", xmpp_domain="chat.example.org", onion={"jabber": "abcdef.onion"})
+        c = conf["ejabberd.yml"]
+        self.assertEqual(c["hosts"], ["chat.example.org", "abcdef.onion"])
+        self.assertNotIn("s2s_access", c)
+        self.assertIn(5269, [l["port"] for l in c["listen"]])
+        self.assertIn("mod_s2s_dialback", c["modules"])
+        for port in ("5222:5222/tcp", "5223:5223/tcp", "5269:5269/tcp"):
+            self.assertIn(port, svcs["km-vpn-server"]["ports"])
+        self.assertIn("/home/user/docker/km-nginx/acme/chat.example.org:/kiwi-certs:ro,z", svcs["km-xmpp"]["volumes"])
+        self.assertIn("KIWI_ONION=abcdef.onion", svcs["km-xmpp"]["environment"])
+        self.assertIn("server_name jabber.hub1.home;", nginx)
+        self.assertIn("server_name chat.example.org;", nginx)
+        # two apart: the VPN's stays as it was, the public one has a container and ports of its own
+        out, svcs, conf, nginx = rendered("x3", xmpp_domain="chat.example.org", separate=True, onion={"xmpp": "abcdef.onion"})
+        inner, outer = conf["ejabberd.yml"], conf["ejabberd-public.yml"]
+        self.assertEqual((inner["hosts"], inner["s2s_access"]), (["jabber.hub1.home"], "none"))
+        self.assertEqual(outer["hosts"], ["chat.example.org", "abcdef.onion"])
+        self.assertIn(5269, [l["port"] for l in outer["listen"]])
+        self.assertEqual(outer["listen"][-1]["ip"], "::")
+        pub = svcs["km-xmpp-public"]
+        self.assertEqual(pub["ports"], ["5222:5222", "5223:5223", "5269:5269"])
+        self.assertNotIn("network_mode", pub)
+        self.assertIn("/home/user/docker/km-xmpp/public/database:/opt/ejabberd/database:z", pub["volumes"])
+        self.assertNotIn("5222", str(svcs["km-vpn-server"]["ports"]))
+        self.assertIn("http://km-xmpp-public:5280", nginx.split("server_name chat.example.org;", 1)[1].split("\n    server {", 1)[0])
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            rc = cli.main(["render", self.write("x4", self.xmpp_master(separate=True)), "-o", self.tmp + "/x4"])
+        self.assertEqual(rc, 1)
+        self.assertIn("two instances need a public name", err.getvalue())
 
     def test_btcpay_runs_behind_the_vpn_client_and_makes_its_admin_first(self):
         m = json.loads(json.dumps(SH3))

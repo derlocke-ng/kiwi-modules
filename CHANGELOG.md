@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.43.0 — Jabber with a registration page, a captcha, and three doors
+
+- **xmpp is ejabberd now** (it was Prosody for two releases): what was asked for is built
+  into it. A server set up with 0.41 or 0.42 starts empty: its accounts were Prosody's.
+  - **Accounts**: people make their own, in a Jabber app or on the page
+    `https://<name>/register`, each after a captcha; one new account per address in ten
+    minutes; an address that keeps typing wrong passwords is shut out for an hour.
+    `registration: false` leaves it to the admin.
+  - **One service, three doors.** The VPN: `jabber.<hostname>` (was `chat.`). The
+    Internet: `xmpp_domain`, a public name; it then comes after the @, and apps on the VPN
+    can still connect to the VPN's name. Tor: with the onion module and
+    `onion: { services: { jabber: {} } }`, the page and Jabber's port 5222 answer at the
+    hidden address, and people who cannot check a certificate can have accounts
+    `@<address>.onion`.
+  - **Or two apart**: `separate: true` with a public name keeps the VPN's service as it is
+    and runs a second one for the public name, in a container of its own. Their accounts
+    are apart and they do not exchange messages.
+  - The image is the project's own, `ghcr.io/derlocke-ng/ejabberd`: ejabberd's plus
+    ImageMagick and fonts, without which its captcha cannot draw and the server does not
+    start.
+- reverse-proxy: at a hidden service, what a page links to under its usual name leads
+  back to the hidden address (captcha pictures, absolute links).
+- onion: a hidden service of Jabber carries port 5222 beside the page.
+- For modules: a template is told which output it makes (`output`), so one template can
+  make several files.
+- Tried on the test master: the admin logs in over the VPN, the page shows a captcha
+  picture and refuses a wrong answer, the app's registration form carries a captcha, and
+  through Tor the page opens and a Jabber server answers on 5222. Not tried: a public
+  name (it needs a plain DNS record), two apart on a machine, a client app.
+
 ## 0.42.0 — BTCPay Server
 
 - **A new module, `btcpay`**, for a node: BTCPay Server with its own Bitcoin node,
