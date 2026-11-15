@@ -1,0 +1,9 @@
+# ejabberd for the xmpp module: the project's own image with what its captcha needs.
+# The captcha script that ships in the image draws with ImageMagick, which the image does
+# not have: without it a server that asks for a captcha does not start. openssl makes the
+# certificate of a hidden service's name. Nothing else is changed.
+FROM ghcr.io/processone/ejabberd:26.09
+LABEL org.opencontainers.image.source=https://github.com/derlocke-ng/kiwi-modules
+USER root
+RUN apk add --no-cache imagemagick ttf-dejavu ghostscript-fonts openssl
+USER ejabberd
