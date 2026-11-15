@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.37.0 — git hosting
+
+- New module `git`: Forgejo for a node, at `git.<hostname>` behind the reverse proxy,
+  with SQLite and no second container. Its admin (`admin_user`, `admin_password`) exists
+  after the first start without a person; a password changed in the settings reaches
+  Forgejo at the next start. Sign-up is off and a sign-in is needed to see anything
+  (`registration`, `private`); no calls to Gravatar or a CDN.
+- Git over SSH on a port of its own (`ssh_port`, 2223; `0` switches it off and leaves
+  HTTPS). A VPN group reaches it with `<node>:2223` in `kiwi-server access`.
+- The image is `codeberg.org/forgejo/forgejo:15-rootless`: the long-term release, run as
+  the stack's user.
+- A firewall rule of a module that comes out empty is left out (a port that is switched
+  off).
+
 ## 0.36.1 — the proxy starts with a hidden service
 
 - reverse-proxy: with a hidden service, nginx did not start

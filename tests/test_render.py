@@ -1282,6 +1282,154 @@ class TestOnion(unittest.TestCase):
         self.assertNotIn("server_names_hash", r.stderr)
 
 
+
+class TestGit(unittest.TestCase):
+    """Forgejo on a node: behind the reverse proxy, git over SSH on a port of its own,
+    the admin made by the start script."""
+    setUp, tearDown, render, write = TestRender.setUp, TestRender.tearDown, TestRender.render, TestRender.write
+
+    def node(self, modules=("vpn-client", "reverse-proxy", "git"), **git):
+        node = {"modules": list(modules), "reverse-proxy": dict(TLS)}
+        if git:
+            node["git"] = git
+        return dict(SH3, node=node)
+
+    def services(self, out):
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            return yaml.safe_load(f)["services"]
+
+    def test_forgejo_runs_behind_the_proxy_with_ssh_on_its_own_port(self):
+        out = self.render("git1", self.node())
+        svc = self.services(out)["kn-git"]
+        self.assertEqual(svc["image"], "codeberg.org/forgejo/forgejo:15-rootless")
+        self.assertEqual(svc["user"], "1000:1000")
+        self.assertEqual((svc["entrypoint"], svc["command"]), (["/bin/sh"], ["/kiwi-start.sh"]))
+        self.assertEqual(svc["volumes"], ["/home/user/docker/kn-git/start.sh:/kiwi-start.sh:ro,z",
+                                          "/home/user/docker/kn-git/data:/var/lib/gitea:z"])
+        env = dict(e.split("=", 1) for e in svc["environment"])
+        for k, v in (("FORGEJO__server__ROOT_URL", "https://git.sh3.home/"), ("FORGEJO__server__DOMAIN", "git.sh3.home"),
+                     ("FORGEJO__security__INSTALL_LOCK", "true"), ("FORGEJO__service__DISABLE_REGISTRATION", "true"),
+                     ("FORGEJO__service__REQUIRE_SIGNIN_VIEW", "true"), ("FORGEJO__openid__ENABLE_OPENID_SIGNIN", "false"),
+                     ("FORGEJO__server__OFFLINE_MODE", "true"), ("FORGEJO__mailer__ENABLED", "false"),
+                     ("FORGEJO__database__DB_TYPE", "sqlite3"), ("FORGEJO__server__DISABLE_SSH", "false"),
+                     ("FORGEJO__server__SSH_DOMAIN", "git.sh3.home"), ("FORGEJO__server__SSH_PORT", "2223"),
+                     ("FORGEJO__server__SSH_LISTEN_PORT", "2222"), ("KIWI_ADMIN_USER", "kiwi"),
+                     ("KIWI_ADMIN_EMAIL", "admin@sh3.home")):
+            self.assertEqual(env.get(k), v, k)
+        password = machine.derive_secret(SEED, "sh3.home", "git", "admin_password")
+        self.assertEqual(env["KIWI_ADMIN_PASSWORD"], password)
+        self.assertEqual(svc["ports"], ["2223:2222"])
+        # the secrets are in the root-only env file, not in the unit
+        unit = read(out, "quadlets/kn-git.container")
+        self.assertIn("PublishPort=2223:2222", unit)
+        self.assertNotIn(password, unit)
+        self.assertIn("KIWI_ADMIN_PASSWORD=%s" % password, read(out, "kiwi/env/kn-git.env"))
+        self.assertIn("FORGEJO__security__SECRET_KEY=", read(out, "kiwi/env/kn-git.env"))
+        # the site: big pushes go through as they come
+        conf = read(out, "kn-nginx/nginx.conf")
+        site = conf.split("server_name git.sh3.home;", 1)[1].split("\n    server {", 1)[0]
+        for line in ("client_max_body_size 0;", "proxy_request_buffering off;", "set $backend http://kn-git:3000;"):
+            self.assertIn(line, site)
+        # SSH from the LAN on the host's port, from the mesh through the VPN client
+        self.assertIn("'2223/tcp'", read(out, "stack.sh"))
+        self.assertIn("iptables -t nat -A PREROUTING -d 10.8.0.25 -p tcp --dport 2223 -j DNAT --to-destination "
+                      "%s:2222" % svc["networks"]["knet-node"]["ipv4_address"], read(out, "kn-vpn-client/post-rules.txt"))
+
+    def test_registration_and_a_public_view_can_be_switched_on(self):
+        env = self.services(self.render("git2", self.node(registration=True, private=False, git_hostname="code.example.org")))["kn-git"]["environment"]
+        for line in ("FORGEJO__service__DISABLE_REGISTRATION=false", "FORGEJO__service__REQUIRE_SIGNIN_VIEW=false",
+                     "FORGEJO__server__ROOT_URL=https://code.example.org/"):
+            self.assertIn(line, env)
+
+    def test_ssh_port_0_publishes_nothing_and_switches_ssh_off(self):
+        out = self.render("git3", self.node(ssh_port=0))
+        svc = self.services(out)["kn-git"]
+        self.assertNotIn("ports", svc)
+        self.assertIn("FORGEJO__server__DISABLE_SSH=true", svc["environment"])
+        self.assertIn("FORGEJO__server__START_SSH_SERVER=false", svc["environment"])
+        self.assertFalse([e for e in svc["environment"] if e.startswith("FORGEJO__server__SSH_PORT=")])
+        self.assertNotIn("PublishPort", read(out, "quadlets/kn-git.container"))
+        self.assertIn("\nKS_STACK_PORTS=('80/tcp' '443/tcp')\n", read(out, "stack.sh"))
+        rules = read(out, "kn-vpn-client/post-rules.txt")
+        self.assertNotIn("2222", rules)
+        self.assertNotIn("iptables \n", rules)
+
+    def test_a_port_another_module_publishes_is_an_error(self):
+        data = self.node(("vpn-client", "reverse-proxy", "sftp", "git"), ssh_port=2224)
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            self.assertEqual(cli.main(["render", self.write("git4", data), "-o", os.path.join(self.tmp, "git4.bundle")]), 1)
+        self.assertIn("host port 2224/tcp is published by both", err.getvalue())
+        # the defaults of the two do not collide
+        self.render("git5", self.node(("vpn-client", "reverse-proxy", "sftp", "git")))
+
+    def test_a_name_forgejo_keeps_for_itself_is_refused(self):
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            self.assertEqual(cli.main(["render", self.write("git6", self.node(admin_user="admin")),
+                                       "-o", os.path.join(self.tmp, "git6.bundle")]), 1)
+        self.assertIn("keeps the name admin", err.getvalue())
+
+    def run_start(self, out, users, right_password):
+        """start.sh with forgejo, curl, sleep and the image's entrypoint replaced by stubs that
+        write down what they were given: (output, calls)."""
+        stubs = os.path.join(self.tmp, "stubs")
+        os.makedirs(stubs, exist_ok=True)
+        calls = os.path.join(self.tmp, "calls")
+        stub = {"forgejo": 'echo "forgejo $*" >> %s\nif [ "$3" = list ]; then printf "ID Username Email\\n%s"; fi\n'
+                           % (calls, "".join("%d %s x@y\\n" % (i + 1, u) for i, u in enumerate(users))),
+                # the API answers 200 only to the right password, which curl reads from its standard
+                # input as a line of its configuration, with " and \\ escaped
+                "curl": 'case "$*" in *healthz*) exit 0;; esac\ncat > %s.stdin\necho "curl $*" >> %s\n'
+                        'cmp -s %s.stdin %s.right\n' % (calls, calls, calls, calls),
+                "sleep": "exit 0\n"}
+        with open(calls + ".right", "w") as f:
+            f.write('user = "kiwi:%s"\n' % right_password.replace("\\", "\\\\").replace('"', '\\"'))
+        for name, body in stub.items():
+            with open(os.path.join(stubs, name), "w") as f:
+                f.write("#!/bin/sh\n" + body)
+            os.chmod(os.path.join(stubs, name), 0o755)
+        with open(os.path.join(out, "kn-git", "start.sh")) as f:
+            script = f.read()
+        self.assertIn("\nexec /usr/bin/dumb-init -- /usr/local/bin/docker-entrypoint.sh\n", script)
+        script = script.replace("\nexec /usr/bin/dumb-init -- /usr/local/bin/docker-entrypoint.sh\n", "\nwait\n")
+        env = dict(os.environ, PATH=stubs + ":" + os.environ["PATH"], KIWI_ADMIN_USER="kiwi",
+                   KIWI_ADMIN_EMAIL="admin@sh3.home", KIWI_ADMIN_PASSWORD='Pa"ss\\word-1')
+        r = subprocess.run(["sh", "-c", script], env=env, capture_output=True, text=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        with open(calls) as f:
+            made = f.read()
+        os.unlink(calls)
+        return r.stdout + r.stderr, made
+
+    def test_the_start_script_makes_the_admin_once_and_never_prints_the_password(self):
+        out = self.render("git7", self.node())
+        path = os.path.join(out, "kn-git", "start.sh")
+        self.assertEqual(subprocess.run(["sh", "-n", path]).returncode, 0)
+        self.assertNotIn(machine.derive_secret(SEED, "sh3.home", "git", "admin_password"), read(out, "kn-git/start.sh"))
+        pw = 'Pa"ss\\word-1'
+        # first start: no such user yet
+        said, calls = self.run_start(out, [], pw)
+        self.assertIn("made the admin user kiwi", said)
+        self.assertIn('user create --admin --username kiwi --email admin@sh3.home --password %s --must-change-password=false' % pw, calls)
+        self.assertNotIn(pw, said)
+        # the next start: there, with the right password: nothing changes, nothing is said
+        said, calls = self.run_start(out, ["kiwi"], pw)
+        self.assertNotIn("create", calls)
+        self.assertNotIn("change-password", calls)
+        self.assertEqual(said.strip(), "")
+        with open(os.path.join(self.tmp, "calls.stdin")) as f:
+            self.assertEqual(f.read(), 'user = "kiwi:Pa\\"ss\\\\word-1"\n')    # escaped for curl's configuration
+        self.assertNotIn(pw, calls.split("\n", 1)[1])                         # not on curl's command line
+        # the settings say another password: it is set, and the container goes on
+        said, calls = self.run_start(out, ["other", "kiwi"], "not this one")
+        self.assertIn("user change-password --username kiwi --password %s --must-change-password=false" % pw, calls)
+        self.assertIn("set the password of kiwi from the settings", said)
+        self.assertNotIn(pw, said)
+        # nothing in the script echoes the password
+        for line in read(out, "kn-git/start.sh").splitlines():
+            if "echo" in line or "say " in line:
+                self.assertNotIn("$pw", line)
+
+
 class TestMeshAddress(unittest.TestCase):
     def test_a_master_exiting_through_another_network_keeps_its_own_address(self):
         conf = {"vpn-client/wireguard_config": b"[Interface]\nAddress = 10.10.5.2/32\n"}
@@ -1346,7 +1494,7 @@ class TestRotateAttribute(unittest.TestCase):
         self.assertEqual(changed_in_place, ["cloud.database_password", "immich.db_password", "paperless.db_password"])
         self.assertEqual(marked, [
             "backup.server_password", "cloud.imaginary_secret", "cloud.onlyoffice_secret", "cloud.redis_password", "cloud.talk_internal_secret",
-            "cloud.whiteboard_secret", "dns.pihole_password", "downloader.transmission_password",
+            "cloud.whiteboard_secret", "dns.pihole_password", "downloader.transmission_password", "git.admin_password",
             "paperless.secret_key", "sftp.sftp_password", "vpn-server.wg_password"])
 
 
@@ -1463,7 +1611,7 @@ class TestLogins(unittest.TestCase):
         from kiwimodules import modules as modmod
         ms = modmod.discover()
         self.assertEqual(sorted(m.name for m in ms.modules.values() if m.logins),
-                         ["cloud", "control", "dns", "downloader", "immich", "opencloud", "paperless", "portainer",
+                         ["cloud", "control", "dns", "downloader", "git", "immich", "opencloud", "paperless", "portainer",
                           "sftp", "vault", "vpn-server"])
         for mod in ms.modules.values():
             secrets = {s.key for s in mod.settings if s.type == "secret"}
