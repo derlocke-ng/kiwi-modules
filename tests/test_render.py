@@ -1247,6 +1247,30 @@ class TestFederation(unittest.TestCase):
         self.assertIn("CREATE_WALLET=true", btc["environment"])
         self.assertFalse([a for a in btc["command"] if a.startswith("-prune")])
 
+    def test_the_pastebin_is_one_container_with_its_settings(self):
+        m = json.loads(json.dumps(SH3))
+        m["node"]["modules"] = ["vpn-client", "reverse-proxy", "paste"]
+        m["node"].pop("preset", None)
+        for k in ("cloud", "vault", "portainer"):
+            m["node"].pop(k, None)
+        m["node"]["paste"] = {"title": "Our \"paste\"", "size_mb": 20, "default_expire": "1day", "file_upload": False}
+        out = self.render("sh3-paste", m)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            d = yaml.safe_load(f)
+        self.assertEqual(d["services"]["kn-paste"]["volumes"],
+                         ["privatebin_data:/srv/data", "/home/user/docker/kn-paste/conf.php:/srv/cfg/conf.php:ro,z"])
+        self.assertIn("privatebin_data", d["volumes"])                         # it owns its pastes: a volume, in the backup
+        with open(os.path.join(out, "kn-paste", "conf.php")) as f:
+            conf = f.read()
+        self.assertTrue(conf.startswith(";<?php http_response_code(403); /*"))  # asked for as a page, it gives nothing away
+        for line in ('name = "Our paste"', "sizelimit = 20971520", 'default = "1day"', "fileupload = false",
+                     'header = "X_FORWARDED_FOR"'):
+            self.assertIn(line, conf)
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            site = f.read().split("server_name paste.sh3.home;", 1)[1].split("\n    server {", 1)[0]
+        self.assertIn("client_max_body_size 25m;", site)
+        self.assertIn("http://kn-paste:8080", site)
+
     def games_machine(self, **games):
         m = json.loads(json.dumps(SH3))
         m["node"]["modules"] = ["vpn-client", "games"]
