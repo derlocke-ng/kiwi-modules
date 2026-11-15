@@ -1170,6 +1170,7 @@ class TestFederation(unittest.TestCase):
             nginx = f.read()
         block = nginx[nginx.index("server_name chat.example.org;") - 400:nginx.index("server_name chat.example.org;") + 400]
         self.assertIn("listen 8443 ssl proxy_protocol;", block)
+        self.assertIn("listen 443 ssl;", block)                        # and from the VPN, directly
         self.assertIn("set_real_ip_from 10.8.0.1;", block)
         self.assertIn("/etc/nginx/acme/chat.example.org/fullchain.pem", block)
         internal = nginx[nginx.index("server_name jabber.sh3.home;") - 200:nginx.index("server_name jabber.sh3.home;") + 300]
