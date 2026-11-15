@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.41.1 — Jabber answers on the VPN
+
+- xmpp: the server shares the WireGuard server's network, as the master's reverse proxy
+  does. In 0.41.0 it stood beside it, and a device on the VPN was refused at the
+  master's address (found by the first login through a fleet). For a public name the
+  WireGuard server's container publishes 5222 and 5269.
+
 ## 0.41.0 — Jabber
 
 - **A new module, `xmpp`**, for a master: Prosody, a Jabber (XMPP) server. Chats, group
