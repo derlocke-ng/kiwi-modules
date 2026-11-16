@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.58.0 — Paperless signs people in with the network's accounts
+
+- **paperless**: with `accounts_client`, `accounts_issuer` and `accounts_secret` (kiwi-server sets them:
+  `kiwi-server accounts connect HOST paperless`), Paperless offers "Sign in with accounts" through
+  allauth's OpenID Connect, makes the person's Paperless user on first sign-in and trusts the fleet's CA
+  for the accounts server.
+
 ## 0.57.0 — signing up over Tor
 
 - accounts: told its hidden service's address (`onion`, kiwi-server fills it in), the sign-up page gives
