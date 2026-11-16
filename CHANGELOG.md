@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.60.2 — connecting a service works (really)
+
+- accounts: `accounts.sh oauth` named its loop over the callbacks `url`, which is also Kanidm's own
+  address in the script: every Kanidm call after the first callback went elsewhere and the script
+  stopped. The test now checks that every call goes to Kanidm itself.
+
 ## 0.60.1 — connecting a service works again
 
 - accounts: `accounts.sh oauth` (0.60.0) read its words one place off: Kanidm was asked to make the

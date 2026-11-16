@@ -1175,7 +1175,7 @@ class TestFederation(unittest.TestCase):
             f.write('#!/bin/sh\ncase "$*" in\n'
                     '  *recover-account*) echo \'{"new_password": "x"}\' ;;\n'
                     '  *show-basic-secret*) echo sekret ;;\n'
-                    '  *" kanidm "*) echo "$*" | sed "s/.* kanidm //" >> ' + log + ' ;;\n'
+                    '  *" kanidm "*) echo "$*" | sed "s/.* kanidm //" >> ' + log + '; echo "$*" | grep -o "KANIDM_URL=[^ ]*" >> ' + log + '.url ;;\n'
                     'esac\n')
         os.chmod(fake, 0o755)
         script = os.path.join(base, "accounts.sh")
@@ -1195,6 +1195,8 @@ class TestFederation(unittest.TestCase):
         self.assertIn("system oauth2 add-redirect-url immich-sh3 https://immich.sh3.home/auth/login", cmds)
         self.assertIn("system oauth2 add-redirect-url immich-sh3 https://immich.sh3.home/api/oauth/mobile-redirect", cmds)
         self.assertFalse(any("disable-pkce" in c or "--pkce" in c for c in cmds))
+        with open(log + ".url") as f:                              # every call goes to Kanidm itself
+            self.assertEqual(set(f.read().split()), {"KANIDM_URL=https://172.128.0.%s:8443" % re.search(r"rt=.*\nurl=https://172\.128\.0\.(\d+)", sh).group(1)})
         _answer, cmds = oauth("git-sh3", "Forgejo on sh3", "https://git.sh3.home", "https://git.sh3.home/user/oauth2/accounts/callback")
         self.assertIn("system oauth2 create git-sh3 Forgejo on sh3 https://git.sh3.home", cmds)
         self.assertIn("system oauth2 warning-insecure-client-disable-pkce git-sh3", cmds)
