@@ -32,5 +32,9 @@ services:
       # real files where the official image has links to stdout: fail2ban reads them
       - {{ docker_dir }}/{{ container_prefix }}-nginx/log:/var/log/nginx:z
       - {{ docker_dir }}/{{ container_prefix }}-nginx/www:/var/www/acme:z
+{% if via %}
+      # fail2ban's list of banned addresses
+      - {{ docker_dir }}/{{ container_prefix }}-nginx/banned:/etc/nginx/banned:ro,z
+{% endif %}
     command: /bin/sh /etc/nginx/start.sh
 {% endif %}
