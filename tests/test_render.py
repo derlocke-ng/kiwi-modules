@@ -1201,6 +1201,9 @@ class TestFederation(unittest.TestCase):
         with open(os.path.join(out, "kiwi", "cloud-accounts.env")) as f:
             self.assertEqual(f.read().strip(), "KIWI_SECRET=golden-oidc-secret")
         self.assertTrue(os.path.isfile(os.path.join(out, "host-units", "kn-cloud-accounts.service")))
+        with open(os.path.join(out, "host-units", "kn-cloud-accounts.service")) as f:
+            self.assertNotIn("EnvironmentFile", f.read())                         # systemd may not read the home folder
+        self.assertIn("/home/user/docker/kiwi/cloud-accounts.env", sh)
         r = subprocess.run(["bash", "-n", os.path.join(out, "kiwi", "cloud-accounts.sh")], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
         with open(os.path.join(self.render("cloud-plain", SH3), "docker-compose.yml")) as f:
