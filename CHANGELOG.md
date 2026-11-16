@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.55.2 — Jabber's sign-up page has the server's name
+
+- xmpp: the sign-up page is called after the Jabber server (its public name, else its VPN
+  name), not after the fleet's domain.
+
 ## 0.55.1 — a command word with spaces
 
 - quadlet: each word of a container's command is quoted the way systemd reads it. A word with
