@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.61.0 — a machine off the VPN
+
+- Stack setting `vpn` (default yes). `vpn: false` is for a network without a master (yet): the
+  VPN client is left out of the presets and of what parts require, and the machine's fixed address
+  at home stands in for its mesh address, so its sites and names answer on the home network. Named
+  outright in `modules:`, the VPN client is refused; a machine without a fixed address is asked
+  for one. The gateway and the downloader still need the VPN client.
+- `ModuleSet.resolve(names, node_type, without=())` and `StackSpec(without=…)` carry it.
+
 ## 0.60.4 — every game of the catalog started
 
 - games: the catalog's note says which games were started from it and listened: all ten, on
