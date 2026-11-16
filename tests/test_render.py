@@ -1126,7 +1126,16 @@ class TestFederation(unittest.TestCase):
         units = os.path.join(out, "host-units")
         for u in ("kn-f2b-tap.service", "kn-nginx-banned.path", "kn-nginx-banned.service"):
             self.assertTrue(os.path.isfile(os.path.join(units, u)), u)
-        self.assertFalse(os.path.isfile(os.path.join(units, "kn-fail2ban-own.timer")))   # a master's
+        # the network's own addresses: asked of the master, which sees the tunnels
+        self.assertTrue(os.path.isfile(os.path.join(units, "kn-fail2ban-own.timer")))
+        with open(os.path.join(out, "kiwi", "fail2ban-own.sh")) as f:
+            own = f.read()
+        self.assertIn("kn-vpn-client wget -q -T 10 -O - http://10.8.0.1/.well-known/kiwi-own", own)
+        self.assertNotIn("wg show", own)
+        with open(os.path.join(f2b, "..", "..", "init", "51-kiwi-files")) as f:
+            init = f.read()
+        self.assertIn("touch /config/log/fail2ban/fail2ban.log", init)       # recidive's file, or fail2ban stops
+        self.assertIn("touch /kiwi-apps/git.log", init)
         with open(os.path.join(out, "kiwi", "f2b-tap.sh")) as f:
             tap = f.read()
         self.assertIn("tap git kn-git '' 'Failed authentication attempt|", tap)

@@ -231,12 +231,25 @@ http {
     server {
         listen 80 default_server;
         server_name _;
+{% if public_names or ex.names %}
+{% if ex.names %}
+
+        # the addresses this network's own machines come from (fail2ban here writes them down): the
+        # nodes this machine hands visitors on to ask for them, so that they never ban them either
+        location = /.well-known/kiwi-own {
+            allow {{ mesh_subnet }};
+            deny all;
+            default_type text/plain;
+            alias /etc/nginx/kiwi-own/list;
+        }
+{% endif %}
 {% if public_names %}
 
         # Let's Encrypt asks for its challenge here
         location /.well-known/acme-challenge/ {
             root /var/www/acme;
         }
+{% endif %}
 
         location / {
             return 301 https://$host$request_uri;
