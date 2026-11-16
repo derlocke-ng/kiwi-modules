@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.61.3 — Nextcloud's push channel through the proxy
+
+- cloud: the site passes websockets on (`websocket: true`). notify-push (`/push/ws`, the desktop and
+  phone apps' channel) answered 400 every two minutes without the Upgrade header; the app's close
+  frame then reached nginx as a bad request, and fail2ban banned the Nextcloud user. Seen on the
+  test network on 17 November.
+
 ## 0.61.2 — a temporary file per writer
 
 - `write_text` and `write_bytes` write through a temporary name of their own per process and
