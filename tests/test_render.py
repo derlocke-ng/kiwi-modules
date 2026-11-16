@@ -10,6 +10,7 @@ import hashlib
 import io
 import json
 import os
+import shlex
 import re
 import shutil
 import subprocess
@@ -1178,6 +1179,14 @@ class TestFederation(unittest.TestCase):
         n["node"]["reverse-proxy"] = {}
         with open(os.path.join(self.render("alias-none", n), "kn-nginx", "nginx.conf")) as f:
             self.assertNotIn("return 301 https://git.", f.read())
+
+    def test_a_command_word_with_spaces_or_quotes_stays_one_word_in_the_quadlet(self):
+        from kiwimodules import quadlet
+        units, _env = quadlet.from_compose_with_env({"services": {"x": {"image": "img", "container_name": "x",
+            "command": ["serve", "--map", '{"a b": {"c": "d"}}', "--name", "50% off"]}}}, "net")
+        execline = [l for l in units["x.container"].splitlines() if l.startswith("Exec=")][0]
+        self.assertEqual(execline, 'Exec=serve --map "{\\"a b\\": {\\"c\\": \\"d\\"}}" --name "50%% off"')
+        self.assertEqual(shlex.split(execline[5:].replace("%%", "%")), ["serve", "--map", '{"a b": {"c": "d"}}', "--name", "50% off"])
 
     def test_jabber_has_a_sign_up_page_with_the_ways_chosen(self):
         n = json.loads(json.dumps(SH3))

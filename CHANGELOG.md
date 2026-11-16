@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.55.1 — a command word with spaces
+
+- quadlet: each word of a container's command is quoted the way systemd reads it. A word with
+  spaces or quotes (the JSON that tells Jabber's sign-up page where its servers are) fell apart
+  and the container did not start.
+
 ## 0.55.0 — Jabber's sign-up page, chosen per network
 
 - **xmpp**: besides the captcha (`registration`), a page at `https://<name>/join` takes invite codes
