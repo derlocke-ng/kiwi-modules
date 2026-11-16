@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.53.1 — the module list in the docs
+
+- `accounts` and `authenticator` in the docs' module table.
+
 ## 0.53.0 — Forgejo signs people in with the network's accounts
 
 - **git**: with `accounts_client`, `accounts_issuer` and `accounts_secret` (kiwi-server sets them,
