@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.62.0 — fail2ban as others ship it: nobody banned for using a service
+
+Compared with fail2ban's own defaults, Debian, YunoHost, mailcow, linuxserver's SWAG, Nextcloud's,
+Vaultwarden's and Forgejo's guides. On the test network every wrong ban came from two of ours.
+- No `nginx-bad-request` jail: a 400 never reaches an app, and real clients make them (a websocket's
+  close frame, an empty connection a browser opens ahead). None of the others turn it on.
+- sshd: `mode = normal` (failed logins), not aggressive (every connection closed before a login,
+  six for one key scan). Logins are by key only.
+- Private addresses are never banned (`ignore_home`, default on): who is inside a home is one of
+  its people. mailcow, SWAG and YunoHost do the same.
+- Bans start at 10 minutes and grow for an address that comes back (`bantime.increment`, up to
+  `bantime_max`, 1 week). Was: 1 hour, fixed.
+- recidive (out for a week on every port) after 5 bans in a day, fail2ban's own number; was 3.
+- kiwi-nginx-refused leaves the apps' own doors to their jails (Nextcloud's WebDAV and OCS, `/api/`):
+  a sync client keeps a stale password for a while. Forgejo's jail takes 10 tries (its guide).
+- The rate limit leaves out what sync clients and photo apps fetch in bulk (WebDAV, previews, Immich
+  thumbnails); its jail bans only after five minutes of refusals (600), not one (120).
+- nginx's list of banned addresses starts empty with fail2ban, which puts back the bans it keeps:
+  a jail taken away leaves nobody locked out.
+
 ## 0.61.3 — Nextcloud's push channel through the proxy
 
 - cloud: the site passes websockets on (`websocket: true`). notify-push (`/push/ws`, the desktop and

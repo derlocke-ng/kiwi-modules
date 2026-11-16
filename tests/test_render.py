@@ -1443,7 +1443,20 @@ class TestFederation(unittest.TestCase):
         self.assertIn("logpath  = /kiwi-apps/git.log", git[:400])
         self.assertIn("from <HOST>", git[:400])
         limit = jail[jail.index("[nginx-limit-req]"):jail.index("[kiwi-nginx-refused]")]
-        self.assertIn("maxretry = 120", limit)                                  # floods, not page loads
+        self.assertIn("findtime = 5m\nmaxretry = 600", limit)                   # floods, not page loads
+        # gentle, as others ship it (fail2ban, Debian, YunoHost, mailcow): no ban for a 400, sshd's
+        # failed logins only, never a home address, short bans that grow, Forgejo's own count
+        self.assertNotIn("[nginx-bad-request]", jail)
+        self.assertIn("mode     = normal", jail)
+        self.assertIn("192.168.0.0/16 fc00::/7", jail)
+        self.assertIn("bantime  = 10m\nbantime.increment = true\nbantime.maxtime = 1w", jail)
+        self.assertIn("maxretry = 10", git[:500])
+        self.assertIn("maxretry = 5", jail[jail.index("[recidive]"):])
+        with open(os.path.join(f2b, "filter.d", "kiwi-nginx-refused.conf")) as f:
+            refused = f.read()
+        self.assertIn("ignoreregex = ^<HOST> -[^\"]*\"[A-Z]+ /(?:remote\\.php|ocs", refused)
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            self.assertIn('~^/remote\\.php/(?:dav|webdav)/ "";', f.read())          # sync clients are not limited
         self.assertTrue(os.path.isfile(os.path.join(f2b, "action.d", "kiwi-nginx-deny.conf")))
         self.assertTrue(os.path.isfile(os.path.join(f2b, "filter.d", "kiwi-app.conf")))
         units = os.path.join(out, "host-units")
@@ -1458,6 +1471,7 @@ class TestFederation(unittest.TestCase):
         with open(os.path.join(f2b, "..", "..", "init", "51-kiwi-files")) as f:
             init = f.read()
         self.assertIn("touch /config/log/fail2ban/fail2ban.log", init)       # recidive's file, or fail2ban stops
+        self.assertIn(": > /kiwi-banned/fail2ban.map", init)                 # nobody stays locked out by a jail gone
         self.assertIn("touch /kiwi-apps/git.log", init)
         with open(os.path.join(out, "kiwi", "f2b-tap.sh")) as f:
             tap = f.read()
