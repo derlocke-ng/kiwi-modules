@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.61.2 — a temporary file per writer
+
+- `write_text` and `write_bytes` write through a temporary name of their own per process and
+  thread: two writers of one file no longer share one `.tmp` (kiwi-server 2.152.1 found it).
+
 ## 0.61.1 — the home network stands in for the mesh
 
 - `vpn: false`: the home subnet takes the mesh subnet's place too (unless `mesh_subnet` is set), so
