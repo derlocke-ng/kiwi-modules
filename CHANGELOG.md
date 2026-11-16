@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.64.0 — Tor without a VPN, when the owner chooses it
+
+- onion: `without_vpn` (default off). Off, Tor runs only through a VPN, as before. On, a machine
+  without a VPN client runs its hidden services through its own connection (its provider can see
+  Tor traffic) instead of none at all. A machine with a VPN client still uses it.
+- Fixed: a machine with the onion part and no VPN client did not render at all
+  ("network_mode 'none' is not translated"); its Tor now gets no network, as meant.
+
 ## 0.63.0 — a commercial VPN as the exit of a machine off the mesh
 
 - `vpn: false` (a network without a master) allows a VPN client when it is a commercial VPN's

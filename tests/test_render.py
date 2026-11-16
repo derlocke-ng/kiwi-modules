@@ -159,6 +159,17 @@ class TestRender(unittest.TestCase):
         with open(os.path.join(out, "stack.sh")) as f:
             stack = f.read()
         self.assertIn("KS_STACK_MESH_SUBNET=''\nKS_STACK_MESH_VIA=''", stack)          # the home is not routed into it
+        # Tor without any VPN: only when the owner chooses it; else its Tor gets no network at all
+        tor = dict(solo, node=dict(solo["node"], modules=["dns", "reverse-proxy", "onion"]))
+        out = self.render("solo-tor", tor)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            self.assertEqual(yaml.safe_load(f)["services"]["kn-onion"]["network_mode"], "none")
+        tor["node"] = dict(tor["node"], onion={"without_vpn": True})
+        out = self.render("solo-tor-direct", tor)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            onion = yaml.safe_load(f)["services"]["kn-onion"]
+        self.assertNotIn("network_mode", onion)
+        self.assertIn("networks", onion)                                       # its own connection, chosen
         mesh = dict(exit_, node=dict(exit_["node"], **{"vpn-client": {"wireguard_config": "x.conf"}}))
         with self.assertRaisesRegex(Exception, "only be a commercial VPN"):
             mm = machmod.load(self.write("mesh", mesh))
