@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.55.0 — Jabber's sign-up page, chosen per network
+
+- **xmpp**: besides the captcha (`registration`), a page at `https://<name>/join` takes invite codes
+  (`invites`: the person chooses name and password, the address is made at once) and requests
+  (`requests`: accepted on the control page, the person gets a password shown once with their
+  request code). Any mix of the three, or none. The rules on the page: `terms`.
+- ejabberd answers its HTTP API on port 5281 to the stack network only, and allows it two commands:
+  make an account, and ask whether one exists.
+
 ## 0.54.1 — a sentence with a colon
 
 - control: `about` (and the other words on the pages) may hold ": ": they are quoted now. A sentence
