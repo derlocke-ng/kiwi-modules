@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.60.0 — Immich signs people in with the network's accounts
+
+- **immich**: with `accounts_client`, `accounts_issuer` and `accounts_secret` (kiwi-server sets them:
+  `kiwi-server accounts connect HOST immich`), `kn-immich-accounts.service` puts the sign-in into
+  Immich's own settings in its database, keeping whatever else the admin set there; Immich's admin
+  page stays editable (a config file would lock all of it). "Sign in with accounts" makes a person's
+  Immich user at the first sign-in; the phone app is sent back through Immich's own redirect page.
+  Immich trusts the fleet's CA (`NODE_EXTRA_CA_CERTS`).
+- accounts: `accounts.sh oauth` takes several callbacks and `--pkce` for a service that sends a PKCE
+  challenge (Immich); the others stay as they were.
+
 ## 0.59.1 — people from the network's accounts can use Paperless
 
 - paperless: a person's first sign-in with the network's accounts made a Paperless user who could do
