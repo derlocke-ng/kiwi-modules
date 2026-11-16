@@ -1234,6 +1234,25 @@ class TestFederation(unittest.TestCase):
         self.assertIn('exclude(content_type__model__startswith="workflow")', script)
         self.assertTrue(os.path.isfile(os.path.join(out, "host-units", "kn-paperless-accounts.service")))
 
+    def test_immich_signs_people_in_with_the_networks_accounts(self):
+        n = json.loads(json.dumps(SH3))
+        n["node"]["modules"] = ["vpn-client", "reverse-proxy", "immich"]
+        n["node"].pop("preset", None); n["node"].pop("cloud", None)
+        n["node"]["immich"] = {"db_password": "golden-immich", "accounts_client": "immich-sh3", "accounts_secret": "golden-oidc",
+                               "accounts_issuer": "https://id.example.org/oauth2/openid/immich-sh3"}
+        out = self.render("immich-accounts", n)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            immich = yaml.safe_load(f)["services"]["kn-immich"]
+        self.assertIn("NODE_EXTRA_CA_CERTS=/kiwi-ca/kiwiCA.crt", immich["environment"])
+        self.assertTrue(os.path.isfile(os.path.join(out, "host-units", "kn-immich-accounts.service")))
+        with open(os.path.join(out, "kiwi", "immich-accounts.sh")) as f:
+            script = f.read()
+        self.assertIn("-v client=immich-sh3", script)
+        self.assertIn("mobile=https://immich.sh3.home/api/oauth/mobile-redirect", script)
+        self.assertNotIn("golden-oidc", script)                   # the secret is in the root-only env file
+        with open(os.path.join(out, "kiwi", "immich-accounts.env")) as f:
+            self.assertIn("KIWI_SECRET=golden-oidc", f.read())
+
     def test_vaultwarden_signs_people_in_with_the_networks_accounts(self):
         n = json.loads(json.dumps(SH3))
         n["node"]["modules"] = ["vpn-client", "reverse-proxy", "vault"]
