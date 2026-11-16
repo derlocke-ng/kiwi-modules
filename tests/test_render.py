@@ -1179,6 +1179,43 @@ class TestFederation(unittest.TestCase):
         with open(os.path.join(self.render("alias-none", n), "kn-nginx", "nginx.conf")) as f:
             self.assertNotIn("return 301 https://git.", f.read())
 
+    def test_jabber_has_a_sign_up_page_with_the_ways_chosen(self):
+        n = json.loads(json.dumps(SH3))
+        n["node"]["modules"] = ["vpn-client", "reverse-proxy", "xmpp"]
+        n["node"].pop("preset", None); n["node"].pop("cloud", None)
+        n["node"]["xmpp"] = {"xmpp_domain": "chat.example.org", "separate": True, "admin_password": "golden-xmpp",
+                             "invites": True, "requests": True, "registration": True}
+        n["node"]["vpn-client"] = {"vpn_provider": "mullvad", "wireguard_private_key": "golden-mullvad-key",
+                                   "wireguard_addresses": "10.66.1.2/32"}
+        n["vpn_ip"] = "10.8.0.25"
+        n["node"].setdefault("reverse-proxy", {}).update(public=True, via="10.8.0.1")
+        out = self.render("xmpp-join", n)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            join = yaml.safe_load(f)["services"]["kn-xmpp-join"]
+        pages = json.loads(join["command"][join["command"].index("--ejabberd") + 1])
+        self.assertEqual(pages["jabber.sh3.home"]["api"], "http://kn-vpn-client:5281/api")      # the internal instance
+        self.assertEqual(pages["chat.example.org"]["api"], "http://kn-xmpp-public:5281/api")    # the public one
+        self.assertEqual(pages["chat.example.org"]["host"], "chat.example.org")
+        self.assertEqual(join["command"][join["command"].index("--ways") + 1], "invites,requests,captcha")
+        for conf in ("ejabberd.yml", "ejabberd-public.yml"):
+            with open(os.path.join(out, "kn-xmpp", conf)) as f:
+                e = yaml.safe_load(f)
+            api = [x for x in e["listen"] if x["port"] == 5281][0]
+            self.assertEqual(api["request_handlers"], {"/api": "mod_http_api"})
+            self.assertEqual(e["api_permissions"]["kiwi sign-up page"]["what"], ["register", "check_account"])
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        self.assertEqual(nginx.count("set $join http://kn-xmpp-join:8080;"), 2)    # the VPN's name and the public one
+        self.assertIn("return 302 /join;", nginx)
+        self.assertTrue(os.path.isfile(os.path.join(out, "kn-xmpp", "join", "terms.txt")))
+        # neither invites nor requests: no page of its own, the captcha form as before
+        n["node"]["xmpp"].update(invites=False, requests=False)
+        out = self.render("xmpp-nojoin", n)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            self.assertNotIn("kn-xmpp-join", yaml.safe_load(f)["services"])
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            self.assertIn("return 302 /register/;", f.read())
+
     def test_fail2ban_on_a_master_never_bans_the_networks_own_addresses(self):
         m = TestRender.public_hub(self)
         m["master"] = dict(m["master"], modules=list(m["master"].get("modules") or
