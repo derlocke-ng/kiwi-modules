@@ -1110,6 +1110,32 @@ class TestFederation(unittest.TestCase):
                 self.assertNotEqual(cli.main(["render", self.write("exit-bad", m), "-o", os.path.join(self.tmp, "bad.bundle")]), 0)
             self.assertIn(words, buf.getvalue())
 
+    def test_accounts_is_kanidm_behind_the_proxy_with_the_machines_certificate(self):
+        n = json.loads(json.dumps(SH3))
+        n["node"]["modules"] = ["vpn-client", "reverse-proxy", "accounts"]
+        n["node"].pop("preset", None); n["node"].pop("cloud", None)
+        n["node"]["accounts"] = {"ldap": True}
+        out = self.render("accounts", n)
+        with open(os.path.join(out, "kn-accounts", "server.toml")) as f:
+            conf = f.read()
+        self.assertIn('domain = "id.sh3.home"', conf)
+        self.assertIn('origin = "https://id.sh3.home"', conf)
+        self.assertIn('ldapbindaddress = "0.0.0.0:3636"', conf)
+        self.assertIn('tls_chain = "/certs/fullchain.pem"', conf)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            svc = yaml.safe_load(f)["services"]["kn-accounts"]
+        self.assertIn("/home/user/docker/kn-nginx/fullchain.pem:/certs/fullchain.pem:ro,z", svc["volumes"])
+        self.assertEqual(svc["command"], ["/sbin/kanidmd", "server", "-c", "/config/server.toml"])
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        block = nginx[nginx.index("server_name id.sh3.home;"):]
+        self.assertIn("proxy_pass $backend;", block[:1500])
+        self.assertIn("https://kn-accounts:8443", block[:1500])
+        self.assertIn("proxy_ssl_verify off;", block[:1500])
+        n["node"]["accounts"] = {}
+        with open(os.path.join(self.render("accounts-noldap", n), "kn-accounts", "server.toml")) as f:
+            self.assertNotIn("ldapbindaddress", f.read())
+
     def test_fail2ban_on_a_master_never_bans_the_networks_own_addresses(self):
         m = TestRender.public_hub(self)
         m["master"] = dict(m["master"], modules=list(m["master"].get("modules") or

@@ -1,0 +1,19 @@
+# accounts — Kanidm: the network's people, passwords and passkeys
+services:
+  {{ container_prefix }}-accounts:
+    image: {{ image }}
+    container_name: {{ container_prefix }}-accounts
+    restart: unless-stopped
+    command: ["/sbin/kanidmd", "server", "-c", "/config/server.toml"]
+    networks:
+      {{ network_name }}:
+        ipv4_address: {{ container_ip }}
+    volumes:
+      - {{ docker_dir }}/{{ container_prefix }}-accounts/data:/data:z
+      - {{ docker_dir }}/{{ container_prefix }}-accounts/server.toml:/config/server.toml:ro,z
+      - {{ docker_dir }}/{{ container_prefix }}-nginx/fullchain.pem:/certs/fullchain.pem:ro,z
+      - {{ docker_dir }}/{{ container_prefix }}-nginx/privkey.pem:/certs/privkey.pem:ro,z
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
