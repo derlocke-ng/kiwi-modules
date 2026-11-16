@@ -113,6 +113,39 @@ class TestRender(unittest.TestCase):
         self.assertEqual(cli.main(["render", self.write(name, data), "-o", out]), 0)
         return out
 
+    def test_a_machine_off_the_vpn_answers_at_its_home_address(self):
+        """vpn: false (a network without a master): no VPN client, the home address stands in for
+        the mesh address, and the names point there."""
+        solo = {"name": "solo", "domain": "home", "target": "ucore", "role": "node",
+                "network": {"dhcp": False, "address": "192.168.1.30/24"},
+                "node": {"preset": "cloud", "vpn": False, "modules": ["dns", "reverse-proxy", "cloud", "vault"],
+                         "reverse-proxy": dict(TLS)},
+                "dns_records": [["192.168.1.30", "solo.home"], ["192.168.1.30", "cloud.solo.home"]],
+                "seed": "secrets/seed"}
+        out = self.render("solo", solo)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            svcs = yaml.safe_load(f)["services"]
+        self.assertNotIn("kn-vpn-client", svcs)
+        self.assertIn("80:80", svcs["kn-nginx"]["ports"])                       # the sites answer at home
+        hosts = next(e for e in svcs["kn-pihole"]["environment"] if e.startswith("FTLCONF_dns_hosts="))
+        self.assertIn("192.168.1.30 cloud.solo.home", hosts)
+        # the preset's VPN client is left out; named outright, it is refused
+        bad = dict(solo, node=dict(solo["node"], modules=["vpn-client", "reverse-proxy", "cloud"]))
+        from kiwimodules import machine as machmod, profiles
+        ms = None
+        with self.assertRaisesRegex(Exception, "vpn is false"):
+            mm = machmod.load(self.write("bad", bad))
+            resolver.resolve_settings(profiles.discover()[mm.role], mm, ms)
+        # with no fixed address there is nothing to stand in
+        moving = dict(solo, network={"dhcp": True})
+        with self.assertRaisesRegex(Exception, "give it a fixed one"):
+            mm = machmod.load(self.write("moving", moving))
+            resolver.resolve_settings(profiles.discover()[mm.role], mm, ms)
+        from kiwimodules import modules as modmod
+        ms = modmod.discover()
+        self.assertIn("vpn-client", ms.resolve(["cloud"], "node"))
+        self.assertNotIn("vpn-client", ms.resolve(["cloud"], "node", ("vpn-client",)))
+
     def test_sh3_matches_kiwi_servers_golden_bundle(self):
         out = self.render("sh3", SH3)
         gdir = os.path.join(GOLDEN, "sh3")
