@@ -1241,6 +1241,9 @@ class TestFederation(unittest.TestCase):
         self.assertIn("--sport 5222 ! -d", start)                      # the answers leave by the real interface
         self.assertIn("-p udp --sport 10666 ! -d", start)
         self.assertIn("--sport 443 ! -d", start)
+        # the node may ask port 80 for the network's own addresses, which fail2ban here writes down
+        self.assertIn("-A INPUT -i wg0 -s 10.8.0.25 -p tcp --dport 80 -j ACCEPT", start)
+        self.assertIn("location = /.well-known/kiwi-own {", nginx)
         # a master that hands nothing on is as it was
         with open(os.path.join(self.render("exp-plain", MACHINES["hub1"]), "km-nginx", "nginx.conf")) as f:
             plain = f.read()

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.50.0 — fail2ban done the way the apps document it
+
+- **Wrong logins, per app**: a module says what a wrong login looks like in its log
+  (module.yaml `fail2ban:`), and fail2ban bans who keeps on: Forgejo, Vaultwarden and Nextcloud
+  to start with; Jabber has its own. A small host unit copies just those lines out of the
+  app's log.
+- **Never for loading a page**: a page's own files (scripts, styles, pictures, fonts) no longer
+  count against the rate limit, and the rate limit's jail bans a flood only (120 refusals in a
+  minute, not 10). The jail for refused requests is looser (40) and leaves WebDAV's PROPFIND out.
+- **Bans that work behind the master**: a node's visitors come through the master, so a firewall
+  rule on the node never matched them. There a ban is now a line in nginx's list of banned
+  addresses, which nginx reads again when it changes.
+- **The network's own addresses on nodes too**: the master tells its nodes, on port 80 to the
+  mesh only, where the network's machines come from; their fail2ban never bans those either.
+- **A node whose sites strangers reach gets fail2ban by itself.**
+- fail2ban no longer stops on a new machine because its own log did not exist yet.
+- Forgejo takes the visitor's address from nginx (`REVERSE_PROXY_TRUSTED_PROXIES`).
+
 ## 0.49.1 — a master never bans its own network
 
 - **fail2ban on a master leaves the network's own addresses alone**: every minute it reads
