@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.63.0 — a commercial VPN as the exit of a machine off the mesh
+
+- `vpn: false` (a network without a master) allows a VPN client when it is a commercial VPN's
+  (`vpn_provider` mullvad, protonvpn, …), named in `modules:`: Tor, downloads and anything else that
+  shares its network leave there, never on the home line. Nothing routes the home network into it,
+  and the mesh's own VPN client (`custom`) is still refused there.
+
 ## 0.62.0 — fail2ban as others ship it: nobody banned for using a service
 
 Compared with fail2ban's own defaults, Debian, YunoHost, mailcow, linuxserver's SWAG, Nextcloud's,

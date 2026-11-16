@@ -145,6 +145,24 @@ class TestRender(unittest.TestCase):
         with self.assertRaisesRegex(Exception, "give it a fixed one"):
             mm = machmod.load(self.write("moving", moving))
             resolver.resolve_settings(profiles.discover()[mm.role], mm, ms)
+        # off the mesh, a commercial VPN may still be its exit (Tor never leaves on the home line):
+        # its VPN client is allowed then, and nothing routes the "mesh" (the home network) into it
+        exit_ = dict(solo, node=dict(solo["node"], modules=["dns", "reverse-proxy", "vpn-client", "downloader"],
+                                     **{"vpn-client": {"vpn_provider": "mullvad", "wireguard_private_key": "golden-mullvad-key",
+                                                       "wireguard_addresses": "10.66.1.2/32"},
+                                        "downloader": {"download_dir": "/srv/dl", "transmission_password": "golden-t"}}))
+        out = self.render("solo-exit", exit_)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            svcs = yaml.safe_load(f)["services"]
+        self.assertIn("kn-vpn-client", svcs)
+        self.assertEqual(svcs["kn-transmission"]["network_mode"], "service:kn-vpn-client")    # downloads leave there
+        with open(os.path.join(out, "stack.sh")) as f:
+            stack = f.read()
+        self.assertIn("KS_STACK_MESH_SUBNET=''\nKS_STACK_MESH_VIA=''", stack)          # the home is not routed into it
+        mesh = dict(exit_, node=dict(exit_["node"], **{"vpn-client": {"wireguard_config": "x.conf"}}))
+        with self.assertRaisesRegex(Exception, "only be a commercial VPN"):
+            mm = machmod.load(self.write("mesh", mesh))
+            resolver.resolve_settings(profiles.discover()[mm.role], mm, None)
         from kiwimodules import modules as modmod
         ms = modmod.discover()
         self.assertIn("vpn-client", ms.resolve(["cloud"], "node"))
