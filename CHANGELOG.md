@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.61.1 — the home network stands in for the mesh
+
+- `vpn: false`: the home subnet takes the mesh subnet's place too (unless `mesh_subnet` is set), so
+  what is only for the network itself (the control page, fail2ban's own addresses) lets the home in.
+
 ## 0.61.0 — a machine off the VPN
 
 - Stack setting `vpn` (default yes). `vpn: false` is for a network without a master (yet): the
