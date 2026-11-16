@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.60.1 — connecting a service works again
+
+- accounts: `accounts.sh oauth` (0.60.0) read its words one place off: Kanidm was asked to make the
+  client with the wrong origin and refused, without a word. A refusal is said now, and a test runs the script against a
+  stand-in for podman and checks the Kanidm commands it gives.
+
 ## 0.60.0 — Immich signs people in with the network's accounts
 
 - **immich**: with `accounts_client`, `accounts_issuer` and `accounts_secret` (kiwi-server sets them:
