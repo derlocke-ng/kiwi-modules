@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.54.0 — start pages
+
+- **control**: the status name (`status.<hostname>`) opens the network's start page now: every
+  service people use, what it is for, its address and Tor address, whether it works. The status
+  page is at `/status`. The public name opens a front page for strangers: the services open to the
+  Internet, how to get an account, and `/status`.
+- New settings: `brand_name`, `brand_accent`, `about`, `contact`: the network's name, colour, a few
+  words and how to reach its people, on those pages.
+
 ## 0.53.1 — the module list in the docs
 
 - `accounts` and `authenticator` in the docs' module table.
