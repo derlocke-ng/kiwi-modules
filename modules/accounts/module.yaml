@@ -48,6 +48,8 @@ urls:
 
 nginx:
   server_name: "{{ id_host }}"
+  # its name on the VPN stays, and sends the browser on to the name it was given
+  alias: "{{ 'id.' ~ hostname if accounts_hostname else '' }}"
   site: id
   # Kanidm speaks TLS only, with the machine's own certificate
   proxy_pass: "https://{{ container_prefix }}-accounts:8443"

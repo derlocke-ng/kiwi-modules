@@ -1157,6 +1157,28 @@ class TestFederation(unittest.TestCase):
         with open(os.path.join(out, "kiwi", "accounts.sh")) as f:
             self.assertIn("credential-type-minimum idm_all_persons mfa", f.read())
 
+    def test_a_service_with_a_public_name_keeps_its_vpn_name_as_a_way_there(self):
+        n = json.loads(json.dumps(SH3))
+        n["node"]["modules"] = ["vpn-client", "reverse-proxy", "git"]
+        n["node"].pop("preset", None); n["node"].pop("cloud", None)
+        n["node"]["git"] = {"git_hostname": "git.example.org", "admin_password": "golden-git-pass"}
+        n["node"]["vpn-client"] = {"vpn_provider": "mullvad", "wireguard_private_key": "golden-mullvad-key",
+                                   "wireguard_addresses": "10.66.1.2/32"}
+        n["vpn_ip"] = "10.8.0.25"
+        n["node"].setdefault("reverse-proxy", {}).update(public=True, via="10.8.0.1")
+        out = self.render("alias", n)
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        block = nginx[nginx.index("server_name git.sh3.home;") - 200:nginx.index("server_name git.sh3.home;") + 200]
+        self.assertIn("return 301 https://git.example.org$request_uri;", block)
+        self.assertIn("listen 443 ssl;", block)                         # the VPN's door, never the master's
+        self.assertNotIn("8443", block)
+        # without a public name there is nothing to send on
+        n["node"]["git"] = {"admin_password": "golden-git-pass"}
+        n["node"]["reverse-proxy"] = {}
+        with open(os.path.join(self.render("alias-none", n), "kn-nginx", "nginx.conf")) as f:
+            self.assertNotIn("return 301 https://git.", f.read())
+
     def test_fail2ban_on_a_master_never_bans_the_networks_own_addresses(self):
         m = TestRender.public_hub(self)
         m["master"] = dict(m["master"], modules=list(m["master"].get("modules") or
