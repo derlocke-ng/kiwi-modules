@@ -1298,7 +1298,9 @@ class TestFederation(unittest.TestCase):
         with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
             conf = f.read()
         site = conf.split("server_name status.sh3.home;", 1)[1].split("\n    server {", 1)[0]
-        self.assertIn("set $backend http://kn-control:8740/status;", site)       # whatever is asked for: /status
+        self.assertIn("set $backend http://kn-control:8740/start;", site)        # whatever is asked for: the start page
+        self.assertIn("location = /status {", site)                                # and the status page, nothing else
+        self.assertIn("set $page http://kn-control:8740/status;", site)
         self.assertNotIn("deny all;", site)                                       # no admin page: the access rules decide
         from kiwimodules import modules
         nx = modules.discover().get("control").nginx
