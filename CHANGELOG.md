@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.57.0 — signing up over Tor
+
+- accounts: told its hidden service's address (`onion`, kiwi-server fills it in), the sign-up page gives
+  someone who came over Tor links that stay on Tor: the password link, and the way to sign in.
+
 ## 0.56.1 — Nextcloud's sign-in starts on SELinux hosts
 
 - cloud: the sign-in unit reads its secret in its script, not as systemd's EnvironmentFile, which
