@@ -1110,6 +1110,75 @@ class TestFederation(unittest.TestCase):
                 self.assertNotEqual(cli.main(["render", self.write("exit-bad", m), "-o", os.path.join(self.tmp, "bad.bundle")]), 0)
             self.assertIn(words, buf.getvalue())
 
+    def test_accounts_is_kanidm_behind_the_proxy_with_the_machines_certificate(self):
+        n = json.loads(json.dumps(SH3))
+        n["node"]["modules"] = ["vpn-client", "reverse-proxy", "accounts"]
+        n["node"].pop("preset", None); n["node"].pop("cloud", None)
+        n["node"]["accounts"] = {"ldap": True}
+        out = self.render("accounts", n)
+        with open(os.path.join(out, "kn-accounts", "server.toml")) as f:
+            conf = f.read()
+        self.assertIn('domain = "id.sh3.home"', conf)
+        self.assertIn('origin = "https://id.sh3.home"', conf)
+        self.assertIn('ldapbindaddress = "0.0.0.0:3636"', conf)
+        self.assertIn('tls_chain = "/certs/fullchain.pem"', conf)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            svc = yaml.safe_load(f)["services"]["kn-accounts"]
+        self.assertIn("/home/user/docker/kn-nginx/fullchain.pem:/certs/fullchain.pem:ro,z", svc["volumes"])
+        self.assertEqual(svc["command"], ["/sbin/kanidmd", "server", "-c", "/config/server.toml"])
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        block = nginx[nginx.index("server_name id.sh3.home;"):]
+        self.assertIn("proxy_pass $backend;", block[:1500])
+        self.assertIn("https://kn-accounts:8443", block[:1500])
+        self.assertIn("proxy_ssl_verify off;", block[:1500])
+        # the sign-up page in front, in its own container, with its rules
+        self.assertIn("location = / {\n            return 302 /join;", block[:3000])
+        self.assertIn("location /join {", block[:3000])
+        self.assertIn("set $signup http://kn-signup:8080;", block[:3000])
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            su = yaml.safe_load(f)["services"]["kn-signup"]
+        self.assertEqual(su["command"][:2], ["signup", "serve"])
+        self.assertIn("/home/user/docker/kn-accounts/signup:/state:z", su["volumes"])
+        self.assertTrue(os.path.isfile(os.path.join(out, "kn-accounts", "signup", "terms.txt")))
+        self.assertTrue(os.path.isfile(os.path.join(out, "host-units", "kn-accounts-setup.service")))
+        with open(os.path.join(out, "kiwi", "accounts.sh")) as f:
+            sh = f.read()
+        self.assertIn("allow-primary-cred-fallback jabber true", sh)               # Jabber takes the same password
+        self.assertIn("credential-type-minimum idm_all_persons any", sh)
+        r = subprocess.run(["sh", "-n", os.path.join(out, "kiwi", "accounts.sh")], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        n["node"]["accounts"] = {"signup": False, "second_factor": True}
+        out = self.render("accounts-noldap", n)
+        with open(os.path.join(out, "kn-accounts", "server.toml")) as f:
+            self.assertNotIn("ldapbindaddress", f.read())
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            self.assertNotIn("kn-signup", yaml.safe_load(f)["services"])
+        with open(os.path.join(out, "kiwi", "accounts.sh")) as f:
+            self.assertIn("credential-type-minimum idm_all_persons mfa", f.read())
+
+    def test_a_service_with_a_public_name_keeps_its_vpn_name_as_a_way_there(self):
+        n = json.loads(json.dumps(SH3))
+        n["node"]["modules"] = ["vpn-client", "reverse-proxy", "git"]
+        n["node"].pop("preset", None); n["node"].pop("cloud", None)
+        n["node"]["git"] = {"git_hostname": "git.example.org", "admin_password": "golden-git-pass"}
+        n["node"]["vpn-client"] = {"vpn_provider": "mullvad", "wireguard_private_key": "golden-mullvad-key",
+                                   "wireguard_addresses": "10.66.1.2/32"}
+        n["vpn_ip"] = "10.8.0.25"
+        n["node"].setdefault("reverse-proxy", {}).update(public=True, via="10.8.0.1")
+        out = self.render("alias", n)
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        block = nginx[nginx.index("server_name git.sh3.home;") - 200:nginx.index("server_name git.sh3.home;") + 200]
+        self.assertIn("return 301 https://git.example.org$request_uri;", block)
+        self.assertIn("listen 443 ssl;", block)                         # the VPN's door, never the master's
+        self.assertNotIn("8443", block)
+        # without a public name there is nothing to send on
+        n["node"]["git"] = {"admin_password": "golden-git-pass"}
+        n["node"]["reverse-proxy"] = {}
+        with open(os.path.join(self.render("alias-none", n), "kn-nginx", "nginx.conf")) as f:
+            self.assertNotIn("return 301 https://git.", f.read())
+
     def test_fail2ban_on_a_master_never_bans_the_networks_own_addresses(self):
         m = TestRender.public_hub(self)
         m["master"] = dict(m["master"], modules=list(m["master"].get("modules") or
