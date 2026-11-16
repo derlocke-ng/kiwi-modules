@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.65.1 — the pages believe a forwarded address from their proxy only
+
+- control and accounts (sign-up): `KIWI_PROXY` names the reverse proxy in front. kiwi-server 2.157.0
+  believes X-Real-IP from it only, so nobody else picks the address that a limit per address counts.
+
 ## 0.65.0 — fixes from the review of 15–16 November
 
 - **No account taken over by name.** Forgejo linked a sign-in to an existing user of the same name
