@@ -38,6 +38,8 @@ as profiles of their own. They are kept for files that already use them.
 | `vpn-client` | master, node | gluetun, the tunnel of the machine: to the master on a node, to a commercial VPN on the master. |
 | `dns` | master, node | Pi-hole, a resolver that blocks advertising, for the mesh or the LAN. |
 | `reverse-proxy` | master, node | nginx with TLS, with one address per service that the other modules announce. |
+| `accounts` | master, node | Kanidm: one account for the network's services, a sign-up page with invite codes and requests, links instead of email; Forgejo signs people in with it. |
+| `authenticator` | master, node | 2FAuth: the codes of your two-factor logins in a page of your own, for the VPN only. |
 | `tor` | master, node | A Tor SOCKS5 proxy for the clients in the mesh. |
 | `onion` | master, node | Sites of the machine as Tor hidden services, for people who are not on the VPN. Tor shares the VPN client's network: it leaves at the master, never through the machine's own connection. |
 | `fail2ban` | master, node | Bans addresses that keep failing to log in: over SSH, and at public sites, where each app says what a wrong login looks like in its log. Never a visitor for loading a page, never the network's own addresses. Comes by itself with a node whose sites strangers reach. |
