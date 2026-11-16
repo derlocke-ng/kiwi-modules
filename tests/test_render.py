@@ -1430,7 +1430,8 @@ class TestFederation(unittest.TestCase):
         n["node"]["vpn-client"] = {"vpn_provider": "mullvad", "wireguard_private_key": "golden-mullvad-key",
                                    "wireguard_addresses": "10.66.1.2/32"}
         n["vpn_ip"] = "10.8.0.25"
-        n["node"].setdefault("reverse-proxy", {}).update(public=True, via="10.8.0.1")
+        n["node"].setdefault("reverse-proxy", {}).update(public=True, via="10.8.0.1",
+                                                         access={"admin": ["10.9.5.0/24"]})    # a group without the admin pages
         out = self.render("xmpp-join", n)
         with open(os.path.join(out, "docker-compose.yml")) as f:
             join = yaml.safe_load(f)["services"]["kn-xmpp-join"]
@@ -1454,7 +1455,10 @@ class TestFederation(unittest.TestCase):
         for site in nginx.split("server_name ")[1:]:
             if site.startswith(("jabber.sh3.home;", "chat.example.org;")):
                 self.assertIn("location ^~ /register {\n            return 302 /join;", site)
-                self.assertRegex(site, r"location \^~ /admin \{\n\s+allow 10\.[0-9./]+; deny all;\n\s+set \$backend \S+;\n\s+proxy_pass")
+                # ejabberd's admin panel: the group without the admin pages first refused, then the VPN only
+                self.assertRegex(site, r"location \^~ /admin \{\n\s+#[^\n]*\n\s+deny 10\.9\.5\.0/24;\n\s+allow 10\.[0-9./]+; deny all;"
+                                       r"\n\s+set \$backend \S+;\n\s+proxy_pass")
+                self.assertNotIn("deny 10.9.5.0/24", site.split("location ^~ /admin", 1)[0])    # the rest of the site is theirs
         # only the open way: the same one page, with the picture test only
         n["node"]["xmpp"].update(invites=False, requests=False)
         out = self.render("xmpp-open", n)
