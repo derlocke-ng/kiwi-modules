@@ -7,8 +7,6 @@ Wants=kiwi-stack.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-# the client's secret: in this unit's environment, not on a command line of the host
-EnvironmentFile={{ docker_dir }}/kiwi/cloud-accounts.env
 ExecStart=/usr/bin/bash {{ docker_dir }}/kiwi/cloud-accounts.sh
 TimeoutStartSec=45min
 

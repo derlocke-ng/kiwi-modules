@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.56.1 — Nextcloud's sign-in starts on SELinux hosts
+
+- cloud: the sign-in unit reads its secret in its script, not as systemd's EnvironmentFile, which
+  SELinux keeps systemd from reading under the home folder (uCore).
+
 ## 0.56.0 — Nextcloud signs people in with the network's accounts
 
 - **cloud**: with `accounts_client`, `accounts_issuer` and `accounts_secret` (kiwi-server sets them:

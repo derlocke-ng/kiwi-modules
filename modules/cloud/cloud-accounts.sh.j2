@@ -6,6 +6,9 @@
 set -euo pipefail
 
 WWW_DATA=33
+# the client's secret, from a file only root reads (systemd itself may not read files under the
+# home folder on an SELinux host, so the script reads it)
+set -a; . {{ docker_dir }}/kiwi/cloud-accounts.env; set +a
 occ() { {{ runtime }} exec --user "$WWW_DATA" nextcloud-aio-nextcloud php /var/www/html/occ "$@"; }
 
 for _ in {1..360}; do
