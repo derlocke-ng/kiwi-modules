@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.52.0 — accounts, and one name per service
+
+- **New module `accounts`**: Kanidm keeps the network's people, passwords and passkeys, at
+  `id.<hostname>` or a public name. People get an account with an invite code or by asking
+  (kiwi-server's sign-up page at `/join`, in its own container), and set their password with a
+  link: no email. `kiwi/accounts.sh` makes accounts and links for kiwi-server. A password alone
+  will do unless `second_factor` is on; Jabber can check passwords over LDAP (`ldap`), with the
+  same password as the pages. 59 MB at rest.
+- **A service with a public name keeps its VPN name**, which sends the browser on to the public
+  name (301): Forgejo, Nextcloud, Vaultwarden, Immich, Paperless, OpenCloud, PrivateBin, BTCPay,
+  Firefox Sync and the accounts. Both names are in the network's DNS and the machine's certificate.
+
 ## 0.51.0 — every WireGuard VPN provider as the exit
 
 - **The VPN client takes every provider gluetun knows with WireGuard**: Mullvad, ProtonVPN,
