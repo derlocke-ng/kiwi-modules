@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.51.0 — every WireGuard VPN provider as the exit
+
+- **The VPN client takes every provider gluetun knows with WireGuard**: Mullvad, ProtonVPN,
+  NordVPN, Surfshark, AirVPN, Windscribe, IVPN, FastestVPN, and any other provider's WireGuard
+  config through `custom` (`wireguard_public_key`, `wireguard_endpoint_ip`, `vpn_endpoint_port`).
+- ProtonVPN and NordVPN were refused: they give out no tunnel address, and one was demanded.
+  Each provider is now checked for what it needs (AirVPN and Windscribe a preshared key:
+  `wireguard_preshared_key`).
+- `server_regions` and `server_hostnames` choose the exit's servers too.
+
 ## 0.50.0 — fail2ban done the way the apps document it
 
 - **Wrong logins, per app**: a module says what a wrong login looks like in its log

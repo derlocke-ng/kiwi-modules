@@ -1080,6 +1080,36 @@ class TestFederation(unittest.TestCase):
         self.assertIn("/home/user/docker/km-nginx/log:/var/log/nginx:z", svcs["km-nginx"]["volumes"])
         self.assertTrue(os.path.isfile(os.path.join(out, "host-units", "km-nginx-logs.timer")))
 
+    def test_every_wireguard_provider_of_gluetun_is_an_exit(self):
+        def env(name, vc):
+            m = json.loads(json.dumps(MACHINES["gate"]))
+            m["master"]["vpn-client"] = vc
+            out = self.render(name, m)
+            with open(os.path.join(out, "docker-compose.yml")) as f:
+                return "\n".join(yaml.safe_load(f)["services"]["km-vpn-client"]["environment"])
+        e = env("exit-proton", {"vpn_provider": "protonvpn", "wireguard_private_key": "golden-proton-key", "server_countries": "Switzerland"})
+        self.assertIn("VPN_SERVICE_PROVIDER=protonvpn", e)
+        self.assertNotIn("WIREGUARD_ADDRESSES", e)                      # Proton and Nord give out no address
+        self.assertIn("SERVER_COUNTRIES=Switzerland", e)
+        e = env("exit-air", {"vpn_provider": "airvpn", "wireguard_private_key": "k", "wireguard_addresses": "10.128.0.2/32",
+                             "wireguard_preshared_key": "golden-psk", "server_regions": "Europe"})
+        self.assertIn("SERVER_REGIONS=Europe", e)
+        self.assertIn("WIREGUARD_ADDRESSES=10.128.0.2/32", e)
+        e = env("exit-other", {"vpn_provider": "custom", "wireguard_private_key": "k", "wireguard_addresses": "10.2.0.2/32",
+                               "wireguard_public_key": "golden-server-pub", "wireguard_endpoint_ip": "203.0.113.9", "vpn_endpoint_port": 51820})
+        for want in ("WIREGUARD_PUBLIC_KEY=golden-server-pub", "WIREGUARD_ENDPOINT_IP=203.0.113.9", "WIREGUARD_ENDPOINT_PORT=51820"):
+            self.assertIn(want, e)
+        # what each one needs, said before anything is sent
+        m = json.loads(json.dumps(MACHINES["gate"]))
+        for vc, words in (({"vpn_provider": "airvpn", "wireguard_private_key": "k", "wireguard_addresses": "10.1.0.2/32"}, "preshared"),
+                          ({"vpn_provider": "surfshark", "wireguard_private_key": "k"}, "wireguard_addresses"),
+                          ({"vpn_provider": "nordvpn"}, "wireguard_private_key")):
+            m["master"]["vpn-client"] = vc
+            buf = io.StringIO()
+            with contextlib.redirect_stderr(buf):
+                self.assertNotEqual(cli.main(["render", self.write("exit-bad", m), "-o", os.path.join(self.tmp, "bad.bundle")]), 0)
+            self.assertIn(words, buf.getvalue())
+
     def test_fail2ban_on_a_master_never_bans_the_networks_own_addresses(self):
         m = TestRender.public_hub(self)
         m["master"] = dict(m["master"], modules=list(m["master"].get("modules") or
