@@ -113,6 +113,30 @@ class TestRender(unittest.TestCase):
         self.assertEqual(cli.main(["render", self.write(name, data), "-o", out]), 0)
         return out
 
+    def test_tor_never_leaves_on_a_home_line_unless_chosen(self):
+        """A master at home without a VPN exit, and a node without a VPN client: their Tor gets no
+        network. A master at a hoster, a node behind its VPN client, or the owner's choice: it runs."""
+        def tor(name, machine):
+            out = self.render(name, machine)
+            with open(os.path.join(out, "docker-compose.yml")) as f:
+                return yaml.safe_load(f)["services"]
+        home = json.loads(json.dumps(MACHINES["hub1"]))
+        home["master"]["at_home"] = True
+        home["master"]["modules"] = [m for m in home["master"]["modules"] if m != "vpn-client"]
+        home["master"].pop("vpn-client", None)
+        self.assertEqual(tor("hub-home", home)["km-tor"]["network_mode"], "none")
+        home["master"]["tor"] = dict(home["master"].get("tor") or {}, without_vpn=True)
+        self.assertEqual(tor("hub-home-chosen", home)["km-tor"]["network_mode"], "service:km-vpn-server")
+        away = json.loads(json.dumps(MACHINES["hub1"]))
+        away["master"]["modules"] = [m for m in away["master"]["modules"] if m != "vpn-client"]
+        away["master"].pop("vpn-client", None)
+        self.assertEqual(tor("hub-away", away)["km-tor"]["network_mode"], "service:km-vpn-server")   # a hoster's line
+        node = json.loads(json.dumps(MACHINES["min"]))
+        node["node"]["modules"] = ["vpn-client", "reverse-proxy", "tor"]
+        node["node"]["vpn-client"] = {"vpn_provider": "mullvad", "wireguard_private_key": "k", "wireguard_addresses": "10.66.1.2/32"}
+        node["vpn_ip"] = "10.8.0.9"
+        self.assertEqual(tor("min-tor", node)["kn-tor"]["network_mode"], "service:kn-vpn-client")    # behind its VPN
+
     def test_a_machine_off_the_vpn_answers_at_its_home_address(self):
         """vpn: false (a network without a master): no VPN client, the home address stands in for
         the mesh address, and the names point there."""
@@ -1313,6 +1337,8 @@ class TestFederation(unittest.TestCase):
         with open(os.path.join(out, "kiwi", "cloud-accounts.sh")) as f:
             sh = f.read()
         self.assertIn("occ user_oidc:provider accounts --clientid=cloud-sh3", sh)
+        # nobody becomes a local user of Nextcloud by having the same name
+        self.assertIn("occ config:system:set user_oidc soft_auto_provision --type=boolean --value=false", sh)
         self.assertIn("https://id.example.org/oauth2/openid/cloud-sh3/.well-known/openid-configuration", sh)
         self.assertNotIn("golden-oidc-secret", sh)                                 # in the unit's environment file only
         with open(os.path.join(out, "kiwi", "cloud-accounts.env")) as f:
@@ -1500,7 +1526,11 @@ class TestFederation(unittest.TestCase):
         with open(os.path.join(f2b, "..", "..", "init", "51-kiwi-files")) as f:
             init = f.read()
         self.assertIn("touch /config/log/fail2ban/fail2ban.log", init)       # recidive's file, or fail2ban stops
-        self.assertIn(": > /kiwi-banned/fail2ban.map", init)                 # nobody stays locked out by a jail gone
+        self.assertIn("rm -f /kiwi-banned/*.map", init)                      # nobody stays locked out by a jail gone
+        with open(os.path.join(f2b, "action.d", "kiwi-nginx-deny.conf")) as f:
+            self.assertIn("/kiwi-banned/<name>.map", f.read())                # one list per jail: one unban lifts one ban
+        with open(os.path.join(units, "kn-nginx-banned.service")) as f:
+            self.assertIn("StartLimitIntervalSec=0", f.read())
         self.assertIn("touch /kiwi-apps/git.log", init)
         with open(os.path.join(out, "kiwi", "f2b-tap.sh")) as f:
             tap = f.read()
@@ -1606,6 +1636,11 @@ class TestFederation(unittest.TestCase):
         self.assertIn("real_ip_header proxy_protocol;", nginx)        # and still see who asks
         self.assertIn("port_in_redirect off;", nginx)                 # a redirect names no inner port
         self.assertIn("proxy_pass http://10.8.0.25:80;", nginx)       # Let's Encrypt's question goes to the node
+        # with only a node's names handed on, the master's own sites (wg-easy, Pi-hole) stay the mesh's
+        own = nginx[nginx.index("server_name wg.hub1.home;"):]
+        own = own[:own.index("}")]
+        self.assertIn("allow 10.8.0.0/16;", own)
+        self.assertIn("deny all;", own)
         with open(os.path.join(out, "docker-compose.yml")) as f:
             ports = yaml.safe_load(f)["services"]["km-vpn-server"]["ports"]
         for want in ("80:80/tcp", "443:443/tcp", "5222:5222/tcp", "10666:10666/udp"):
@@ -2326,6 +2361,14 @@ class TestGit(unittest.TestCase):
     def services(self, out):
         with open(os.path.join(out, "docker-compose.yml")) as f:
             return yaml.safe_load(f)["services"]
+
+    def test_a_sign_in_never_takes_over_an_account_of_the_same_name(self):
+        """Linked by name (ACCOUNT_LINKING=auto), a person called like an existing user of Forgejo
+        became that user. Linking asks for the existing account's password now."""
+        out = self.render("git-sso", self.node(accounts_client="git-sh3", accounts_secret="golden-oidc",
+                                               accounts_issuer="https://id.example.org/oauth2/openid/git-sh3"))
+        env = dict(e.split("=", 1) for e in self.services(out)["kn-git"]["environment"])
+        self.assertEqual(env["FORGEJO__oauth2_client__ACCOUNT_LINKING"], "login")
 
     def test_forgejo_runs_behind_the_proxy_with_ssh_on_its_own_port(self):
         out = self.render("git1", self.node())
