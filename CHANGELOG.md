@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.56.0 — Nextcloud signs people in with the network's accounts
+
+- **cloud**: with `accounts_client`, `accounts_issuer` and `accounts_secret` (kiwi-server sets them:
+  `kiwi-server accounts <fleet> connect <host> cloud`), a host unit installs Nextcloud's OpenID
+  Connect app and adds the accounts as "Log in with accounts"; a person's first sign-in makes
+  their Nextcloud user. The admin and people made in Nextcloud keep their own passwords. The
+  client's secret is in the unit's environment file, not on a command line.
+
 ## 0.55.2 — Jabber's sign-up page has the server's name
 
 - xmpp: the sign-up page is called after the Jabber server (its public name, else its VPN

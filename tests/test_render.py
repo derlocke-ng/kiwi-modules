@@ -1188,6 +1188,25 @@ class TestFederation(unittest.TestCase):
         self.assertEqual(execline, 'Exec=serve --map "{\\"a b\\": {\\"c\\": \\"d\\"}}" --name "50%% off"')
         self.assertEqual(shlex.split(execline[5:].replace("%%", "%")), ["serve", "--map", '{"a b": {"c": "d"}}', "--name", "50% off"])
 
+    def test_nextcloud_signs_people_in_with_the_networks_accounts(self):
+        n = json.loads(json.dumps(SH3))
+        n["node"]["cloud"] = dict(n["node"].get("cloud") or {}, accounts_client="cloud-sh3", accounts_secret="golden-oidc-secret",
+                                  accounts_issuer="https://id.example.org/oauth2/openid/cloud-sh3")
+        out = self.render("cloud-accounts", n)
+        with open(os.path.join(out, "kiwi", "cloud-accounts.sh")) as f:
+            sh = f.read()
+        self.assertIn("occ user_oidc:provider accounts --clientid=cloud-sh3", sh)
+        self.assertIn("https://id.example.org/oauth2/openid/cloud-sh3/.well-known/openid-configuration", sh)
+        self.assertNotIn("golden-oidc-secret", sh)                                 # in the unit's environment file only
+        with open(os.path.join(out, "kiwi", "cloud-accounts.env")) as f:
+            self.assertEqual(f.read().strip(), "KIWI_SECRET=golden-oidc-secret")
+        self.assertTrue(os.path.isfile(os.path.join(out, "host-units", "kn-cloud-accounts.service")))
+        r = subprocess.run(["bash", "-n", os.path.join(out, "kiwi", "cloud-accounts.sh")], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        with open(os.path.join(self.render("cloud-plain", SH3), "docker-compose.yml")) as f:
+            pass
+        self.assertFalse(os.path.isfile(os.path.join(self.render("cloud-plain2", SH3), "kiwi", "cloud-accounts.sh")))
+
     def test_jabber_has_a_sign_up_page_with_the_ways_chosen(self):
         n = json.loads(json.dumps(SH3))
         n["node"]["modules"] = ["vpn-client", "reverse-proxy", "xmpp"]
