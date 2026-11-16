@@ -1880,6 +1880,23 @@ class TestFederation(unittest.TestCase):
         self.assertIn("PublishPort=25565:25565/tcp", unit)
         self.assertIn("StopTimeout=90", unit)
 
+    def test_bedrock_has_its_handshake_on_tcp_and_its_game_on_udp_at_one_port(self):
+        from kiwimodules import modules as modmod, profiles
+        m = self.games_machine(eula=True, servers={"pocket": {"game": "minecraft-bedrock", "public": True, "port": 19200}})
+        out = self.render("sh3-bedrock", m)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            be = yaml.safe_load(f)["services"]["kn-game-pocket"]
+        self.assertEqual(be["ports"], ["19200:19132/tcp", "19200:19132/udp"])
+        self.assertIn("SERVER_UDP_PORTS=19132", be["environment"])
+        self.assertFalse(any(e.startswith("UID=") for e in be["environment"]))   # it takes the folder's owner
+        mm = machine.load(self.write("sh3-bedrock-public", m))
+        profile = profiles.discover()[mm.role]
+        ms = modmod.discover()
+        resolver.resolve_settings(profile, mm, ms)
+        spec = resolver.stack_spec(mm, profile, mm.dns_records, master_ip=mm.master_ip, ca_cert=mm.ca_cert, lan_addresses=mm.lan_addresses)
+        _names, ports = modmod.Renderer(ms).exposure(spec)
+        self.assertEqual(sorted((p["port"], p["proto"]) for p in ports), [(19200, "tcp"), (19200, "udp")])
+
     def test_game_servers_say_what_is_missing(self):
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
