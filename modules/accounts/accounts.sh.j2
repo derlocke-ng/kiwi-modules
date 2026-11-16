@@ -5,6 +5,7 @@
 #   accounts.sh list                         the accounts, one JSON object a line
 #   accounts.sh delete NAME
 #   accounts.sh jabber NAME on|off           whether Jabber takes this account (LDAP)
+#   accounts.sh setup                        the rules for everyone, and the sign-up page's token (every apply)
 # Each call takes the admin over afresh (its password is never kept: a new one each time) and
 # runs Kanidm's own command line in a container that is gone afterwards.
 set -eu
@@ -66,6 +67,19 @@ case "${1:-}" in
         else k group remove-members jabber "$2" >/dev/null 2>&1; fi
         k group get jabber 2>/dev/null | grep -q "member: $2@" && on=on || on=off
         printf '{"name": "%s", "jabber": "%s"}\n' "$2" "$on" ;;
+    setup)
+        # the sign-up page's own service account: it may make people and their links, nothing else
+        tok={{ docker_dir }}/{{ container_prefix }}-accounts/signup/token
+        if [ ! -s "$tok" ]; then
+            k service-account get kiwi-signup 2>&1 | grep -q "name: kiwi-signup" ||
+                k service-account create kiwi-signup "Sign-up page" idm_admins >/dev/null 2>&1
+            k group add-members idm_people_admins kiwi-signup >/dev/null 2>&1
+            new=$(k service-account api-token generate kiwi-signup "sign-up page" --readwrite 2>/dev/null | grep -o 'ey[A-Za-z0-9._-]*' | head -1)
+            [ -n "$new" ] || { echo "accounts: Kanidm gave the sign-up page no token" >&2; exit 1; }
+            mkdir -p "${tok%/*}"; umask 077; printf '%s' "$new" > "$tok"
+            $rt restart {{ container_prefix }}-signup >/dev/null 2>&1 || true
+        fi
+        echo '{"setup": "done"}' ;;
     *)
-        sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+        sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

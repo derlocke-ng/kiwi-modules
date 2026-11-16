@@ -1132,9 +1132,30 @@ class TestFederation(unittest.TestCase):
         self.assertIn("proxy_pass $backend;", block[:1500])
         self.assertIn("https://kn-accounts:8443", block[:1500])
         self.assertIn("proxy_ssl_verify off;", block[:1500])
-        n["node"]["accounts"] = {}
-        with open(os.path.join(self.render("accounts-noldap", n), "kn-accounts", "server.toml")) as f:
+        # the sign-up page in front, in its own container, with its rules
+        self.assertIn("location = / {\n            return 302 /join;", block[:3000])
+        self.assertIn("location /join {", block[:3000])
+        self.assertIn("set $signup http://kn-signup:8080;", block[:3000])
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            su = yaml.safe_load(f)["services"]["kn-signup"]
+        self.assertEqual(su["command"][:2], ["signup", "serve"])
+        self.assertIn("/home/user/docker/kn-accounts/signup:/state:z", su["volumes"])
+        self.assertTrue(os.path.isfile(os.path.join(out, "kn-accounts", "signup", "terms.txt")))
+        self.assertTrue(os.path.isfile(os.path.join(out, "host-units", "kn-accounts-setup.service")))
+        with open(os.path.join(out, "kiwi", "accounts.sh")) as f:
+            sh = f.read()
+        self.assertIn("allow-primary-cred-fallback jabber true", sh)               # Jabber takes the same password
+        self.assertIn("credential-type-minimum idm_all_persons any", sh)
+        r = subprocess.run(["sh", "-n", os.path.join(out, "kiwi", "accounts.sh")], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        n["node"]["accounts"] = {"signup": False, "second_factor": True}
+        out = self.render("accounts-noldap", n)
+        with open(os.path.join(out, "kn-accounts", "server.toml")) as f:
             self.assertNotIn("ldapbindaddress", f.read())
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            self.assertNotIn("kn-signup", yaml.safe_load(f)["services"])
+        with open(os.path.join(out, "kiwi", "accounts.sh")) as f:
+            self.assertIn("credential-type-minimum idm_all_persons mfa", f.read())
 
     def test_fail2ban_on_a_master_never_bans_the_networks_own_addresses(self):
         m = TestRender.public_hub(self)
