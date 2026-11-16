@@ -2020,6 +2020,8 @@ class TestOnion(unittest.TestCase):
         self.assertIn("listen 8044 ssl;", block)
         self.assertIn("ssl_certificate     /etc/nginx/onion-fullchain.pem;", block)
         self.assertIn("listen 8044 ssl default_server;", nginx)
+        # the service's cookies, made for its usual name, hold for the hidden address
+        self.assertIn("proxy_cookie_domain vault.sh3.home $host;", nginx[at:at + 2500])
         with open(os.path.join(out, "kn-onion", "etc", "torrc")) as f:
             self.assertRegex(f.read(), r"HiddenServicePort 443 [0-9.]+:8044")
         self.assertTrue(os.path.isfile(os.path.join(out, "kn-nginx", "onion-privkey.pem")))
