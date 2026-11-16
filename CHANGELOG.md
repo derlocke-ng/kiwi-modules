@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.60.3 — Minecraft Bedrock as it runs now
+
+- games: Bedrock (1.26.50 and later, NetherNet) shakes hands on TCP 19132 and plays on the UDP port
+  it is told (`SERVER_UDP_PORTS`), not on UDP 19132 alone; both are handed on now. It no longer gets
+  UID/GID: with them it could not write its own folder; it takes the folder's owner. Terraria,
+  Factorio and Bedrock were started from the catalog and listen (kiwi-server's
+  tests/drills/game-images.py).
+
 ## 0.60.2 — connecting a service works (really)
 
 - accounts: `accounts.sh oauth` named its loop over the callbacks `url`, which is also Kanidm's own
