@@ -1097,6 +1097,70 @@ class TestFederation(unittest.TestCase):
         r = subprocess.run(["sh", "-n", os.path.join(out, "kiwi", "fail2ban-own.sh")], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
 
+    def test_a_public_node_bans_wrong_logins_in_nginx(self):
+        n = json.loads(json.dumps(SH3))
+        n["node"]["modules"] = ["vpn-client", "reverse-proxy", "git", "vault", "fail2ban"]
+        n["node"].pop("preset", None); n["node"].pop("cloud", None)
+        n["node"]["git"] = {"git_hostname": "git.example.org", "admin_password": "golden-git-pass"}
+        n["node"]["vpn-client"] = {"vpn_provider": "mullvad", "wireguard_private_key": "golden-mullvad-key",
+                                   "wireguard_addresses": "10.66.1.2/32"}
+        n["vpn_ip"] = "10.8.0.25"
+        n["node"].setdefault("reverse-proxy", {}).update(public=True, via="10.8.0.1")
+        out = self.render("f2b-node", n)
+        f2b = os.path.join(out, "kn-fail2ban", "config", "fail2ban")
+        with open(os.path.join(f2b, "jail.d", "kiwi.local")) as f:
+            jail = f.read()
+        # behind the master a ban is nginx's, never a firewall rule that would only ever see the master
+        self.assertNotIn("chain    = FORWARD", jail)
+        self.assertIn("[kiwi-git]", jail)
+        self.assertIn("[kiwi-vault]", jail)
+        self.assertNotIn("[kiwi-cloud]", jail)                                   # not on this machine
+        git = jail[jail.index("[kiwi-git]"):]
+        self.assertIn("action   = kiwi-nginx-deny", git[:400])
+        self.assertIn("logpath  = /kiwi-apps/git.log", git[:400])
+        self.assertIn("from <HOST>", git[:400])
+        limit = jail[jail.index("[nginx-limit-req]"):jail.index("[kiwi-nginx-refused]")]
+        self.assertIn("maxretry = 120", limit)                                  # floods, not page loads
+        self.assertTrue(os.path.isfile(os.path.join(f2b, "action.d", "kiwi-nginx-deny.conf")))
+        self.assertTrue(os.path.isfile(os.path.join(f2b, "filter.d", "kiwi-app.conf")))
+        units = os.path.join(out, "host-units")
+        for u in ("kn-f2b-tap.service", "kn-nginx-banned.path", "kn-nginx-banned.service"):
+            self.assertTrue(os.path.isfile(os.path.join(units, u)), u)
+        # the network's own addresses: asked of the master, which sees the tunnels
+        self.assertTrue(os.path.isfile(os.path.join(units, "kn-fail2ban-own.timer")))
+        with open(os.path.join(out, "kiwi", "fail2ban-own.sh")) as f:
+            own = f.read()
+        self.assertIn("kn-vpn-client wget -q -T 10 -O - http://10.8.0.1/.well-known/kiwi-own", own)
+        self.assertNotIn("wg show", own)
+        with open(os.path.join(f2b, "..", "..", "init", "51-kiwi-files")) as f:
+            init = f.read()
+        self.assertIn("touch /config/log/fail2ban/fail2ban.log", init)       # recidive's file, or fail2ban stops
+        self.assertIn("touch /kiwi-apps/git.log", init)
+        with open(os.path.join(out, "kiwi", "f2b-tap.sh")) as f:
+            tap = f.read()
+        self.assertIn("tap git kn-git '' 'Failed authentication attempt|", tap)
+        r = subprocess.run(["sh", "-n", os.path.join(out, "kiwi", "f2b-tap.sh")], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        self.assertIn("include /etc/nginx/banned/*.map;", nginx)
+        block = nginx[nginx.index("server_name git.example.org;") - 400:nginx.index("server_name git.example.org;")]
+        self.assertIn("if ($kiwi_banned) {", block)
+        self.assertIn("map $uri $kiwi_limit_key", nginx)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            svcs = yaml.safe_load(f)["services"]
+        self.assertIn("/home/user/docker/kn-nginx/banned:/etc/nginx/banned:ro,z", svcs["kn-nginx"]["volumes"])
+        self.assertIn("/home/user/docker/kn-nginx/banned:/kiwi-banned:z", svcs["kn-fail2ban"]["volumes"])
+        self.assertIn("/home/user/docker/kn-fail2ban/apps:/kiwi-apps:z", svcs["kn-fail2ban"]["volumes"])
+        env = "\n".join(svcs["kn-git"]["environment"])
+        self.assertIn("FORGEJO__security__REVERSE_PROXY_TRUSTED_PROXIES=", env)
+        # not asked for: a node whose sites strangers reach gets it anyway
+        n["node"]["modules"] = ["vpn-client", "reverse-proxy", "git"]
+        n["node"].pop("vault", None)
+        out = self.render("f2b-node-implied", n)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            self.assertIn("kn-fail2ban", yaml.safe_load(f)["services"])
+
     def test_control_is_for_the_mesh_and_a_node_takes_ssh_from_it(self):
         m = json.loads(json.dumps(SH3))
         m["node"]["modules"] = ["vpn-client", "reverse-proxy", "control"]
@@ -1177,6 +1241,10 @@ class TestFederation(unittest.TestCase):
         self.assertIn("--sport 5222 ! -d", start)                      # the answers leave by the real interface
         self.assertIn("-p udp --sport 10666 ! -d", start)
         self.assertIn("--sport 443 ! -d", start)
+        # the node may ask port 80 for the network's own addresses, which fail2ban here writes down
+        self.assertIn("-A INPUT -i wg0 -s 10.8.0.25 -p tcp --dport 80 -j ACCEPT", start)
+        self.assertNotIn("--sport 80 -j MARK", start)                     # port 80's answers to the mesh stay in the tunnel
+        self.assertIn("location = /.well-known/kiwi-own {", nginx)
         # a master that hands nothing on is as it was
         with open(os.path.join(self.render("exp-plain", MACHINES["hub1"]), "km-nginx", "nginx.conf")) as f:
             plain = f.read()
@@ -1410,7 +1478,7 @@ class TestFederation(unittest.TestCase):
         out = self.render("lim1", pub)
         with open(os.path.join(out, "km-nginx", "nginx.conf")) as f:
             nginx = f.read()
-        self.assertIn("limit_req_zone $binary_remote_addr zone=kiwi_public:10m rate=20r/s;", nginx)
+        self.assertIn("limit_req_zone $kiwi_limit_key zone=kiwi_public:10m rate=20r/s;", nginx)
         public = nginx.split("server_name chat.example.org;", 1)[1].split("\n    server {", 1)[0]
         self.assertIn("limit_req zone=kiwi_public burst=80 nodelay;", public)
         self.assertIn("limit_conn kiwi_conn 60;", public)
