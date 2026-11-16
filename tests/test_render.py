@@ -1450,13 +1450,19 @@ class TestFederation(unittest.TestCase):
         self.assertEqual(nginx.count("set $join http://kn-xmpp-join:8080;"), 2)    # the VPN's name and the public one
         self.assertIn("return 302 /join;", nginx)
         self.assertTrue(os.path.isfile(os.path.join(out, "kn-xmpp", "join", "terms.txt")))
-        # neither invites nor requests: no page of its own, the captcha form as before
+        # ejabberd's own sign-up page leads to the one page; its admin panel answers the VPN only
+        for site in nginx.split("server_name ")[1:]:
+            if site.startswith(("jabber.sh3.home;", "chat.example.org;")):
+                self.assertIn("location ^~ /register {\n            return 302 /join;", site)
+                self.assertRegex(site, r"location \^~ /admin \{\n\s+allow 10\.[0-9./]+; deny all;\n\s+set \$backend \S+;\n\s+proxy_pass")
+        # only the open way: the same one page, with the picture test only
         n["node"]["xmpp"].update(invites=False, requests=False)
-        out = self.render("xmpp-nojoin", n)
+        out = self.render("xmpp-open", n)
         with open(os.path.join(out, "docker-compose.yml")) as f:
-            self.assertNotIn("kn-xmpp-join", yaml.safe_load(f)["services"])
+            join = yaml.safe_load(f)["services"]["kn-xmpp-join"]
+        self.assertEqual(join["command"][join["command"].index("--ways") + 1], "captcha")
         with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
-            self.assertIn("return 302 /register/;", f.read())
+            self.assertNotIn("/register/", f.read())
 
     def test_fail2ban_on_a_master_never_bans_the_networks_own_addresses(self):
         m = TestRender.public_hub(self)
@@ -1754,13 +1760,18 @@ class TestFederation(unittest.TestCase):
         self.assertEqual((x["user"], x["entrypoint"], x["command"]), ("0:0", ["/bin/sh"], ["/kiwi-start.sh"]))
         self.assertIn("ERLANG_NODE_ARG=ejabberd@localhost", x["environment"])
         self.assertEqual((c["hosts"], c["s2s_access"]), (["jabber.hub1.home"], "none"))
-        self.assertEqual([l["port"] for l in c["listen"]], [5222, 5223, 5280])
-        self.assertEqual(c["listen"][-1]["ip"], "127.0.0.1")                                 # the proxy shares the network
-        self.assertEqual(c["listen"][-1]["request_handlers"]["/register"], "mod_register_web")
+        self.assertEqual([l["port"] for l in c["listen"]], [5222, 5223, 5280, 5281])        # 5281: the sign-up page's API
+        web = [l for l in c["listen"] if l["port"] == 5280][0]
+        self.assertEqual(web["ip"], "127.0.0.1")                                             # the proxy shares the network
+        self.assertNotIn("/register", web["request_handlers"])                               # the one page is /join
+        self.assertNotIn("mod_register_web", c["modules"])
         self.assertEqual((c["captcha_cmd"], c["captcha_url"]), ("/usr/local/bin/captcha.sh", "https://jabber.hub1.home/captcha"))
         self.assertTrue(c["modules"]["mod_register"]["captcha_protected"])
-        self.assertEqual(c["access_rules"]["register"], {"allow": "all"})
+        # by default only with an invite code or an accepted request: no open sign-up, in the apps either
+        self.assertEqual(c["access_rules"]["register"], {"deny": "all"})
         self.assertEqual(c["modules"]["mod_http_upload"]["max_size"], 50 * 1024 * 1024)
+        self.assertEqual(c["modules"]["mod_http_upload_quota"], {"max_days": 30})        # files go after 30 days
+        self.assertEqual(c["access_rules"]["muc_create"], {"allow": "local"})
         self.assertEqual(c["acl"]["admin"]["user"], ["admin@jabber.hub1.home"])
         self.assertIn("mod_fail2ban", c["modules"])
         self.assertNotIn("mod_s2s_dialback", c["modules"])
@@ -1773,8 +1784,12 @@ class TestFederation(unittest.TestCase):
             text = f.read()
         self.assertIn("unset KIWI_ADMIN_PASSWORD", text)
         self.assertIn("exec su ejabberd", text)
-        # nobody may register: the rule says so
-        self.assertEqual(rendered("x1b", registration=False)[2]["ejabberd.yml"]["access_rules"]["register"], {"deny": "all"})
+        # open sign-up when chosen; rooms by the admins only; more admins; files kept
+        c = rendered("x1b", registration=True, room_creators="admins", admins=["anna", "ben"], file_days=0)[2]["ejabberd.yml"]
+        self.assertEqual(c["access_rules"]["register"], {"allow": "all"})
+        self.assertEqual(c["access_rules"]["muc_create"], {"allow": "admin"})
+        self.assertEqual(c["acl"]["admin"]["user"], ["admin@jabber.hub1.home", "anna@jabber.hub1.home", "ben@jabber.hub1.home"])
+        self.assertNotIn("mod_http_upload_quota", c["modules"])
         # a public name, one service: the name after the @ is the public one, the WireGuard server
         # publishes the ports, the VPN's name stays a door, Tor is a third (its own name too)
         out, svcs, conf, nginx = rendered("x2", xmpp_domain="chat.example.org", onion={"jabber": "abcdef.onion"})

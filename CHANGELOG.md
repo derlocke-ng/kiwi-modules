@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.66.0 — Jabber: one page for new accounts; its admin panel from the VPN only
+
+- **One page, `/join`, whatever way is on.** Invite codes, requests and the open way (now with a
+  picture test on that page, kiwi-server 2.158.0) are on the same page. ejabberd's own
+  `/register` page is gone and sends people to `/join`.
+- **By default only with an invite code or an accepted request** (`invites`, `requests` on,
+  `registration` off), as the network's accounts. Open sign-up is a choice, in the apps too.
+- **ejabberd's admin panel (`/admin`) answers the VPN only.** It showed its password prompt to the
+  internet and over Tor.
+- New settings: `file_days` (files people send are deleted after 30 days; 0 keeps them),
+  `room_creators` (everyone or admins), `admins` (more admin accounts).
+- The dates of the games catalog and two changelog lines: 16 November, not the 17th.
+
 ## 0.65.1 — the pages believe a forwarded address from their proxy only
 
 - control and accounts (sign-up): `KIWI_PROXY` names the reverse proxy in front. kiwi-server 2.157.0
@@ -62,7 +75,7 @@ Vaultwarden's and Forgejo's guides. On the test network every wrong ban came fro
 - cloud: the site passes websockets on (`websocket: true`). notify-push (`/push/ws`, the desktop and
   phone apps' channel) answered 400 every two minutes without the Upgrade header; the app's close
   frame then reached nginx as a bad request, and fail2ban banned the Nextcloud user. Seen on the
-  test network on 17 November.
+  test network on 16 November.
 
 ## 0.61.2 — a temporary file per writer
 
@@ -86,7 +99,7 @@ Vaultwarden's and Forgejo's guides. On the test network every wrong ban came fro
 ## 0.60.4 — every game of the catalog started
 
 - games: the catalog's note says which games were started from it and listened: all ten, on
-  17 November 2026. Steam games download the game at their first start; a failed download ends the
+  16 November 2026. Steam games download the game at their first start; a failed download ends the
   container, which starts again by itself.
 
 ## 0.60.3 — Minecraft Bedrock as it runs now
