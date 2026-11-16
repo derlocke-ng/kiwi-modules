@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.58.1 — cookies hold over Tor
+
+- reverse-proxy: at a hidden service, a cookie the service makes for its usual name is given the hidden
+  address instead (`proxy_cookie_domain`). Kanidm's password page over Tor failed with 403: the
+  browser had dropped its session cookie.
+
 ## 0.58.0 — Paperless signs people in with the network's accounts
 
 - **paperless**: with `accounts_client`, `accounts_issuer` and `accounts_secret` (kiwi-server sets them:
