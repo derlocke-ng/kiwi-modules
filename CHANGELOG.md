@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.59.0 — Vaultwarden signs people in with the network's accounts
+
+- **vault**: with `accounts_client`, `accounts_issuer` and `accounts_secret` (kiwi-server sets them:
+  `kiwi-server accounts connect HOST vault`), Vaultwarden offers "Use single sign-on" with the
+  network's accounts; it trusts the fleet's CA through a small start script. The person still keeps a
+  master password: it unlocks the vault, the network never sees it. New setting `sso_only` (off).
+
 ## 0.58.1 — cookies hold over Tor
 
 - reverse-proxy: at a hidden service, a cookie the service makes for its usual name is given the hidden

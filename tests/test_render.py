@@ -1227,6 +1227,31 @@ class TestFederation(unittest.TestCase):
         self.assertIn("REQUESTS_CA_BUNDLE=/usr/src/paperless/kiwi-ca-bundle.pem", env)
         self.assertTrue(os.path.isfile(os.path.join(out, "kn-paperless", "init", "10-kiwi-ca.sh")))
 
+    def test_vaultwarden_signs_people_in_with_the_networks_accounts(self):
+        n = json.loads(json.dumps(SH3))
+        n["node"]["modules"] = ["vpn-client", "reverse-proxy", "vault"]
+        n["node"].pop("preset", None); n["node"].pop("cloud", None)
+        out = self.render("vault-plain", n)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            plain = yaml.safe_load(f)["services"]["kn-vault"]
+        self.assertFalse(any(e.startswith("SSO_") for e in plain["environment"]))
+        self.assertNotIn("entrypoint", plain)
+        n["node"]["vault"] = {"accounts_client": "vault-sh3", "accounts_secret": "golden-oidc",
+                              "accounts_issuer": "https://id.example.org/oauth2/openid/vault-sh3"}
+        out = self.render("vault-accounts", n)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            vault = yaml.safe_load(f)["services"]["kn-vault"]
+        env = vault["environment"]
+        for e in ("SSO_ENABLED=true", "SSO_ONLY=false", "SSO_CLIENT_ID=vault-sh3", "SSO_PKCE=false", "SSO_SIGNUPS_MATCH_EMAIL=false",
+                  "SSO_AUTHORITY=https://id.example.org/oauth2/openid/vault-sh3"):
+            self.assertIn(e, env)
+        self.assertEqual(vault["entrypoint"], ["/kiwi-start.sh"])
+        start = os.path.join(out, "kn-vault-kiwi", "kiwi-start.sh")
+        self.assertTrue(os.path.isfile(start))
+        with open(start) as f:
+            self.assertIn("exec /start.sh", f.read())
+        self.assertTrue(any(v.endswith(":/kiwi-start.sh:ro,z") for v in vault["volumes"]))
+
     def test_jabber_has_a_sign_up_page_with_the_ways_chosen(self):
         n = json.loads(json.dumps(SH3))
         n["node"]["modules"] = ["vpn-client", "reverse-proxy", "xmpp"]
