@@ -129,9 +129,13 @@ class TestRender(unittest.TestCase):
         self.assertIn("80:80", svcs["kn-nginx"]["ports"])                       # the sites answer at home
         hosts = next(e for e in svcs["kn-pihole"]["environment"] if e.startswith("FTLCONF_dns_hosts="))
         self.assertIn("192.168.1.30 cloud.solo.home", hosts)
+        # the home network stands in for the mesh: what is only for "us" lets the home in
+        from kiwimodules import machine as machmod, profiles
+        mm = machmod.load(self.write("solo2", solo))
+        resolver.resolve_settings(profiles.discover()[mm.role], mm, None)
+        self.assertEqual((mm.role_settings["vpn_ip"], mm.role_settings["mesh_subnet"]), ("192.168.1.30", "192.168.1.0/24"))
         # the preset's VPN client is left out; named outright, it is refused
         bad = dict(solo, node=dict(solo["node"], modules=["vpn-client", "reverse-proxy", "cloud"]))
-        from kiwimodules import machine as machmod, profiles
         ms = None
         with self.assertRaisesRegex(Exception, "vpn is false"):
             mm = machmod.load(self.write("bad", bad))
