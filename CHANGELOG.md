@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.54.1 — a sentence with a colon
+
+- control: `about` (and the other words on the pages) may hold ": ": they are quoted now. A sentence
+  like "Services for friends: chat, files" made the compose file invalid.
+
 ## 0.54.0 — start pages
 
 - **control**: the status name (`status.<hostname>`) opens the network's start page now: every

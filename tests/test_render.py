@@ -1301,6 +1301,12 @@ class TestFederation(unittest.TestCase):
         self.assertIn("set $backend http://kn-control:8740/start;", site)        # whatever is asked for: the start page
         self.assertIn("location = /status {", site)                                # and the status page, nothing else
         self.assertIn("set $page http://kn-control:8740/status;", site)
+        m["node"]["control"] = {"about": "Ours: chat, files. # and more", "brand_name": "dlhost", "contact": "a@b.org"}
+        with open(os.path.join(self.render("sh3-brand", m), "docker-compose.yml")) as f:
+            env = yaml.safe_load(f)["services"]["kn-control"]["environment"]
+        self.assertIn("KIWI_ABOUT=Ours: chat, files. # and more", env)        # a sentence with ": " stays a string
+        self.assertIn("KIWI_BRAND=dlhost", env)
+        m["node"]["control"] = {}
         self.assertNotIn("deny all;", site)                                       # no admin page: the access rules decide
         from kiwimodules import modules
         nx = modules.discover().get("control").nginx
