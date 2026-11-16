@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.65.0 — fixes from the review of 15–16 November
+
+- **No account taken over by name.** Forgejo linked a sign-in to an existing user of the same name
+  (`ACCOUNT_LINKING=auto`); it asks for that account's password now (`login`). Nextcloud's
+  user_oidc joined a sign-in to a local user of the same name (soft auto-provisioning); that is off.
+- **Tor never leaves on a home line unless chosen.** Stack setting `at_home` for a master at home
+  (the first questions set it): there, and on a node without a VPN client, `tor` and `onion` get no
+  network unless a VPN exit exists or `without_vpn` is chosen. A node's `tor` uses its VPN client.
+- **fail2ban, corrected:** jails for Immich and Paperless (their wrong logins, from their logs;
+  checked against real log lines); one ban list per jail behind the master, so one jail letting an
+  address out does not lift another's ban, and recidive's week holds; a banned visitor's connection
+  is closed (444), no 403 for another jail to count; private addresses are ignored only on machines
+  at home, not on masters; the list's reload has no start limit; the bulk paths and page files have
+  a limit of their own (ten times as high) instead of none.
+- **A master that hands a node's names on keeps its own sites the mesh's.** With no public names of
+  its own, its admin pages (wg-easy, Pi-hole) answered on 443 from the Internet.
+
 ## 0.64.0 — Tor without a VPN, when the owner chooses it
 
 - onion: `without_vpn` (default off). Off, Tor runs only through a VPN, as before. On, a machine
