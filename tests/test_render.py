@@ -1158,6 +1158,55 @@ class TestFederation(unittest.TestCase):
         with open(os.path.join(out, "kiwi", "accounts.sh")) as f:
             self.assertIn("credential-type-minimum idm_all_persons mfa", f.read())
 
+    def test_accounts_oauth_makes_the_client_with_its_callbacks(self):
+        """accounts.sh oauth, run for real against a stand-in for podman that writes down the
+        kanidm commands it is given."""
+        n = json.loads(json.dumps(SH3))
+        n["node"]["modules"] = ["vpn-client", "reverse-proxy", "accounts"]
+        n["node"].pop("preset", None); n["node"].pop("cloud", None)
+        out = self.render("accounts-oauth", n)
+        with open(os.path.join(out, "kiwi", "accounts.sh")) as f:
+            sh = f.read()
+        base = tempfile.mkdtemp()
+        os.makedirs(os.path.join(base, "kn-accounts", "data"))
+        log = os.path.join(base, "log")
+        fake = os.path.join(base, "podman")
+        with open(fake, "w") as f:
+            f.write('#!/bin/sh\ncase "$*" in\n'
+                    '  *recover-account*) echo \'{"new_password": "x"}\' ;;\n'
+                    '  *show-basic-secret*) echo sekret ;;\n'
+                    '  *" kanidm "*) echo "$*" | sed "s/.* kanidm //" >> ' + log + ' ;;\n'
+                    'esac\n')
+        os.chmod(fake, 0o755)
+        script = os.path.join(base, "accounts.sh")
+        with open(script, "w") as f:
+            f.write(re.sub(r"(?m)^rt=.*$", "rt=" + fake, sh).replace("/home/user/docker", base))
+
+        def oauth(*words):
+            open(log, "w").close()
+            r = subprocess.run(["sh", script, "oauth"] + list(words), capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            with open(log) as f:
+                return json.loads(r.stdout), f.read().splitlines()
+        answer, cmds = oauth("immich-sh3", "Immich on sh3", "https://immich.sh3.home", "https://immich.sh3.home/auth/login",
+                             "https://immich.sh3.home/api/oauth/mobile-redirect", "--pkce")
+        self.assertEqual((answer["client"], answer["secret"]), ("immich-sh3", "sekret"))
+        self.assertIn("system oauth2 create immich-sh3 Immich on sh3 https://immich.sh3.home", cmds)
+        self.assertIn("system oauth2 add-redirect-url immich-sh3 https://immich.sh3.home/auth/login", cmds)
+        self.assertIn("system oauth2 add-redirect-url immich-sh3 https://immich.sh3.home/api/oauth/mobile-redirect", cmds)
+        self.assertFalse(any("disable-pkce" in c or "--pkce" in c for c in cmds))
+        _answer, cmds = oauth("git-sh3", "Forgejo on sh3", "https://git.sh3.home", "https://git.sh3.home/user/oauth2/accounts/callback")
+        self.assertIn("system oauth2 create git-sh3 Forgejo on sh3 https://git.sh3.home", cmds)
+        self.assertIn("system oauth2 warning-insecure-client-disable-pkce git-sh3", cmds)
+        # Kanidm refuses: said, not swallowed
+        with open(fake) as f:
+            body = f.read().replace("#!/bin/sh\n", "#!/bin/sh\n" + 'case "$*" in *"oauth2 create"*) echo "invalid origin" >&2; exit 1 ;; esac\n', 1)
+        with open(fake, "w") as f:
+            f.write(body)
+        r = subprocess.run(["sh", script, "oauth", "x-sh3", "X", "https://x.sh3.home", "https://x.sh3.home/cb"], capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("did not make the client x-sh3: invalid origin", r.stderr)
+
     def test_a_service_with_a_public_name_keeps_its_vpn_name_as_a_way_there(self):
         n = json.loads(json.dumps(SH3))
         n["node"]["modules"] = ["vpn-client", "reverse-proxy", "git"]
