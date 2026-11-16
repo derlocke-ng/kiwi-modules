@@ -17,6 +17,8 @@
 - **A node whose sites strangers reach gets fail2ban by itself.**
 - fail2ban no longer stops on a new machine because its own log did not exist yet.
 - Forgejo takes the visitor's address from nginx (`REVERSE_PROXY_TRUSTED_PROXIES`).
+- A master's port 80 answered the mesh by its internet interface, so the answers never came
+  back; they stay in the tunnel now.
 
 ## 0.49.1 — a master never bans its own network
 
