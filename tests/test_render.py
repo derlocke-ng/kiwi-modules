@@ -1210,6 +1210,23 @@ class TestFederation(unittest.TestCase):
             pass
         self.assertFalse(os.path.isfile(os.path.join(self.render("cloud-plain2", SH3), "kiwi", "cloud-accounts.sh")))
 
+    def test_paperless_signs_people_in_with_the_networks_accounts(self):
+        n = json.loads(json.dumps(SH3))
+        n["node"]["modules"] = ["vpn-client", "reverse-proxy", "paperless"]
+        n["node"].pop("preset", None); n["node"].pop("cloud", None)
+        n["node"]["paperless"] = {"admin_password": "golden-paperless", "accounts_client": "paperless-sh3",
+                                  "accounts_secret": "golden-oidc", "accounts_issuer": "https://id.example.org/oauth2/openid/paperless-sh3"}
+        out = self.render("paperless-accounts", n)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            env = yaml.safe_load(f)["services"]["kn-paperless"]["environment"]
+        prov = json.loads(next(e for e in env if e.startswith("PAPERLESS_SOCIALACCOUNT_PROVIDERS=")).split("=", 1)[1])
+        app = prov["openid_connect"]["APPS"][0]
+        self.assertEqual((app["provider_id"], app["client_id"], app["settings"]["server_url"]),
+                         ("accounts", "paperless-sh3", "https://id.example.org/oauth2/openid/paperless-sh3"))
+        self.assertIn("PAPERLESS_APPS=allauth.socialaccount.providers.openid_connect", env)
+        self.assertIn("REQUESTS_CA_BUNDLE=/usr/src/paperless/kiwi-ca-bundle.pem", env)
+        self.assertTrue(os.path.isfile(os.path.join(out, "kn-paperless", "init", "10-kiwi-ca.sh")))
+
     def test_jabber_has_a_sign_up_page_with_the_ways_chosen(self):
         n = json.loads(json.dumps(SH3))
         n["node"]["modules"] = ["vpn-client", "reverse-proxy", "xmpp"]
