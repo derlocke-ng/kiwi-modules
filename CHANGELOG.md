@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.60.4 — every game of the catalog started
+
+- games: the catalog's note says which games were started from it and listened: all ten, on
+  17 November 2026. Steam games download the game at their first start; a failed download ends the
+  container, which starts again by itself.
+
 ## 0.60.3 — Minecraft Bedrock as it runs now
 
 - games: Bedrock (1.26.50 and later, NetherNet) shakes hands on TCP 19132 and plays on the UDP port
