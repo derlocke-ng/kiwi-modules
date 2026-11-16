@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.53.0 — Forgejo signs people in with the network's accounts
+
+- **git**: with `accounts_client`, `accounts_issuer` and `accounts_secret` (kiwi-server sets them,
+  `kiwi-server accounts <fleet> connect <host> git`), Forgejo shows "Sign in with accounts"; a
+  person's first sign-in makes their Forgejo user. Forgejo trusts the fleet's CA for it.
+- **accounts**: `accounts.sh oauth` registers a service that signs people in (OpenID Connect,
+  without PKCE for a client with a secret, as Forgejo is); every account gets an address nobody
+  reads (`name@<accounts' name>`), as Forgejo wants one and the network sends no mail.
+
 ## 0.52.0 — accounts, and one name per service
 
 - **New module `accounts`**: Kanidm keeps the network's people, passwords and passkeys, at
