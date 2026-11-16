@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.59.1 — people from the network's accounts can use Paperless
+
+- paperless: a person's first sign-in with the network's accounts made a Paperless user who could do
+  nothing ("Error loading settings"). New users land in the group `accounts` now, which
+  `kn-paperless-accounts.service` makes: documents, tags, saved views, notes, mail rules; not the
+  workflows (they act on every document) and not the system's settings.
+
 ## 0.59.0 — Vaultwarden signs people in with the network's accounts
 
 - **vault**: with `accounts_client`, `accounts_issuer` and `accounts_secret` (kiwi-server sets them:

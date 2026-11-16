@@ -1226,6 +1226,13 @@ class TestFederation(unittest.TestCase):
         self.assertIn("PAPERLESS_APPS=allauth.socialaccount.providers.openid_connect", env)
         self.assertIn("REQUESTS_CA_BUNDLE=/usr/src/paperless/kiwi-ca-bundle.pem", env)
         self.assertTrue(os.path.isfile(os.path.join(out, "kn-paperless", "init", "10-kiwi-ca.sh")))
+        # a new person lands in the group "accounts", which the host unit makes: not the workflows
+        self.assertIn("PAPERLESS_SOCIAL_ACCOUNT_DEFAULT_GROUPS=accounts", env)
+        with open(os.path.join(out, "kiwi", "paperless-accounts.sh")) as f:
+            script = f.read()
+        self.assertIn('get_or_create(name="accounts")', script)
+        self.assertIn('exclude(content_type__model__startswith="workflow")', script)
+        self.assertTrue(os.path.isfile(os.path.join(out, "host-units", "kn-paperless-accounts.service")))
 
     def test_vaultwarden_signs_people_in_with_the_networks_accounts(self):
         n = json.loads(json.dumps(SH3))
