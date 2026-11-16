@@ -21,6 +21,23 @@ k() { $rt run --rm --network host -e KANIDM_URL=$url -e KANIDM_SKIP_HOSTNAME_VER
 KANIDM_PASSWORD=$pw; export KANIDM_PASSWORD
 k login >/dev/null 2>&1 || { echo "accounts: the admin could not log in to Kanidm" >&2; exit 1; }
 unset KANIDM_PASSWORD
+# the rules for everyone, set again when the settings change: what a person needs to sign in,
+# how long a password is at least, and (Jabber) that LDAP takes the same password as the pages
+policy="{{ 'mfa' if second_factor else 'any' }} {{ password_min_length }} {{ 'jabber' if ldap else '' }}"
+mark={{ docker_dir }}/{{ container_prefix }}-accounts/data/.kiwi-policy
+if [ "$policy" != "$(cat "$mark" 2>/dev/null)" ]; then
+    k group account-policy enable idm_all_persons >/dev/null 2>&1 || true
+    k group account-policy credential-type-minimum idm_all_persons {{ 'mfa' if second_factor else 'any' }} >/dev/null 2>&1
+    k group account-policy password-minimum-length idm_all_persons {{ password_min_length }} >/dev/null 2>&1
+{% if ldap %}
+    if ! k group get jabber 2>&1 | grep -q "name: jabber"; then
+        k group create jabber >/dev/null 2>&1; k group posix set jabber >/dev/null 2>&1
+    fi
+    k group account-policy enable jabber >/dev/null 2>&1 || true
+    k group account-policy allow-primary-cred-fallback jabber true >/dev/null 2>&1
+{% endif %}
+    printf '%s' "$policy" > "$mark"
+fi
 token() {   # the link's token, out of what Kanidm prints
     k person credential create-reset-token "$1" --ttl "${2:-86400}" 2>/dev/null | grep -o 'token=[A-Za-z0-9_-]*' | head -1 | cut -d= -f2
 }

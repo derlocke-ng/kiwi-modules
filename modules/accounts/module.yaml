@@ -64,6 +64,15 @@ settings:
     label: Jabber checks passwords here
     help: "Kanidm answers LDAP on the stack network, so that Jabber can take the network's accounts (who is in the group jabber). Off: Jabber keeps its own accounts."
     default: false
+  - key: second_factor
+    type: bool
+    label: A second factor for everyone
+    help: "On: every account needs a passkey, or a password and a code from an authenticator app. Off: a password alone will do, and people may add a passkey or a code themselves."
+    default: false
+  - key: password_min_length
+    type: int
+    label: Shortest password
+    default: 12
   - key: image
     group: Advanced
     help: "The container image this module runs, pinned by tag. Change it to try another version or to pin a newer one."
