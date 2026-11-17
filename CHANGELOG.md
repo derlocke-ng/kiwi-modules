@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.70.0 — Tor wakes at every start
+
+- **tor:** `DormantCanceledByStartup 1`. Tor goes to sleep after a day without a client and stayed
+  asleep across restarts until a client asked; its directory grew old meanwhile (found on the
+  spare master crumble: no connection for 20 hours, "Dormant 1" in its state).
+
 ## 0.69.0 — the sign-up pins Kanidm's certificate; a provider's OpenVPN exit without a master
 
 - **accounts:** the sign-up page talks to Kanidm with Kanidm's own certificate as the only one it
