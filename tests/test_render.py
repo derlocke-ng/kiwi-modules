@@ -137,6 +137,19 @@ class TestRender(unittest.TestCase):
         node["vpn_ip"] = "10.8.0.9"
         self.assertEqual(tor("min-tor", node)["kn-tor"]["network_mode"], "service:kn-vpn-client")    # behind its VPN
 
+    def test_vpn_false_never_drops_the_vpn_client_a_module_sends_its_traffic_through(self):
+        """The downloader, the gateway and BTCPay leave through the VPN client: on a machine with no
+        VPN they need a commercial one listed, not a silent drop (their traffic would leave at home)."""
+        from kiwimodules import modules
+        from kiwimodules.util import KiwiError
+        ms = modules.discover()
+        self.assertEqual(ms.resolve(["cloud"], without=("vpn-client",))[-1], "cloud")      # the mesh only: fine          # the mesh only: fine
+        for m in ("downloader", "gateway", "btcpay"):
+            with self.assertRaisesRegex(KiwiError, "%s sends its traffic out through vpn-client.*vpn_provider" % m):
+                ms.resolve([m], without=("vpn-client",))
+        # listed, as a commercial VPN's exit: it stays
+        self.assertIn("vpn-client", ms.resolve(["vpn-client", "downloader"], without=("vpn-client",)))
+
     def test_a_machine_off_the_vpn_answers_at_its_home_address(self):
         """vpn: false (a network without a master): no VPN client, the home address stands in for
         the mesh address, and the names point there."""
@@ -183,6 +196,12 @@ class TestRender(unittest.TestCase):
         with open(os.path.join(out, "stack.sh")) as f:
             stack = f.read()
         self.assertIn("KS_STACK_MESH_SUBNET=''\nKS_STACK_MESH_VIA=''", stack)          # the home is not routed into it
+        # and its tunnel is the provider's: none of the mesh's ways in are opened there
+        with open(os.path.join(out, "kn-vpn-client", "post-rules.txt")) as f:
+            rules = f.read()
+        self.assertNotIn("PREROUTING", rules)
+        self.assertNotRegex(rules, r"-A INPUT -i tun0 (?!-m state)")
+        self.assertIn("-o tun0 -j MASQUERADE", rules)                                   # what leaves still does
         # Tor without any VPN: only when the owner chooses it; else its Tor gets no network at all
         tor = dict(solo, node=dict(solo["node"], modules=["dns", "reverse-proxy", "onion"]))
         out = self.render("solo-tor", tor)
@@ -1336,7 +1355,9 @@ class TestFederation(unittest.TestCase):
         out = self.render("cloud-accounts", n)
         with open(os.path.join(out, "kiwi", "cloud-accounts.sh")) as f:
             sh = f.read()
-        self.assertIn("occ user_oidc:provider accounts --clientid=cloud-sh3", sh)
+        self.assertIn("occ_secret user_oidc:provider accounts --clientid=cloud-sh3", sh)
+        self.assertIn("exec -e KIWI_SECRET", sh)                                     # the secret: not on a command line here
+        self.assertNotIn('--clientsecret="$KIWI_SECRET" \\', sh)
         # nobody becomes a local user of Nextcloud by having the same name
         self.assertIn("occ config:system:set user_oidc soft_auto_provision --type=boolean --value=false", sh)
         self.assertIn("https://id.example.org/oauth2/openid/cloud-sh3/.well-known/openid-configuration", sh)
@@ -2020,8 +2041,11 @@ class TestFederation(unittest.TestCase):
         out = self.render("sh3-bedrock", m)
         with open(os.path.join(out, "docker-compose.yml")) as f:
             be = yaml.safe_load(f)["services"]["kn-game-pocket"]
-        self.assertEqual(be["ports"], ["19200:19132/tcp", "19200:19132/udp"])
-        self.assertIn("SERVER_UDP_PORTS=19132", be["environment"])
+        # it listens on its own port inside too: the server tells clients that port, and a second one
+        # on 19132 inside would send them to the first server
+        self.assertEqual(be["ports"], ["19200:19200/tcp", "19200:19200/udp"])
+        self.assertIn("SERVER_UDP_PORTS=19200", be["environment"])
+        self.assertIn("SERVER_PORT=19200", be["environment"])
         self.assertFalse(any(e.startswith("UID=") for e in be["environment"]))   # it takes the folder's owner
         mm = machine.load(self.write("sh3-bedrock-public", m))
         profile = profiles.discover()[mm.role]
@@ -2519,6 +2543,36 @@ class TestGit(unittest.TestCase):
         for line in read(out, "kn-git/start.sh").splitlines():
             if "echo" in line or "say " in line:
                 self.assertNotIn("$pw", line)
+
+
+class TestOpenVPNFile(unittest.TestCase):
+    setUp = TestRender.setUp
+    render = TestRender.render
+    write = TestRender.write
+    tearDown = TestRender.tearDown
+
+    def test_a_providers_openvpn_file_is_the_exit(self):
+        """Riseup and other OpenVPN-only providers: their .ovpn (certificates inside) as the master's exit."""
+        m = json.loads(json.dumps(MACHINES["hub1"]))
+        with open(os.path.join(self.tmp, "riseup.ovpn"), "w") as f:
+            f.write("client\ndev tun\nproto tcp\nremote 203.0.113.5 443\n<key>\nnot a real key\n</key>\n")
+        m["master"]["vpn-client"] = {"vpn_provider": "custom", "vpn_type": "openvpn",
+                                     "openvpn_config": os.path.join(self.tmp, "riseup.ovpn")}
+        out = self.render("ovpn", m)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            vc = yaml.safe_load(f)["services"]["km-vpn-client"]
+        self.assertIn("OPENVPN_CUSTOM_CONFIG=/gluetun/custom.ovpn", vc["environment"])
+        self.assertIn("VPN_TYPE=openvpn", vc["environment"])
+        self.assertFalse([e for e in vc["environment"] if e.startswith(("WIREGUARD_PRIVATE_KEY", "WIREGUARD_ADDRESSES"))])
+        self.assertTrue(any(v.endswith("/km-vpn-client/custom.ovpn:/gluetun/custom.ovpn:ro,z") for v in vc["volumes"]))
+        with open(os.path.join(out, "km-vpn-client", "custom.ovpn")) as f:
+            self.assertIn("remote 203.0.113.5 443", f.read())
+        self.assertEqual(oct(os.stat(os.path.join(out, "km-vpn-client", "custom.ovpn")).st_mode & 0o777), "0o600")
+        # custom OpenVPN without its file: said, not a container that never connects
+        del m["master"]["vpn-client"]["openvpn_config"]
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            self.assertNotEqual(cli.main(["render", self.write("ovpn2", m), "-o", os.path.join(self.tmp, "x.bundle")]), 0)
+        self.assertIn("needs openvpn_config", err.getvalue())
 
 
 class TestMeshAddress(unittest.TestCase):
