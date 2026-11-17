@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.73.0 — a container others live in always starts again
+
+- **Before a container whose network namespace others share starts (the master's VPN server,
+  a node's VPN client), whatever is still left in that namespace is removed**: a container
+  started there by hand once kept the master's VPN server from being replaced, and its unit
+  failed to start over and over (kiwi2, 17 Nov 2026). The stack's own containers come back
+  with it as before.
+
 ## 0.72.0 — the switch to a standby does not flap
 
 - **A return to the master that fails doubles the wait for the next one** (10, 20, 40 … minutes,
