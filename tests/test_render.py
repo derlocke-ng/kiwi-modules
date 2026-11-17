@@ -196,6 +196,12 @@ class TestRender(unittest.TestCase):
         with open(os.path.join(out, "stack.sh")) as f:
             stack = f.read()
         self.assertIn("KS_STACK_MESH_SUBNET=''\nKS_STACK_MESH_VIA=''", stack)          # the home is not routed into it
+        # and its tunnel is the provider's: none of the mesh's ways in are opened there
+        with open(os.path.join(out, "kn-vpn-client", "post-rules.txt")) as f:
+            rules = f.read()
+        self.assertNotIn("PREROUTING", rules)
+        self.assertNotRegex(rules, r"-A INPUT -i tun0 (?!-m state)")
+        self.assertIn("-o tun0 -j MASQUERADE", rules)                                   # what leaves still does
         # Tor without any VPN: only when the owner chooses it; else its Tor gets no network at all
         tor = dict(solo, node=dict(solo["node"], modules=["dns", "reverse-proxy", "onion"]))
         out = self.render("solo-tor", tor)
