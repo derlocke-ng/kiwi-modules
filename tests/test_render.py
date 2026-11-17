@@ -833,6 +833,10 @@ class TestRender(unittest.TestCase):
         install = text.split("[Install]", 1)[1]
         self.assertIn("WantedBy=kiwi-stack.target", install)
         self.assertIn("WantedBy=km-vpn-server.service", install)       # its start brings this one back
+        host, _ = quadlet.container_unit("km-vpn-server", {"image": "wg:1", "restart": "always"}, {},
+                                         {"km-nginx": {"network_mode": "service:km-vpn-server"}, "km-vpn-server": {}})
+        self.assertIn("ExecStartPre=-/usr/bin/podman rm -f -i --depend km-vpn-server", host)   # nothing left there blocks it
+        self.assertNotIn("--depend", text)
 
     def test_a_backup_holds_what_the_modules_declare(self):
         script = read(self.backup_node("backup1"), "kiwi/backup.sh")
