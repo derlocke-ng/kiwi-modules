@@ -2582,7 +2582,7 @@ class TestGit(unittest.TestCase):
                 # the API answers 200 only to the right password, which curl reads from its standard
                 # input as a line of its configuration, with " and \\ escaped
                 "curl": 'case "$*" in *healthz*) exit 0;; esac\ncat > %s.stdin\necho "curl $*" >> %s\n'
-                        'cmp -s %s.stdin %s.right\n' % (calls, calls, calls, calls),
+                        '[ "$(cat %s.stdin)" = "$(cat %s.right)" ]\n' % (calls, calls, calls, calls),     # (no cmp everywhere)
                 "sleep": "exit 0\n"}
         with open(calls + ".right", "w") as f:
             f.write('user = "kiwi:%s"\n' % right_password.replace("\\", "\\\\").replace('"', '\\"'))
