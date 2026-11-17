@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.71.0 — a node follows its master to a standby
+
+- **vpn-client: `standby_endpoints` and `standby_ping`** (kiwi-server fills them in for a node
+  whose master has a standby): `kn-master-switch.service` moves the node's tunnel to the next
+  address after three minutes without an answer from the master, and back to the master once
+  its machine has answered for ten minutes. Without them nothing changes.
+
 ## 0.70.0 — Tor wakes at every start
 
 - **tor:** `DormantCanceledByStartup 1`. Tor goes to sleep after a day without a client and stayed

@@ -137,6 +137,28 @@ class TestRender(unittest.TestCase):
         node["vpn_ip"] = "10.8.0.9"
         self.assertEqual(tor("min-tor", node)["kn-tor"]["network_mode"], "service:kn-vpn-client")    # behind its VPN
 
+    def test_a_node_whose_master_has_a_standby_switches_its_tunnel(self):
+        def files(out):
+            return {os.path.relpath(os.path.join(d, f), out) for d, _ds, fs in os.walk(out) for f in fs}
+        node = json.loads(json.dumps(MACHINES["min"]))
+        plain = files(self.render("min-plain", node))
+        self.assertFalse([f for f in plain if "master-switch" in f])            # no standby: nothing of it
+        node["node"]["vpn-client"] = dict(node["node"].get("vpn-client") or {},
+                                          standby_endpoints=["198.51.100.9:51820:41022", "192.168.2.70:51820:41022"],
+                                          standby_ping="10.8.0.1")
+        out = self.render("min-standby", node)
+        found = files(out)
+        script = [f for f in found if f.endswith("kn-vpn-client/master-switch.sh")]
+        self.assertTrue(script, sorted(found))
+        self.assertTrue([f for f in found if f.endswith("kn-master-switch.service")], sorted(found))
+        path = os.path.join(out, script[0])
+        self.assertEqual(subprocess.run(["bash", "-n", path]).returncode, 0)
+        with open(path) as f:
+            text = f.read()
+        self.assertIn("endpoints=(198.51.100.9:51820:41022 192.168.2.70:51820:41022 )", text)
+        self.assertIn("ping_to=10.8.0.1", text)
+        self.assertIn("systemctl restart kn-vpn-client.service", text)
+
     def test_vpn_false_never_drops_the_vpn_client_a_module_sends_its_traffic_through(self):
         """The downloader, the gateway and BTCPay leave through the VPN client: on a machine with no
         VPN they need a commercial one listed, not a silent drop (their traffic would leave at home)."""
