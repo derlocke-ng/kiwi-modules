@@ -2419,7 +2419,8 @@ class TestOnion(unittest.TestCase):
         self.assertEqual((svc["entrypoint"], svc["command"]), ("/bin/sh", ["/etc/tor/start.sh"]))
         with open(os.path.join(out, "kn-onion", "etc", "torrc")) as f:
             torrc = f.read()
-        self.assertIn("SocksPort 0", torrc)
+        self.assertIn("SocksPort unix:/var/lib/tor/self-check.sock", torrc)       # its own self-check only
+        self.assertNotRegex(torrc, r"SocksPort [0-9]")
         self.assertEqual(torrc.count("HiddenServiceDir /var/lib/tor/onion/"), 2)
         self.assertRegex(torrc, r"HiddenServicePort 80 [0-9.]+:8043")
         start = os.path.join(out, "kn-onion", "etc", "start.sh")
@@ -2428,7 +2429,11 @@ class TestOnion(unittest.TestCase):
             script = f.read()
         self.assertIn("printf '%s\\n' 'descriptor:x25519:ANNAKEY' > \"$D/cloud/authorized_clients/anna.auth\"", script)
         self.assertNotIn("vault/authorized_clients/anna", script)             # open to anyone with the address
-        self.assertIn("exec su-exec tor tor -f /etc/tor/torrc", script)
+        self.assertIn("su-exec tor tor -f /etc/tor/torrc &", script)
+        addresses = re.search(r'^ADDRESSES="([^"]*)"', script, re.M).group(1).split()
+        self.assertEqual(addresses, [self.KEYS["vault"]["address"]])               # cloud is for anna only: not asked
+        self.assertIn('-x "socks5h://localhost/var/lib/tor/self-check.sock"', script)
+        self.assertIn('if [ "$misses" -ge 3 ]; then', script)
         self.assertEqual(os.stat(start).st_mode & 0o077, 0)                   # it carries the services' keys
 
     def test_the_proxy_answers_a_hidden_service_as_that_one_site(self):

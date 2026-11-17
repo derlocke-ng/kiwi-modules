@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.76.0 — hidden services that stop being found start anew
+
+- **The onion module checks its own addresses**: every ten minutes each hidden service open to
+  anyone is asked through Tor itself (a SOCKS socket in its own folder, which no other container
+  reaches); three rounds in a row with one that answers nothing, and Tor starts anew. On
+  17 November 2026 two of medlar's three hidden services had answered nothing for hours while
+  Tor ran on; a start anew brought them back.
+
 ## 0.75.1 — the small Tang image answers kiwi-server's questions
 
 - The Tang image (15-kiwi6) has `curl` and `tang-show-keys` again: kiwi-server asks a ring for
