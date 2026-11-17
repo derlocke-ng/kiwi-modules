@@ -2035,8 +2035,11 @@ class TestFederation(unittest.TestCase):
         out = self.render("sh3-bedrock", m)
         with open(os.path.join(out, "docker-compose.yml")) as f:
             be = yaml.safe_load(f)["services"]["kn-game-pocket"]
-        self.assertEqual(be["ports"], ["19200:19132/tcp", "19200:19132/udp"])
-        self.assertIn("SERVER_UDP_PORTS=19132", be["environment"])
+        # it listens on its own port inside too: the server tells clients that port, and a second one
+        # on 19132 inside would send them to the first server
+        self.assertEqual(be["ports"], ["19200:19200/tcp", "19200:19200/udp"])
+        self.assertIn("SERVER_UDP_PORTS=19200", be["environment"])
+        self.assertIn("SERVER_PORT=19200", be["environment"])
         self.assertFalse(any(e.startswith("UID=") for e in be["environment"]))   # it takes the folder's owner
         mm = machine.load(self.write("sh3-bedrock-public", m))
         profile = profiles.discover()[mm.role]
