@@ -2304,7 +2304,7 @@ class TestFederation(unittest.TestCase):
             self.assertTrue(os.path.exists(os.path.join(sleeping, "kn-game-survival")))                     # asleep, not down
             knock(8, 5)                                                     # a player knocks on both
             self.assertTrue(until(lambda: os.path.exists(os.path.join(state, "kn-game-survival"))))
-            self.assertFalse(os.path.exists(os.path.join(sleeping, "kn-game-survival")))
+            self.assertTrue(until(lambda: not os.path.exists(os.path.join(sleeping, "kn-game-survival"))))   # (just after the start)
             time.sleep(1)
             self.assertFalse(os.path.exists(os.path.join(state, "kn-game-lab")))    # stopped by hand: stays stopped
         finally:
