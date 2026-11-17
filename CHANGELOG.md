@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.68.0 — the rest of the review of 15–16 November; a provider's OpenVPN file
+
+- **`vpn: false` no longer drops the VPN client that the downloader, the gateway or BTCPay send
+  their traffic through** (it would have left at home): it says to add a commercial VPN's
+  `vpn-client`, or to leave the module out (`dependencies.exit`).
+- **A commercial VPN as the exit of a machine off the VPN** opens none of the mesh's ways in on
+  that tunnel (DNAT, the modules' inbound rules, mesh SSH).
+- **Paperless:** a document without an owner was everyone's to change and delete. The admin owns
+  what comes from the consume folder and from mail now (a workflow), and any left without.
+- **Client secrets off command lines:** Immich's goes in on psql's input; Nextcloud's reaches the
+  container in its environment.
+- **games:** a second Bedrock server (another `port`) listens on that port inside too; it told
+  clients the first server's port.
+- **accounts:** `ldap` says what it does: Kanidm answers LDAP, nothing uses it yet; Jabber keeps
+  its own accounts.
+- **vpn-client: `openvpn_config`**, a provider's .ovpn with its certificates inside (Riseup and
+  other OpenVPN-only providers), with `vpn_provider: custom` and `vpn_type: openvpn`.
+
 ## 0.67.0 — admin areas inside a site are for the admins only
 
 - A site's location can be an admin area (`admin: true` in `extra_locations`): the VPN groups
