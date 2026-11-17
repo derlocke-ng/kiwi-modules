@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.76.1 — the onion help names `round`
+
+- The onion module's help says what `round` in `services` does: a new address, and the old one
+  stops working.
+- A test of the git module no longer needs `cmp`, which the control image does not have.
+
 ## 0.76.0 — hidden services that stop being found start anew
 
 - **The onion module checks its own addresses**: every ten minutes each hidden service open to
