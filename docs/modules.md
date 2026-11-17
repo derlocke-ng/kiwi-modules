@@ -80,3 +80,17 @@ for example a chat on public relays.
 A module is a directory `modules/<name>/` with a `module.yaml` and its
 templates. The format is the same as in kiwi-server and is described there:
 [Modules](https://kiwi-network.eu/docs/server/kiwi-server/modules/).
+
+## Modules from elsewhere
+
+A module that is not part of kiwi-modules (your own, or one from a community
+repository) comes from a folder with a directory per module:
+
+```bash
+kiwi-modules render machine.yaml -o out --source personal=~/src/my-modules
+```
+
+`--source NAME=FOLDER` can be given more than once. Such a module never takes
+the name of a built-in module, nor of another source's; `kiwi-modules modules`
+says which source each one is from. kiwi-server fetches its fleet's sources
+itself, pinned to a commit (`kiwi-server modules FLEET add`).
