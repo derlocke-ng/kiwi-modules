@@ -14,6 +14,7 @@ import shlex
 import re
 import shutil
 import subprocess
+import time
 import sys
 import tempfile
 import unittest
@@ -2117,6 +2118,86 @@ class TestFederation(unittest.TestCase):
             unit = f.read()
         self.assertIn("PublishPort=25565:25565/tcp", unit)
         self.assertIn("StopTimeout=90", unit)
+
+    def test_a_game_server_sleeps_while_nobody_plays_and_wakes_for_the_first_who_does(self):
+        out = self.render("sh3-games-sleep", self.games_machine(eula=True, servers={
+            "survival": {"game": "minecraft", "sleep": 5},
+            "lab": {"game": "abiotic-factor", "port": 7800, "sleep": 5},
+            "doom": {"game": "zandronum"}}))
+        script = read(out, "kiwi/games-sleep.sh")
+        self.assertIn("kiwi/games-sleep.sh watch", read(out, "host-units/kn-games-sleep.service"))
+        self.assertIn('"kn-game-survival 5 25565/tcp"', script)
+        self.assertIn('"kn-game-lab 5 7800/udp 27038/udp"', script)         # its ports where they moved to
+        self.assertNotIn("kn-game-doom", script)                             # no sleep: always on
+        path = os.path.join(out, "kiwi", "games-sleep.sh")
+        self.assertEqual(subprocess.run(["bash", "-n", path]).returncode, 0)
+        # without a sleeper there is nothing to install
+        plain = self.render("sh3-games-awake", self.games_machine(servers={"doom": {"game": "zandronum"}}))
+        self.assertFalse(os.path.exists(os.path.join(plain, "kiwi", "games-sleep.sh")))
+        self.assertFalse(os.path.exists(os.path.join(plain, "host-units", "kn-games-sleep.service")))
+        for bad in (2, "soon"):
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = cli.main(["render", self.write("gs", self.games_machine(servers={"d": {"game": "zandronum", "sleep": bad}})),
+                               "-o", self.tmp + "/gs"])
+            self.assertEqual(rc, 1)
+            self.assertIn("5 or more", err.getvalue())
+        # run for real against stand-ins: the counters of iptables, and systemd's units as files
+        bin_, state, sleeping = (os.path.join(self.tmp, d) for d in ("sleep-bin", "sleep-state", "sleeping"))
+        for d in (bin_, state, sleeping):
+            os.makedirs(d)
+        counts, said = os.path.join(self.tmp, "counts"), os.path.join(self.tmp, "said")
+        stubs = {
+            "iptables": 'case "$*" in *" -L "*) cat %s ;; esac\nexit 0\n' % counts,
+            "ip6tables": "exit 1\n",
+            "systemctl": 'u=""; for a; do u=${a%%.service}; done\n[ "$1" = -q ] && shift\ncase "$1" in\n'
+                         '  is-active) [ -e %s/$u ] ;;\n  stop) rm -f %s/$u; echo "stop $u" >> %s ;;\n'
+                         '  start) touch %s/$u; echo "start $u" >> %s ;;\n  *) exit 0 ;;\nesac\n' % (state, state, said, state, said),
+        }
+        for name, body in stubs.items():
+            with open(os.path.join(bin_, name), "w") as f:
+                f.write("#!/bin/sh\n" + body)
+            os.chmod(os.path.join(bin_, name), 0o755)
+
+        def knock(survival, lab):
+            with open(counts + ".new", "w") as f:
+                f.write("Chain KN-GAMES-SLEEP (1 references)\n    pkts      bytes target     prot opt in     out     source               destination\n"
+                        "%8d 0  tcp -- * * 0.0.0.0/0 0.0.0.0/0 tcp dpt:25565 ctdir ORIGINAL /* kn-game-survival */\n"
+                        "%8d 0  udp -- * * 0.0.0.0/0 0.0.0.0/0 udp dpt:7800 ctdir ORIGINAL /* kn-game-lab */\n"
+                        "       1 0  udp -- * * 0.0.0.0/0 0.0.0.0/0 udp dpt:27038 ctdir ORIGINAL /* kn-game-lab */\n" % (survival, lab))
+            os.replace(counts + ".new", counts)
+
+        def until(what, seconds=8):
+            end = time.time() + seconds
+            while time.time() < end:
+                if what():
+                    return True
+                time.sleep(0.1)
+            return False
+        knock(0, 0)
+        open(os.path.join(state, "kn-game-survival"), "w").close()          # it runs; lab was stopped by hand
+        env = dict(os.environ, PATH=bin_ + ":" + os.environ["PATH"], KS_SLEEPING=sleeping, KIWI_SLEEP_STEP="0.2",
+                   KIWI_SLEEP_MINUTE="1")
+        proc = subprocess.Popen(["bash", path, "watch"], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        try:
+            time.sleep(3)
+            knock(7, 0)                                                     # someone plays: its time begins again
+            time.sleep(3)
+            self.assertTrue(os.path.exists(os.path.join(state, "kn-game-survival")))
+            self.assertTrue(until(lambda: not os.path.exists(os.path.join(state, "kn-game-survival"))))      # five quiet "minutes"
+            self.assertTrue(os.path.exists(os.path.join(sleeping, "kn-game-survival")))                     # asleep, not down
+            knock(8, 5)                                                     # a player knocks on both
+            self.assertTrue(until(lambda: os.path.exists(os.path.join(state, "kn-game-survival"))))
+            self.assertFalse(os.path.exists(os.path.join(sleeping, "kn-game-survival")))
+            time.sleep(1)
+            self.assertFalse(os.path.exists(os.path.join(state, "kn-game-lab")))    # stopped by hand: stays stopped
+        finally:
+            proc.kill()
+            log = proc.communicate()[0]
+        self.assertIn("kn-game-survival: nobody played for 5 minutes, it sleeps", log)
+        self.assertIn("kn-game-survival: a player knocked, it wakes up", log)
+        with open(said) as f:
+            self.assertEqual(f.read().split(), ["stop", "kn-game-survival", "start", "kn-game-survival"])
 
     def test_bedrock_has_its_handshake_on_tcp_and_its_game_on_udp_at_one_port(self):
         from kiwimodules import modules as modmod, profiles
