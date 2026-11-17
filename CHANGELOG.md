@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.72.0 — the switch to a standby does not flap
+
+- **A return to the master that fails doubles the wait for the next one** (10, 20, 40 … minutes,
+  up to eight hours; as new after an hour on the master): its machine answering is not yet its
+  VPN answering. A test runs the switch through that story.
+
 ## 0.71.0 — a node follows its master to a standby
 
 - **vpn-client: `standby_endpoints` and `standby_ping`** (kiwi-server fills them in for a node

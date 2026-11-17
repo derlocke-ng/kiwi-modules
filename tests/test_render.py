@@ -158,6 +158,42 @@ class TestRender(unittest.TestCase):
         self.assertIn("endpoints=(198.51.100.9:51820:41022 192.168.2.70:51820:41022 )", text)
         self.assertIn("ping_to=10.8.0.1", text)
         self.assertIn("systemctl restart kn-vpn-client.service", text)
+        # run: the master's VPN goes, its machine stays; the return fails and the next waits longer
+        t = os.path.join(self.tmp, "switch")
+        os.makedirs(os.path.join(t, "bin"))
+        conf = os.path.join(t, "wg0.conf")
+        with open(conf, "w") as f:
+            f.write("[Peer]\nEndpoint = 198.51.100.9:51820\n")
+        stubs = {
+            # the tunnel answers when the address it goes to is in `alive`
+            "podman": 'e=$(sed -n "s/^Endpoint *= *//p" "$KIWI_SWITCH_CONF"); grep -qx "${e%%:*}" "$T/alive"',
+            "systemctl": 'echo "restart $(sed -n "s/^Endpoint *= *//p" "$KIWI_SWITCH_CONF")" >> "$T/log"',
+            "timeout": 'grep -qx "$5" "$T/ssh" && echo SSH-2.0',
+            "logger": 'shift 2; echo "$*" >> "$T/log"',
+            # each check: a step of the story, and the end of it
+            "sleep": 'n=$(( $(cat "$T/n" 2>/dev/null || echo 0) + 1 )); echo $n > "$T/n"\n'
+                     'case $n in 2) echo 192.168.2.70 > "$T/alive";; 70) echo 198.51.100.9 > "$T/alive";; 150) exit 99;; esac\n'
+                     '[ $n -ge 150 ] && kill $PPID',
+        }
+        for name, body in stubs.items():
+            with open(os.path.join(t, "bin", name), "w") as f:
+                f.write("#!/bin/bash\n" + body + "\n")
+            os.chmod(os.path.join(t, "bin", name), 0o755)
+        with open(os.path.join(t, "alive"), "w") as f:
+            f.write("198.51.100.9\n")
+        with open(os.path.join(t, "ssh"), "w") as f:
+            f.write("198.51.100.9\n")
+        subprocess.run(["bash", path, "watch"], env=dict(os.environ, PATH=os.path.join(t, "bin") + ":" + os.environ["PATH"],
+                       T=t, KIWI_SWITCH_CONF=conf, KIWI_SWITCH_STATE=os.path.join(t, "state"), KIWI_SWITCH_EVERY="0"),
+                       capture_output=True, timeout=60)
+        with open(os.path.join(t, "log")) as f:
+            log = f.read()
+        moves = re.findall(r"^restart (\S+)$", log, re.M)
+        # down: to the standby; its machine answers 20 checks: back; down again: away; back after 40: and it works
+        self.assertEqual(moves, ["192.168.2.70:51820", "198.51.100.9:51820", "192.168.2.70:51820", "198.51.100.9:51820"], log)
+        self.assertIn("the next return to the master waits 0 minutes", log)       # doubled (0 s checks here)
+        with open(conf) as f:
+            self.assertIn("Endpoint = 198.51.100.9:51820", f.read())
 
     def test_vpn_false_never_drops_the_vpn_client_a_module_sends_its_traffic_through(self):
         """The downloader, the gateway and BTCPay leave through the VPN client: on a machine with no
