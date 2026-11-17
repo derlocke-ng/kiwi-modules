@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.69.0 — the sign-up pins Kanidm's certificate; a provider's OpenVPN exit without a master
+
+- **accounts:** the sign-up page talks to Kanidm with Kanidm's own certificate as the only one it
+  trusts (`--kanidm-cert`, kiwi-server 2.160.0); before, it checked none.
+- **vpn: false** allows a provider's OpenVPN file (`vpn_provider: custom`, `vpn_type: openvpn`) as
+  a machine's exit; custom WireGuard stays the mesh's.
+- **dns:** `upstream_dns` says what a network without a master asks (the fallback resolvers,
+  unencrypted from the home line) and that you may set your own.
+
 ## 0.68.0 — the rest of the review of 15–16 November; a provider's OpenVPN file
 
 - **`vpn: false` no longer drops the VPN client that the downloader, the gateway or BTCPay send
