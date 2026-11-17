@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.74.0 — a ring's keys survive a power cut
+
+- **The Tang image (15-kiwi4) makes a ring's keys beside, flushes them to the disk, then puts
+  them in place**; a key file left empty by a power cut is put aside and never served. Before,
+  a cut right after a ring's first start could leave it answering with nothing a machine can
+  use. Tried in a container: new keys, the same keys after a restart, empty ones replaced.
+
 ## 0.73.0 — a container others live in always starts again
 
 - **Before a container whose network namespace others share starts (the master's VPN server,
