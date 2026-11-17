@@ -1393,6 +1393,26 @@ class TestFederation(unittest.TestCase):
         _answer, cmds = oauth("git-sh3", "Forgejo on sh3", "https://git.sh3.home", "https://git.sh3.home/user/oauth2/accounts/callback")
         self.assertIn("system oauth2 create git-sh3 Forgejo on sh3 https://git.sh3.home", cmds)
         self.assertIn("system oauth2 warning-insecure-client-disable-pkce git-sh3", cmds)
+        self.assertIn("system oauth2 update-scope-map git-sh3 idm_all_persons openid email profile groups", cmds)
+        # only a group's members (the game page): the group is made, everyone else is no longer mapped
+        _answer, cmds = oauth("control-sh3", "Game page on sh3", "https://play.sh3.home", "https://play.sh3.home/back", "--group", "games")
+        self.assertIn("system oauth2 add-redirect-url control-sh3 https://play.sh3.home/back", cmds)
+        self.assertFalse(any("add-redirect-url control-sh3 games" in c for c in cmds))
+        self.assertIn("group create games", cmds)
+        self.assertIn("system oauth2 delete-scope-map control-sh3 idm_all_persons", cmds)
+        self.assertIn("system oauth2 update-scope-map control-sh3 games openid email profile groups", cmds)
+        r = subprocess.run(["sh", script, "oauth", "c-sh3", "C", "https://c.sh3.home", "https://c.sh3.home/b", "--group", "Bad Group"],
+                           capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0)
+        # who is in a group, and in or out
+        open(log, "w").close()
+        r = subprocess.run(["sh", script, "member", "games", "alice", "on"], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout), {"name": "alice", "group": "games", "member": "off"})   # (the stand-in keeps nobody)
+        with open(log) as f:
+            self.assertIn("group add-members games alice", f.read().splitlines())
+        r = subprocess.run(["sh", script, "members", "games"], capture_output=True, text=True)
+        self.assertEqual(json.loads(r.stdout), {"group": "games", "members": []})
         # Kanidm refuses: said, not swallowed
         with open(fake) as f:
             body = f.read().replace("#!/bin/sh\n", "#!/bin/sh\n" + 'case "$*" in *"oauth2 create"*) echo "invalid origin" >&2; exit 1 ;; esac\n', 1)
@@ -1722,10 +1742,28 @@ class TestFederation(unittest.TestCase):
         self.assertNotIn("deny all;", site)                                       # no admin page: the access rules decide
         from kiwimodules import modules
         nx = modules.discover().get("control").nginx
-        self.assertEqual([bool(e.get("admin")) for e in nx["servers"]], [False, False])     # the status page, and the one for the Internet
+        self.assertEqual([bool(e.get("admin")) for e in nx["servers"]], [False, False, False])  # status, the Internet's, the game page
         m["node"]["control"] = {"status_page": False}
         with open(os.path.join(self.render("sh3-nostatus", m), "kn-nginx", "nginx.conf")) as f:
-            self.assertNotIn("status.sh3.home", f.read())
+            conf = f.read()
+        self.assertNotIn("status.sh3.home", conf)
+        self.assertNotIn("play.sh3.home", conf)                                    # the game page: only when asked for
+        # the game page: everything at its name is the control part's /play/, nothing else
+        m["node"]["control"] = {"play_page": True}
+        with open(os.path.join(self.render("sh3-play", m), "kn-nginx", "nginx.conf")) as f:
+            site = f.read().split("server_name play.sh3.home;", 1)[1].split("\n    server {", 1)[0]
+        self.assertIn("set $backend http://kn-control:8740/play$request_uri;", site)    # its path and question kept
+        m["node"]["control"] = {"play_page": True, "play_extra": ["papaya/kn-jellyfin"]}
+        with open(os.path.join(self.render("sh3-play2", m), "docker-compose.yml")) as f:
+            env = yaml.safe_load(f)["services"]["kn-control"]["environment"]
+        self.assertIn("KIWI_PLAY_HOST=play.sh3.home", env)
+        self.assertIn("KIWI_PLAY_GROUP=games", env)
+        self.assertIn("KIWI_PLAY_EXTRA=papaya/kn-jellyfin", env)
+        self.assertNotIn("deny all;", site)
+        err = io.StringIO()
+        m["node"]["control"] = {"play_page": True, "play_group": "Not A Group"}
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(cli.main(["render", self.write("sh3-play-bad", m), "-o", self.tmp + "/pb"]), 1)
 
     def test_a_nodes_service_is_open_to_the_internet_through_the_master(self):
         """The service and its certificate on the node; the master hands on names (still
@@ -2376,7 +2414,7 @@ class TestAccess(unittest.TestCase):
             return [bool(e.get("admin")) for e in ([nx] if nx.get("server_name") else []) + list(nx.get("servers") or [])]
         for name in ("portainer", "dns", "vpn-server", "backup-server", "cache"):
             self.assertEqual(admin(name), [True], name)
-        self.assertEqual(admin("control"), [True, False, False])    # the control page is one, its status pages are not
+        self.assertEqual(admin("control"), [True, False, False, False])    # the control page is one, its status and game pages are not
         for name in ("cloud", "vault", "paperless", "git"):
             self.assertFalse(any(admin(name)), name)
 
