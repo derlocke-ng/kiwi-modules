@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.81.0 — the master routes, your data lives on the nodes
+
+- `nostr-relay` and `hub` run on a node too (a master still can): a hub's data stays at home,
+  and its public names come in through the master like any node's service.
+  `examples/hub.yaml` is a node now.
+- The module table says it first: the master only moves traffic by default; services that keep
+  data run on nodes. `xmpp`, `tang`, `nostr-relay` and `hub` were listed as master only.
+- Links to kiwi-server's pages on kiwi-network.eu that exist.
+
 ## 0.80.0 — modules from elsewhere
 
 - **Module sources**: `ModuleSet` and `discover()` take more folders besides the built-in

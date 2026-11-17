@@ -398,6 +398,36 @@ class TestRender(unittest.TestCase):
         odd = dict(MACHINES["hub1"], master=dict(master, hub={"space_relays": ["wss://relay.hub1.home"]}))
         self.assertNotEqual(cli.main(["render", self.write("hub1-oddspace", odd), "-o", os.path.join(self.tmp, "oddspace.bundle")]), 0)
 
+    def test_a_hub_on_a_node_keeps_its_data_at_home(self):
+        """The master routes; the hub and its relay can live on a node like any service with data."""
+        from kiwimodules import modules as modmod, profiles
+        node = json.loads(json.dumps(SH3))
+        node["node"].pop("preset", None)
+        node["node"].pop("cloud", None)
+        node["node"]["modules"] = ["vpn-client", "reverse-proxy", "nostr-relay", "hub"]
+        node["node"]["nostr-relay"] = {"relay_name": "Home relay"}
+        out = self.render("sh3-hub", node)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            compose = f.read()
+        self.assertIn("HUB_RELAYS=wss://relay.sh3.home", compose)
+        self.assertIn("kn-nostr-relay", compose)
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        self.assertIn("server_name relay.sh3.home;", nginx)
+        self.assertIn("server_name hub.sh3.home;", nginx)
+        # public names: handed on by the master, the certificate and the data stay on the node
+        node["node"]["reverse-proxy"] = dict(TLS, public=True, via="10.8.0.1")
+        node["node"]["hub"] = {"hub_domain": "hub.example.org"}
+        node["node"]["nostr-relay"] = {"relay_name": "Home relay", "relay_domain": "relay.example.org"}
+        node["vpn_ip"] = "10.8.0.25"
+        mm = machine.load(self.write("sh3-hub-public", node))
+        profile = profiles.discover()[mm.role]
+        ms = modmod.discover()
+        resolver.resolve_settings(profile, mm, ms)
+        spec = resolver.stack_spec(mm, profile, mm.dns_records, master_ip=mm.master_ip, ca_cert=mm.ca_cert, lan_addresses=mm.lan_addresses)
+        names, _ports = modmod.Renderer(ms).exposure(spec)
+        self.assertEqual(sorted(names), ["hub.example.org", "relay.example.org"])
+
     def public_hub(self, **proxy):
         master = dict(MACHINES["hub1"]["master"], **{"reverse-proxy": dict(TLS, public=True, **proxy)})
         master["hub"] = dict(master["hub"], hub_domain="hub.example.org")
@@ -2274,7 +2304,7 @@ class TestFederation(unittest.TestCase):
             self.assertTrue(os.path.exists(os.path.join(sleeping, "kn-game-survival")))                     # asleep, not down
             knock(8, 5)                                                     # a player knocks on both
             self.assertTrue(until(lambda: os.path.exists(os.path.join(state, "kn-game-survival"))))
-            self.assertFalse(os.path.exists(os.path.join(sleeping, "kn-game-survival")))
+            self.assertTrue(until(lambda: not os.path.exists(os.path.join(sleeping, "kn-game-survival"))))   # (just after the start)
             time.sleep(1)
             self.assertFalse(os.path.exists(os.path.join(state, "kn-game-lab")))    # stopped by hand: stays stopped
         finally:

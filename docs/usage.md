@@ -60,7 +60,7 @@ The `examples/` directory of the repository has three machine files.
 |---|---|
 | `sh3.yaml` | A node with the `cloud` preset. |
 | `master.yaml` | A master with the modules of the `master` profile. |
-| `hub.yaml` | A master that also runs a nostr relay and a hub built on kiwi-framework. |
+| `hub.yaml` | A node that runs a nostr relay and a hub built on kiwi-framework (their data at home). |
 
 ## Other module and profile directories
 

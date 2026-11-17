@@ -1,24 +1,20 @@
-# A hub on a master: a nostr relay and a hub built on kiwi-framework (Armory,
-# or a fork of it), both behind nginx in the WireGuard server's namespace. As
-# it comes this is a private hub: its relay is reachable through the mesh only,
-# the hub's relays are fixed, and its pages wait while the relay is away.
+# A hub on a node: a nostr relay and a hub built on kiwi-framework (Armory, or a
+# fork of it), both behind the node's nginx. The hub's data stays at home; the
+# master only routes. As it comes this is a private hub: its relay is reachable
+# through the mesh only, the hub's relays are fixed, and its pages wait while
+# the relay is away. A public name for it comes in through the master
+# (reverse-proxy: { public: true } and hub_domain / relay_domain outside the
+# fleet's domain), which passes the connection on without reading it.
 # Render:
 #   kiwi-modules render examples/hub.yaml -o hub.bundle
-name: gate
+name: sh3
 domain: home
-target: debian
+target: ucore
 timezone: Europe/Berlin
-admin: { user: admin }
-role: master
-master:
-  modules: [vpn-client, vpn-server, dns, tor, reverse-proxy, nostr-relay, hub]
-  vpn-client:
-    vpn_provider: mullvad
-    wireguard_private_key: "<from the provider's WireGuard config>"
-    wireguard_addresses: 10.66.1.2/32
-    server_countries: Germany
-  vpn-server:
-    wg_host: vpn.example.org     # what the clients connect to
+admin: { user: core }
+role: node
+node:
+  modules: [vpn-client, reverse-proxy, nostr-relay, hub]
   nostr-relay:
     relay_name: Acme relay
     relay_contact: admin@acme.example
@@ -29,6 +25,13 @@ master:
     public_relays: [wss://nos.lol, wss://relay.damus.io]
     public_mounts: [uplink]
   reverse-proxy:
-    tls_fullchain: secrets/gate-fullchain.pem
-    tls_privkey: secrets/gate-privkey.pem
+    tls_fullchain: secrets/sh3-fullchain.pem
+    tls_privkey: secrets/sh3-privkey.pem
+dns_records:
+  - [10.8.0.1, gate.home]
+  - [10.8.0.25, sh3.home]
+  - [10.8.0.25, relay.sh3.home]
+  - [10.8.0.25, hub.sh3.home]
+master_ip: 10.8.0.1
+ca_cert: ca.pem
 seed: secrets/seed
