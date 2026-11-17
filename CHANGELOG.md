@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.67.0 — admin areas inside a site are for the admins only
+
+- A site's location can be an admin area (`admin: true` in `extra_locations`): the VPN groups
+  without the admin pages are refused there, whatever else of the site they reach. kiwi-server
+  hands the ranges over as `reverse-proxy.access.admin`, on nodes and masters.
+- ejabberd's `/admin` and Vaultwarden's `/admin` are such areas. Vaultwarden's answers the VPN
+  only now, also when the vault has a public name.
+
 ## 0.66.0 — Jabber: one page for new accounts; its admin panel from the VPN only
 
 - **One page, `/join`, whatever way is on.** Invite codes, requests and the open way (now with a
