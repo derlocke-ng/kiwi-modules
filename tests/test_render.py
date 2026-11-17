@@ -2105,6 +2105,52 @@ class TestFederation(unittest.TestCase):
         m["node"]["games"] = games
         return m
 
+    def source(self, name="hello", folder="src"):
+        """A module source: a folder with one module, as a community repository has them."""
+        d = os.path.join(self.tmp, folder, name)
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "module.yaml"), "w") as f:
+            f.write("schema_version: \"1.0\"\nmodule:\n  name: %s\n  title: Hello\n  version: 0.1.0\n"
+                    "  description: a module from a source\n  category: productivity\n  node_types: [node]\n"
+                    "dependencies: {required: [], optional: []}\nnetwork: {needs_vpn_dnat: false, open_ports: []}\n"
+                    "firewall: {scope: self, rules: []}\ntemplates: {compose: docker-compose.yml.j2}\n"
+                    "settings:\n  - key: greeting\n    default: hi\n" % name)
+        with open(os.path.join(d, "docker-compose.yml.j2"), "w") as f:
+            f.write("services:\n  {{ container_prefix }}-%s:\n    image: docker.io/library/busybox:1\n"
+                    "    container_name: {{ container_prefix }}-%s\n    command: [\"echo\", {{ greeting | tojson }}]\n"
+                    "    networks:\n      {{ network_name }}: {}\n" % (name, name))
+        return os.path.join(self.tmp, folder)
+
+    def test_a_module_of_a_source_renders_like_a_built_in_one(self):
+        from kiwimodules import modules
+        from kiwimodules.util import KiwiError
+        src = self.source()
+        ms = modules.discover(extra=[("community", src)])
+        self.assertEqual((ms.get("hello").source, ms.get("cloud").source), ("community", None))
+        self.assertEqual(ms.get("hello").as_dict()["source"], "community")
+        m = self.games_machine()
+        m["node"]["modules"] = ["vpn-client", "hello"]
+        m["node"].pop("games")
+        m["node"]["hello"] = {"greeting": "from the community"}
+        path = self.write("sh3-hello", m)
+        out = os.path.join(self.tmp, "sh3-hello.bundle")
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(cli.main(["render", path, "-o", out]), 1)            # without the source: unknown
+        self.assertIn("unknown module 'hello'", err.getvalue())
+        self.assertEqual(cli.main(["render", path, "-o", out, "--source", "community=" + src]), 0)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            self.assertEqual(yaml.safe_load(f)["services"]["kn-hello"]["command"], ["echo", "from the community"])
+        # a source never takes a built-in module's name, nor another source's
+        self.source("cloud", "bad")
+        with self.assertRaisesRegex(KiwiError, "module source bad: its module cloud has the name of a built-in module"):
+            modules.discover(extra=[("bad", os.path.join(self.tmp, "bad"))])
+        with self.assertRaisesRegex(KiwiError, "its module hello has the name of a module of the source community"):
+            modules.discover(extra=[("community", src), ("personal", src)])
+        os.makedirs(os.path.join(self.tmp, "empty"))
+        with self.assertRaisesRegex(KiwiError, "module source e: no modules in"):
+            modules.discover(extra=[("e", os.path.join(self.tmp, "empty"))])
+
     def test_a_public_game_server_is_handed_on_by_the_master(self):
         from kiwimodules import modules as modmod, profiles
         m = self.games_machine(eula=True, servers={

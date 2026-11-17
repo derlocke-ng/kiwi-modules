@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.80.0 — modules from elsewhere
+
+- **Module sources**: `ModuleSet` and `discover()` take more folders besides the built-in
+  modules (`extra=[(name, folder)]`); `kiwi-modules render` and `modules` take
+  `--source NAME=FOLDER`. A source's module never takes a built-in module's name, nor another
+  source's; each module knows its source (`source`, also in `as_dict`).
+
 ## 0.79.1 — the onion self-check outlives an address that does not answer
 
 - The self-check (0.76.0) ran under `set -e`, and `curl` fails when nothing answers: the first
