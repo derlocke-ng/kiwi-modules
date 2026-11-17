@@ -137,6 +137,19 @@ class TestRender(unittest.TestCase):
         node["vpn_ip"] = "10.8.0.9"
         self.assertEqual(tor("min-tor", node)["kn-tor"]["network_mode"], "service:kn-vpn-client")    # behind its VPN
 
+    def test_vpn_false_never_drops_the_vpn_client_a_module_sends_its_traffic_through(self):
+        """The downloader, the gateway and BTCPay leave through the VPN client: on a machine with no
+        VPN they need a commercial one listed, not a silent drop (their traffic would leave at home)."""
+        from kiwimodules import modules
+        from kiwimodules.util import KiwiError
+        ms = modules.discover()
+        self.assertEqual(ms.resolve(["cloud"], without=("vpn-client",))[-1], "cloud")      # the mesh only: fine          # the mesh only: fine
+        for m in ("downloader", "gateway", "btcpay"):
+            with self.assertRaisesRegex(KiwiError, "%s sends its traffic out through vpn-client.*vpn_provider" % m):
+                ms.resolve([m], without=("vpn-client",))
+        # listed, as a commercial VPN's exit: it stays
+        self.assertIn("vpn-client", ms.resolve(["vpn-client", "downloader"], without=("vpn-client",)))
+
     def test_a_machine_off_the_vpn_answers_at_its_home_address(self):
         """vpn: false (a network without a master): no VPN client, the home address stands in for
         the mesh address, and the names point there."""
@@ -1336,7 +1349,9 @@ class TestFederation(unittest.TestCase):
         out = self.render("cloud-accounts", n)
         with open(os.path.join(out, "kiwi", "cloud-accounts.sh")) as f:
             sh = f.read()
-        self.assertIn("occ user_oidc:provider accounts --clientid=cloud-sh3", sh)
+        self.assertIn("occ_secret user_oidc:provider accounts --clientid=cloud-sh3", sh)
+        self.assertIn("exec -e KIWI_SECRET", sh)                                     # the secret: not on a command line here
+        self.assertNotIn('--clientsecret="$KIWI_SECRET" \\', sh)
         # nobody becomes a local user of Nextcloud by having the same name
         self.assertIn("occ config:system:set user_oidc soft_auto_provision --type=boolean --value=false", sh)
         self.assertIn("https://id.example.org/oauth2/openid/cloud-sh3/.well-known/openid-configuration", sh)
