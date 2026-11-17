@@ -137,6 +137,27 @@ class TestRender(unittest.TestCase):
         node["vpn_ip"] = "10.8.0.9"
         self.assertEqual(tor("min-tor", node)["kn-tor"]["network_mode"], "service:kn-vpn-client")    # behind its VPN
 
+    def test_a_ring_on_the_master_answers_the_homes_addresses_only(self):
+        hub = json.loads(json.dumps(MACHINES["hub1"]))
+        hub["master"]["modules"] = hub["master"]["modules"] + ["tang"]
+        hub["master"]["tang"] = {"rings": {"away": "7501"}}
+        hub["master"]["vpn-server"] = dict(hub["master"]["vpn-server"], local_rings={"away": "7501"})
+        out = self.render("hub-away", hub)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            services = yaml.safe_load(f)["services"]
+        tang = services["km-tang-away"]
+        self.assertEqual(tang["network_mode"], "service:km-vpn-server")          # in the VPN server's namespace
+        self.assertNotIn("ports", tang)
+        self.assertIn("TANG_PORT=7501", tang["environment"])
+        self.assertIn("7501:7501/tcp", " ".join(services["km-vpn-server"]["ports"]))
+        start = [os.path.join(d, f) for d, _ds, fs in os.walk(out) for f in fs if f == "start.sh" and "vpn-server" in d][0]
+        with open(start) as f:
+            script = f.read()
+        self.assertIn("-A INPUT -i eth0 -p tcp --dport 7501 -m conntrack --ctstate NEW -j KIWI_RELAY", script)
+        self.assertIn("-A INPUT -i eth0 -p tcp --dport 7501 -m conntrack --ctstate NEW -j DROP", script)
+        self.assertIn("relay_gate()", script)                                     # the gate of enrolled machines' addresses
+        self.assertEqual(subprocess.run(["bash", "-n", start]).returncode, 0)
+
     def test_a_node_whose_master_has_a_standby_switches_its_tunnel(self):
         def files(out):
             return {os.path.relpath(os.path.join(d, f), out) for d, _ds, fs in os.walk(out) for f in fs}
