@@ -2577,7 +2577,7 @@ class TestOnion(unittest.TestCase):
                            env=dict(os.environ, PATH=base + ":" + os.environ["PATH"], KIWI_FIRST="0", KIWI_EVERY="0",
                                     KIWI_CHECK=os.path.join(base, "check")))
         self.assertIn("not found through Tor three times in a row: dead.onion; Tor starts anew", r.stdout, r.stderr)
-        self.assertIsNotNone(tor.poll())                                      # Tor was ended: the container starts anew
+        self.assertIsNotNone(tor.wait(timeout=5))                             # Tor was ended: the container starts anew
         with open(os.path.join(base, "check")) as f:
             self.assertEqual([l.split()[:3] for l in f.read().splitlines()],
                              [["vault", "live.onion", "200"], ["cloud", "dead.onion", "000"]])
