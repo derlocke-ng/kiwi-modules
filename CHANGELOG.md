@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.78.0 — the game page's parts
+
+- **control** (1.1.0): `play_page` serves a game page at `play.<hostname>` (VPN only unless it is
+  a public name): whatever is asked for there goes to the control part's `/play/…`. `play_group`
+  (default `games`) is the group of the network's accounts whose members get in; `play_extra`
+  lists more containers than the game servers (`machine/container`). No admin page.
+- **accounts**: `accounts.sh oauth … --group GROUP` lets only the group's members sign in at a
+  service (the group is made when missing); `accounts.sh member GROUP NAME on|off` and
+  `members GROUP`.
+
 ## 0.77.0 — game servers that sleep while nobody plays
 
 - **`sleep: N` for a game server** (games module 1.1.0): after N minutes (5 or more) in which no
