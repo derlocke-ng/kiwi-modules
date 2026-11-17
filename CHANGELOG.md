@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.83.1 — a sleeping game server is not a failed one
+
+- Zandronum ends with an error code of its own when it is stopped: its unit stayed failed while
+  it slept, and the machine showed a failed service (medlar, 18 Nov 2026). The sleeper clears
+  that after putting a server to sleep.
+
 ## 0.83.0 — each site says how it can be opened beyond the VPN
 
 - `Module.sites()` (and `sites` in `as_dict`): each web site of a module with the first part of
