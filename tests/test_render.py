@@ -2536,6 +2536,36 @@ class TestGit(unittest.TestCase):
                 self.assertNotIn("$pw", line)
 
 
+class TestOpenVPNFile(unittest.TestCase):
+    setUp = TestRender.setUp
+    render = TestRender.render
+    write = TestRender.write
+    tearDown = TestRender.tearDown
+
+    def test_a_providers_openvpn_file_is_the_exit(self):
+        """Riseup and other OpenVPN-only providers: their .ovpn (certificates inside) as the master's exit."""
+        m = json.loads(json.dumps(MACHINES["hub1"]))
+        with open(os.path.join(self.tmp, "riseup.ovpn"), "w") as f:
+            f.write("client\ndev tun\nproto tcp\nremote 203.0.113.5 443\n<key>\nnot a real key\n</key>\n")
+        m["master"]["vpn-client"] = {"vpn_provider": "custom", "vpn_type": "openvpn",
+                                     "openvpn_config": os.path.join(self.tmp, "riseup.ovpn")}
+        out = self.render("ovpn", m)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            vc = yaml.safe_load(f)["services"]["km-vpn-client"]
+        self.assertIn("OPENVPN_CUSTOM_CONFIG=/gluetun/custom.ovpn", vc["environment"])
+        self.assertIn("VPN_TYPE=openvpn", vc["environment"])
+        self.assertFalse([e for e in vc["environment"] if e.startswith(("WIREGUARD_PRIVATE_KEY", "WIREGUARD_ADDRESSES"))])
+        self.assertTrue(any(v.endswith("/km-vpn-client/custom.ovpn:/gluetun/custom.ovpn:ro,z") for v in vc["volumes"]))
+        with open(os.path.join(out, "km-vpn-client", "custom.ovpn")) as f:
+            self.assertIn("remote 203.0.113.5 443", f.read())
+        self.assertEqual(oct(os.stat(os.path.join(out, "km-vpn-client", "custom.ovpn")).st_mode & 0o777), "0o600")
+        # custom OpenVPN without its file: said, not a container that never connects
+        del m["master"]["vpn-client"]["openvpn_config"]
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            self.assertNotEqual(cli.main(["render", self.write("ovpn2", m), "-o", os.path.join(self.tmp, "x.bundle")]), 0)
+        self.assertIn("needs openvpn_config", err.getvalue())
+
+
 class TestMeshAddress(unittest.TestCase):
     def test_a_master_exiting_through_another_network_keeps_its_own_address(self):
         conf = {"vpn-client/wireguard_config": b"[Interface]\nAddress = 10.10.5.2/32\n"}
