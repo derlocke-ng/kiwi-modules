@@ -2181,6 +2181,30 @@ class TestFederation(unittest.TestCase):
         with self.assertRaisesRegex(KiwiError, "module source e: no modules in"):
             modules.discover(extra=[("e", os.path.join(self.tmp, "empty"))])
 
+    def test_a_module_names_its_pages_and_its_sign_in(self):
+        from kiwimodules import modules
+        from kiwimodules.util import KiwiError
+        src = self.source("grow")
+        mod = os.path.join(src, "grow", "module.yaml")
+        with open(mod, "a") as f:
+            f.write("pages:\n  grow: {label: Grow lights, about: Light schedules for the plugs}\n"
+                    "accounts:\n  site: \"{{ 'grow.' ~ hostname }}\"\n  callbacks: [/oauth/back]\n  pkce: true\n"
+                    "  - key: accounts_client\n")
+        # (the settings it takes the client in are missing: said)
+        with open(mod) as f:
+            text = f.read().replace("  - key: accounts_client\n", "")
+        with open(mod, "w") as f:
+            f.write(text)
+        with self.assertRaisesRegex(KiwiError, "the settings accounts_client, accounts_issuer, accounts_secret take the client"):
+            modules.discover(extra=[("c", src)])
+        with open(mod, "w") as f:
+            f.write(text.replace("settings:\n", "settings:\n  - key: accounts_client\n    default: \"\"\n"
+                                 "  - key: accounts_issuer\n    default: \"\"\n  - key: accounts_secret\n    type: secret\n    default: \"\"\n"))
+        m = modules.discover(extra=[("c", src)]).get("grow")
+        self.assertEqual(m.pages, {"grow": {"label": "Grow lights", "about": "Light schedules for the plugs"}})
+        self.assertEqual((m.accounts["callbacks"], m.accounts["pkce"], m.accounts["label"]), (["/oauth/back"], True, "Hello"))      # (its title)
+        self.assertEqual(m.as_dict()["pages"]["grow"]["label"], "Grow lights")
+
     def test_a_public_game_server_is_handed_on_by_the_master(self):
         from kiwimodules import modules as modmod, profiles
         m = self.games_machine(eula=True, servers={
