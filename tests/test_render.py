@@ -2556,10 +2556,31 @@ class TestOnion(unittest.TestCase):
         # what it found, for the status pages: name, address, answer, when; replaced whole each round
         self.assertIn('printf \'%s %s %s %s\\n\' "${na%%=*}" "$a" "${code:-000}" "$(date +%s)" >> "$CHECK.new"', script)
         self.assertIn('mv -f "$CHECK.new" "$CHECK"', script)
-        self.assertIn("CHECK=/var/lib/tor/kiwi-check", script)
+        self.assertIn("CHECK=${KIWI_CHECK:-/var/lib/tor/kiwi-check}", script)
         self.assertIn('-x "socks5h://localhost/var/lib/tor/self-check.sock"', script)
         self.assertIn('if [ "$misses" -ge 3 ]; then', script)
         self.assertEqual(os.stat(start).st_mode & 0o077, 0)                   # it carries the services' keys
+        # the check run for real (its part of the script, under set -eu as there): an address that
+        # does not answer is written down and the check goes on; three rounds of it and Tor ends.
+        # Until 0.79.1 the first curl that failed ended the check itself, quietly
+        part = script[script.index("ADDRESSES="):script.index(") &") + 1]
+        part = re.sub(r'^ADDRESSES=.*$', 'ADDRESSES="vault=live.onion cloud=dead.onion"', part, flags=re.M)
+        base = tempfile.mkdtemp()
+        for name, body in (("su-exec", 'shift; exec "$@"'),
+                           ("curl", 'for a; do u=$a; done\ncase "$u" in *dead*) printf 000; exit 7 ;; esac\nprintf 200')):
+            with open(os.path.join(base, name), "w") as f:
+                f.write("#!/bin/sh\n" + body + "\n")
+            os.chmod(os.path.join(base, name), 0o755)
+        tor = subprocess.Popen(["sleep", "60"])
+        self.addCleanup(tor.kill)
+        r = subprocess.run(["sh", "-euc", "tor=%d\n%s\nwait" % (tor.pid, part)], capture_output=True, text=True, timeout=30,
+                           env=dict(os.environ, PATH=base + ":" + os.environ["PATH"], KIWI_FIRST="0", KIWI_EVERY="0",
+                                    KIWI_CHECK=os.path.join(base, "check")))
+        self.assertIn("not found through Tor three times in a row: dead.onion; Tor starts anew", r.stdout, r.stderr)
+        self.assertIsNotNone(tor.wait(timeout=5))                             # Tor was ended: the container starts anew
+        with open(os.path.join(base, "check")) as f:
+            self.assertEqual([l.split()[:3] for l in f.read().splitlines()],
+                             [["vault", "live.onion", "200"], ["cloud", "dead.onion", "000"]])
 
     def test_the_proxy_answers_a_hidden_service_as_that_one_site(self):
         out, _compose = self.node("sh3-onion-nginx")
