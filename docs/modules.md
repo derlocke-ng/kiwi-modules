@@ -79,7 +79,7 @@ for example a chat on public relays.
 
 A module is a directory `modules/<name>/` with a `module.yaml` and its
 templates. The format is the same as in kiwi-server and is described there:
-[Modules](https://kiwi-network.eu/docs/server/kiwi-server/modules/).
+[Modules](https://kiwi-network.eu/docs/server/modules/).
 
 ## Modules from elsewhere
 

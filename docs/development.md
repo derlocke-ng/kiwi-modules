@@ -14,7 +14,7 @@ This page is for people who change kiwi-modules: the renderer in
 | `tests/` | The unit tests and the golden bundle. |
 
 The format of `module.yaml` and `role.yaml` is described with kiwi-server:
-[Modules](https://kiwi-network.eu/docs/server/kiwi-server/modules/).
+[Modules](https://kiwi-network.eu/docs/server/modules/).
 
 ## Run the tests
 
