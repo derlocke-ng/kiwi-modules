@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.77.0 — game servers that sleep while nobody plays
+
+- **`sleep: N` for a game server** (games module 1.1.0): after N minutes (5 or more) in which no
+  player sent it anything, the server stops and frees the machine's memory; the first player who
+  tries to join wakes it, and gets in a minute or two later. `kn-games-sleep.service` counts the
+  packets for each server's ports in the mangle table (only connections that came from outside,
+  so the server's own talk to a master server list does not keep it awake), every five seconds.
+- A sleeping server has a file in `/run/kiwi-stack/sleeping/`: kiwi-stack 0.9.12 and kiwi-server
+  count it as asleep, not as down. One stopped by hand has none and stays stopped.
+
 ## 0.76.1 — the onion help names `round`
 
 - The onion module's help says what `round` in `services` does: a new address, and the old one
