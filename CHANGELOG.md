@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.82.0 — a module names its pages and its sign-in
+
+- `pages:` in a module.yaml: its sites as the start and status pages show them, by the first
+  part of the name (`grow: {label: Grow lights, about: …}`), so a module from a source is named
+  like a built-in one.
+- `accounts:`: its sign-in with the network's accounts (OpenID Connect): `site` (its address, a
+  template), `callbacks`, `pkce`, `group`; the settings `accounts_client`, `accounts_issuer` and
+  `accounts_secret` take the client. kiwi-server connects any module that says so.
+
 ## 0.81.0 — the master routes, your data lives on the nodes
 
 - `nostr-relay` and `hub` run on a node too (a master still can): a hub's data stays at home,
