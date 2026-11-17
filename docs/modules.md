@@ -30,6 +30,13 @@ as profiles of their own. They are kept for files that already use them.
 
 ## Modules
 
+**The master routes; your data lives on the nodes.** The master is usually a rented server you do
+not fully trust: by default it runs only what moves traffic (the VPN, DNS, the Tor proxy, the
+reverse proxy that hands public names on to nodes). Services that keep data run on a node at
+home and are reached over the VPN, or from the Internet through the master's proxy, which
+passes the encrypted connection on without reading it. Everything can run on a master if you
+choose; nothing that keeps data does by default.
+
 "Runs on" says which profile may use the module.
 
 | Module | Runs on | What it does |
@@ -57,21 +64,22 @@ as profiles of their own. They are kept for files that already use them.
 | `paste` | master, node | A pastebin (PrivateBin): a page to put a text or a file on and pass its link along; encrypted in the browser. `paste.<hostname>` for the mesh; public with `paste_domain` on a master, or a hidden service with `onion`. |
 | `firefox-sync` | master, node | Your own Firefox Sync server (Mozilla's syncstorage-rs with PostgreSQL) at `ffsync.<hostname>`: what Firefox syncs is stored on this machine. The login still goes through a Mozilla account. x86-64 only. |
 | `games` | node | Game servers: Minecraft (Java and Bedrock), Enshrouded, Abiotic Factor, Zandronum, Valheim, Factorio, Satisfactory, Palworld, Terraria, or any other from an image (`catalog`). One container and one folder per entry of `servers`; their ports open at home and at the node's VPN address. `sleep: N` stops a server after N minutes without players; the first who tries to join wakes it. |
-| `xmpp` | master | Jabber (ejabberd): chats, rooms, files and message history. One service with up to three doors: the VPN (`jabber.<hostname>`), the Internet (`xmpp_domain`, a public name) and Tor (`onion: { services: { jabber: {} } }`: the page and port 5222 at the hidden address). `separate: true` runs two instead, an internal and a public one, that do not exchange messages. People make their own account in the app or at `/register`, each after a captcha. |
+| `xmpp` | node, master | Jabber (ejabberd): chats, rooms, files and message history. One service with up to three doors: the VPN (`jabber.<hostname>`), the Internet (`xmpp_domain`, a public name) and Tor (`onion: { services: { jabber: {} } }`: the page and port 5222 at the hidden address). `separate: true` runs two instead, an internal and a public one, that do not exchange messages. People make their own account in the app or at `/register`, each after a captcha. |
 | `downloader` | node | Transmission and JDownloader. They share the VPN client's network, so they have no connection without the tunnel. |
 | `sftp` | node | An SFTP server on its own port, to fetch downloads from the LAN or the mesh. |
 | `gateway` | node | Routes LAN clients that use this machine as their gateway through the VPN client. |
 | `dhcp-relay` | node | Passes the LAN's DHCP requests on to Pi-hole, so that Pi-hole can be the LAN's DHCP server. |
-| `tang` | node | Tang servers, which let the encrypted machines of the network unlock their disks at boot without anyone typing a key. |
+| `tang` | node, master | Tang servers, which let the encrypted machines of the network unlock their disks at boot without anyone typing a key. |
 | `control` | node | The control node: kiwi-server with web pages, reachable from the mesh; and a status page without a login at `status.<hostname>` (`status_page: false` switches it off). |
-| `nostr-relay` | master | strfry, a nostr relay, behind the reverse proxy. A hub keeps its data on it. |
-| `hub` | master | A hub built on kiwi-framework (Armory or your own fork) as a container behind the reverse proxy. |
+| `nostr-relay` | node, master | strfry, a nostr relay, behind the reverse proxy. A hub keeps its data on it. |
+| `hub` | node, master | A hub built on kiwi-framework (Armory or your own fork) as a container behind the reverse proxy. |
 
 ## A hub
 
-A master can run a hub: add `nostr-relay` and `hub` to its modules.
-`examples/hub.yaml` in the repository shows it. As it comes, the hub is
-private: its relay is reachable through the mesh only. The settings
+A node runs a hub: add `nostr-relay` and `hub` to its modules (a master can
+too). `examples/hub.yaml` in the repository shows it. As it comes, the hub is
+private: its relay is reachable through the mesh only; a public name for it
+comes in through the master, which passes the connection on to the node. The settings
 `public_relays` and `public_mounts` of the `hub` module open a public area,
 for example a chat on public relays.
 
@@ -93,4 +101,4 @@ kiwi-modules render machine.yaml -o out --source personal=~/src/my-modules
 `--source NAME=FOLDER` can be given more than once. Such a module never takes
 the name of a built-in module, nor of another source's; `kiwi-modules modules`
 says which source each one is from. kiwi-server fetches its fleet's sources
-itself, pinned to a commit (`kiwi-server modules FLEET add`).
+itself, pinned to a commit (`kiwi-server sources FLEET add`).
