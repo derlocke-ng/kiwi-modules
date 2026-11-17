@@ -1,6 +1,19 @@
-# Tang from Fedora's packages, for the tang module: one container is one ring, its keys in /db.
-FROM quay.io/fedora/fedora-minimal:44
-RUN dnf5 -y install --setopt=install_weak_deps=False tang util-linux && dnf5 clean all
+# Tang for the tang module: one container is one ring, its keys in /db. Built from Tang's own
+# source on Alpine, small enough for a master that runs in memory (the Fedora build was ~150 MB).
+FROM docker.io/library/alpine:3.22 AS build
+ARG TANG=15
+ARG TANG_SHA256=0bbaeaa6cde36ccc11102b9dc82dcd707f60ebd290d3930c8a1e4e55a50a7da9
+RUN apk add --no-cache build-base meson ninja jose-dev llhttp-dev openssl-dev curl
+RUN curl -fsSL -o /tmp/tang.tar.gz https://github.com/latchset/tang/archive/refs/tags/v${TANG}.tar.gz \
+ && echo "${TANG_SHA256}  /tmp/tang.tar.gz" | sha256sum -c - \
+ && tar -xzf /tmp/tang.tar.gz -C /tmp \
+ && cd /tmp/tang-${TANG} && meson setup build --prefix=/usr --libexecdir=/usr/libexec \
+ && ninja -C build && DESTDIR=/out ninja -C build install
+
+FROM docker.io/library/alpine:3.22
+RUN apk add --no-cache jose llhttp setpriv && adduser -S -D -H -h /db tang && addgroup -S tang 2>/dev/null; \
+    addgroup tang tang 2>/dev/null; true
+COPY --from=build /out/usr/libexec/tangd /out/usr/libexec/tangd-keygen /usr/libexec/
 LABEL org.opencontainers.image.source=https://github.com/derlocke-ng/kiwi-modules
 COPY start.sh /start.sh
 EXPOSE 7500

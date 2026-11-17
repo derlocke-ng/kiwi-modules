@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.75.0 — a ring on the master, for the first machine at home
+
+- **The tang module runs on a master too**: there the ring lives in the VPN server's namespace,
+  and the VPN server publishes it (`vpn-server.local_rings`, filled in by kiwi-server) behind the
+  gate the unlock relay already has: only the addresses enrolled machines last connected from
+  get through. The first machine at home opens with it (`away`) after a power cut, and a box
+  carried off elsewhere gets no answer.
+- **The Tang image is built from Tang's source on Alpine** (15-kiwi5): 9 MB instead of about
+  150, so it fits on a master that runs in memory. Same keys, same start.
+
 ## 0.74.0 — a ring's keys survive a power cut
 
 - **The Tang image (15-kiwi4) makes a ring's keys beside, flushes them to the disk, then puts
