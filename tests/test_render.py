@@ -1564,6 +1564,8 @@ class TestFederation(unittest.TestCase):
         self.assertEqual(pages["jabber.sh3.home"]["api"], "http://kn-vpn-client:5281/api")      # the internal instance
         self.assertEqual(pages["chat.example.org"]["api"], "http://kn-xmpp-public:5281/api")    # the public one
         self.assertEqual(pages["chat.example.org"]["host"], "chat.example.org")
+        # each page is called after its own service: the internal one never after the public name
+        self.assertEqual((pages["jabber.sh3.home"]["brand"], pages["chat.example.org"]["brand"]), ("jabber.sh3.home", "chat.example.org"))
         self.assertEqual(join["command"][join["command"].index("--ways") + 1], "invites,requests,captcha")
         for conf in ("ejabberd.yml", "ejabberd-public.yml"):
             with open(os.path.join(out, "kn-xmpp", conf)) as f:
@@ -2550,7 +2552,11 @@ class TestOnion(unittest.TestCase):
         self.assertNotIn("vault/authorized_clients/anna", script)             # open to anyone with the address
         self.assertIn("su-exec tor tor -f /etc/tor/torrc &", script)
         addresses = re.search(r'^ADDRESSES="([^"]*)"', script, re.M).group(1).split()
-        self.assertEqual(addresses, [self.KEYS["vault"]["address"]])               # cloud is for anna only: not asked
+        self.assertEqual(addresses, ["vault=" + self.KEYS["vault"]["address"]])    # cloud is for anna only: not asked
+        # what it found, for the status pages: name, address, answer, when; replaced whole each round
+        self.assertIn('printf \'%s %s %s %s\\n\' "${na%%=*}" "$a" "${code:-000}" "$(date +%s)" >> "$CHECK.new"', script)
+        self.assertIn('mv -f "$CHECK.new" "$CHECK"', script)
+        self.assertIn("CHECK=/var/lib/tor/kiwi-check", script)
         self.assertIn('-x "socks5h://localhost/var/lib/tor/self-check.sock"', script)
         self.assertIn('if [ "$misses" -ge 3 ]; then', script)
         self.assertEqual(os.stat(start).st_mode & 0o077, 0)                   # it carries the services' keys

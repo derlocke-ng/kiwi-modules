@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.79.0 — hidden services on the status page; each Jabber sign-up page says its own name
+
+- **onion**: the self-check writes what it found to `kn-onion/var/kiwi-check` (service, address,
+  the answer through Tor, when), for kiwi-server's status pages. Its first look is two minutes
+  after a start, then every ten minutes as before.
+- **xmpp**: with `separate: true` both sign-up pages were headed with the public name (xmpp.example.org),
+  the internal one too, whose addresses end in jabber.<hostname>. Each page now names its own
+  service (needs kiwi-server 2.179.0 for the page to read it).
+
 ## 0.78.0 — the game page's parts
 
 - **control** (1.1.0): `play_page` serves a game page at `play.<hostname>` (VPN only unless it is
