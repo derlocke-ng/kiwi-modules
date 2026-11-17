@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.79.1 — the onion self-check outlives an address that does not answer
+
+- The self-check (0.76.0) ran under `set -e`, and `curl` fails when nothing answers: the first
+  address that did not answer ended the check quietly, the very case it is for. It never started
+  Tor anew and (0.79.0) wrote nothing down. Seen on papaya, 17 Nov 2026: a new hidden service
+  its own Tor did not find yet. Now a failed ask is written down and the check goes on; a test
+  runs the check itself against an address that does not answer.
+
 ## 0.79.0 — hidden services on the status page; each Jabber sign-up page says its own name
 
 - **onion**: the self-check writes what it found to `kn-onion/var/kiwi-check` (service, address,
