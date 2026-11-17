@@ -2201,9 +2201,21 @@ class TestFederation(unittest.TestCase):
             f.write(text.replace("settings:\n", "settings:\n  - key: accounts_client\n    default: \"\"\n"
                                  "  - key: accounts_issuer\n    default: \"\"\n  - key: accounts_secret\n    type: secret\n    default: \"\"\n"))
         m = modules.discover(extra=[("c", src)]).get("grow")
-        self.assertEqual(m.pages, {"grow": {"label": "Grow lights", "about": "Light schedules for the plugs"}})
+        self.assertEqual(m.pages, {"grow": {"label": "Grow lights", "about": "Light schedules for the plugs", "public": ""}})
         self.assertEqual((m.accounts["callbacks"], m.accounts["pkce"], m.accounts["label"]), (["/oauth/back"], True, "Hello"))      # (its title)
         self.assertEqual(m.as_dict()["pages"]["grow"]["label"], "Grow lights")
+
+    def test_each_site_says_how_it_can_be_opened_beyond_the_vpn(self):
+        """The app's and the page's "Open to": the name setting for the Internet, Tor, admin pages never."""
+        from kiwimodules import modules
+        ms = modules.discover()
+        by = {(m, x["key"]): x for m in ("git", "vault", "xmpp", "control", "games") for x in ms.get(m).sites()}
+        self.assertEqual((by["git", "git"]["setting"], by["git", "git"]["tor"]), ("git_hostname", True))
+        self.assertTrue(by["vault", "vault"]["url"])                         # vault_domain is https://<name>
+        self.assertEqual(by["xmpp", "jabber"]["setting"], "xmpp_domain")     # its own door, from pages:
+        self.assertTrue(by["control", "control"]["admin"])                   # never offered beyond the VPN
+        self.assertEqual(by["control", "status"]["setting"], "public_status_hostname")
+        self.assertFalse([k for k in by if k[0] == "games"])                 # no web site
 
     def test_a_public_game_server_is_handed_on_by_the_master(self):
         from kiwimodules import modules as modmod, profiles

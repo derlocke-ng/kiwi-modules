@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.83.0 — each site says how it can be opened beyond the VPN
+
+- `Module.sites()` (and `sites` in `as_dict`): each web site of a module with the first part of
+  its default name, the setting that takes a public name for it, whether it works over Tor, and
+  whether it is an admin page. Read from the module's nginx blocks; `pages: {key: {public: …}}`
+  names the setting where it is another one (Jabber's `xmpp_domain`, the public status page).
+  kiwi-server builds its "Open to" choice from it.
+
 ## 0.82.0 — a module names its pages and its sign-in
 
 - `pages:` in a module.yaml: its sites as the start and status pages show them, by the first
