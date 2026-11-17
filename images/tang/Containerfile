@@ -11,9 +11,11 @@ RUN curl -fsSL -o /tmp/tang.tar.gz https://github.com/latchset/tang/archive/refs
  && ninja -C build && DESTDIR=/out ninja -C build install
 
 FROM docker.io/library/alpine:3.22
-RUN apk add --no-cache jose llhttp setpriv && adduser -S -D -H -h /db tang && addgroup -S tang 2>/dev/null; \
+# curl and tang-show-keys: kiwi-server asks a ring for its key and its advertisement with them
+RUN apk add --no-cache jose llhttp setpriv curl && adduser -S -D -H -h /db tang && addgroup -S tang 2>/dev/null; \
     addgroup tang tang 2>/dev/null; true
 COPY --from=build /out/usr/libexec/tangd /out/usr/libexec/tangd-keygen /usr/libexec/
+COPY --from=build /out/usr/bin/tang-show-keys /usr/bin/
 LABEL org.opencontainers.image.source=https://github.com/derlocke-ng/kiwi-modules
 COPY start.sh /start.sh
 EXPOSE 7500

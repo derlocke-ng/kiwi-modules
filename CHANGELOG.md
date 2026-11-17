@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.75.1 — the small Tang image answers kiwi-server's questions
+
+- The Tang image (15-kiwi6) has `curl` and `tang-show-keys` again: kiwi-server asks a ring for
+  its key and its advertisement with them when it binds a machine (15-kiwi5 lacked both).
+
 ## 0.75.0 — a ring on the master, for the first machine at home
 
 - **The tang module runs on a master too**: there the ring lives in the VPN server's namespace,

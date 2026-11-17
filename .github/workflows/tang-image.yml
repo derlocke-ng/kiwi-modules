@@ -16,7 +16,7 @@ permissions:
   packages: write
 
 env:
-  TAG: 15-kiwi5
+  TAG: 15-kiwi6
 
 jobs:
   image:
