@@ -2350,6 +2350,7 @@ class TestFederation(unittest.TestCase):
         self.assertIn("kn-game-survival: a player knocked, it wakes up", log)
         with open(said) as f:
             self.assertEqual(f.read().split(), ["stop", "kn-game-survival", "start", "kn-game-survival"])
+        self.assertIn('systemctl reset-failed "$1.service"', script)          # a game that ends with an error code: not failed
 
     def test_bedrock_has_its_handshake_on_tcp_and_its_game_on_udp_at_one_port(self):
         from kiwimodules import modules as modmod, profiles
