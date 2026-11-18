@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.84.0 — a hub's calls get through (a turn module, coturn)
+
+- **`turn`** (master only: it relays traffic and keeps no data): coturn 4.18 on the master's public
+  address, for the voice and video calls in a hub's chat where two networks allow no direct path
+  (two phones on mobile data, a strict firewall). It passes the browsers' encrypted media on and
+  cannot hear them. 3478 UDP/TCP plus `relay_ports` (49160-49200) opened; never relays into the
+  machine's own networks (private ranges, the mesh, the stack's network). One login, its password
+  from the seed. From the pull request of 10 November (0.24.0 then), brought onto today's modules.
+- **`hub`** names a turn server on the same host to its pages by itself (`HUB_ICE`, its login in
+  the env file); one elsewhere with `ice`, `ice_username`, `ice_credential`.
+
 ## 0.83.1 — a sleeping game server is not a failed one
 
 - Zandronum ends with an error code of its own when it is stopped: its unit stayed failed while
