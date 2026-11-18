@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.89.2 — a partner's names under .internal
+
+- A master forwards every name under a linked network's domain to its DNS with a wildcard too
+  (`server=/*.internal/…`): Pi-hole 6 keeps `.internal` and `.home.arpa` to itself, and its own
+  line won over the forward. kiwi2's names, and what it opens to kiwi, did not resolve on kiwi's
+  side (found 18 Nov 2026; the federation drill only asked the other way).
+
 ## 0.89.1 — a linked network names its master
 
 - A master with linked networks answers `_kiwi-master.<domain>` with its own name: the partner's
