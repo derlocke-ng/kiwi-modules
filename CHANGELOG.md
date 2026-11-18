@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.86.1 — the admins' claims reach the clients made before
+
+- **`accounts`** 1.2.1: the setup asked for the admins' claims before the script had defined
+  how ("admins_claims: command not found"), so the setup failed on a machine whose Kanidm had
+  clients already (quince, 18 Nov 2026). The test's stand-in Kanidm has such a client now.
+
 ## 0.86.0 — the network's admins
 
 - **`accounts`** 1.2.0: a group `admins`. Each service that signs people in with the accounts

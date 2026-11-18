@@ -1480,6 +1480,7 @@ class TestFederation(unittest.TestCase):
             f.write('#!/bin/sh\ncase "$*" in\n'
                     '  *recover-account*) echo \'{"new_password": "x"}\' ;;\n'
                     '  *show-basic-secret*) echo sekret ;;\n'
+                    '  *"oauth2 list"*) echo "name: old-sh3" ;;\n'
                     '  *" kanidm "*) echo "$*" | sed "s/.* kanidm //" >> ' + log + '; echo "$*" | grep -o "KANIDM_URL=[^ ]*" >> ' + log + '.url ;;\n'
                     'esac\n')
         os.chmod(fake, 0o755)
@@ -1496,6 +1497,12 @@ class TestFederation(unittest.TestCase):
         answer, cmds = oauth("immich-sh3", "Immich on sh3", "https://immich.sh3.home", "https://immich.sh3.home/auth/login",
                              "https://immich.sh3.home/api/oauth/mobile-redirect", "--pkce")
         self.assertEqual((answer["client"], answer["secret"]), ("immich-sh3", "sekret"))
+        # the network's admins, told to every client in its own words: this one and the one made before
+        for c in ("immich-sh3", "old-sh3"):
+            self.assertIn("system oauth2 update-claim-map %s kiwi_roles admins admin" % c, cmds)
+            self.assertIn("system oauth2 update-claim-map-join %s kiwi_roles array" % c, cmds)
+            self.assertIn("system oauth2 update-claim-map %s immich_role admins admin" % c, cmds)
+            self.assertIn("system oauth2 update-claim-map-join %s immich_role ssv" % c, cmds)
         self.assertIn("system oauth2 create immich-sh3 Immich on sh3 https://immich.sh3.home", cmds)
         self.assertIn("system oauth2 add-redirect-url immich-sh3 https://immich.sh3.home/auth/login", cmds)
         self.assertIn("system oauth2 add-redirect-url immich-sh3 https://immich.sh3.home/api/oauth/mobile-redirect", cmds)
