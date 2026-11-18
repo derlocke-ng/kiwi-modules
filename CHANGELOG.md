@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.88.2 — the accounts page in a machine's logins
+
+- A machine with accounts lists `Accounts (Kanidm)` among its logins, and says why there is no
+  admin password: kiwi-server takes Kanidm's admin over for each change and keeps none. Accounts
+  and admins are made under Accounts on the control page or in the app.
+
 ## 0.88.1 — a machine with no site of its own answers at the mesh too
 
 - The VPN client lets 80 and 443 in from the mesh also when the machine's only site is its
