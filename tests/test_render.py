@@ -398,6 +398,19 @@ class TestRender(unittest.TestCase):
         odd = dict(MACHINES["hub1"], master=dict(master, hub={"space_relays": ["wss://relay.hub1.home"]}))
         self.assertNotEqual(cli.main(["render", self.write("hub1-oddspace", odd), "-o", os.path.join(self.tmp, "oddspace.bundle")]), 0)
 
+    def test_the_machines_own_name_leads_to_its_status_page(self):
+        node = json.loads(json.dumps(SH3))
+        out = self.render("sh3-own", node)
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            self.assertNotIn("return 302", f.read())                 # no status page in the network: nothing there
+        node["node"]["reverse-proxy"] = dict(node["node"].get("reverse-proxy") or {},
+                                             machine_page="https://status.papaya.home/?machine=sh3")
+        out = self.render("sh3-own-page", node)
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        block = nginx.split("server_name sh3.home;", 1)[1].split("}", 2)
+        self.assertIn("return 302 https://status.papaya.home/?machine=sh3;", block[0] + block[1])
+
     def test_a_hub_on_a_node_keeps_its_data_at_home(self):
         """The master routes; the hub and its relay can live on a node like any service with data."""
         from kiwimodules import modules as modmod, profiles
