@@ -42,6 +42,10 @@
 {% for pname, p in ((module_config.get('vpn-server') or {}).get('federation') or {}).items() if node_type == 'master' and p.mesh and domain %}
 {% set _ = lines.append('txt-record=' ~ (p.mesh | string | replace('.', '-') | replace('/', '-')) ~ '._kiwi-share.' ~ domain ~ ',' ~ ((p.share or []) | join(',') or '-')) %}
 {% endfor %}
+{# and which machine is this network's master, for their picture too #}
+{% if node_type == 'master' and domain and (module_config.get('vpn-server') or {}).get('federation') %}
+{% set _ = lines.append('txt-record=_kiwi-master.' ~ domain ~ ',' ~ hostname) %}
+{% endif %}
 {% if mullvad_socks %}
 {# the Mullvad SOCKS5 records, refreshed by the host timer; reloaded on every change #}
 {% set _ = lines.append('hostsdir=/etc/mullvad-socks') %}
