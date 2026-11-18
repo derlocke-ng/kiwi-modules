@@ -400,6 +400,9 @@ class TestRender(unittest.TestCase):
 
     def test_the_machines_own_name_leads_to_its_status_page(self):
         node = json.loads(json.dumps(SH3))
+        node["node"].pop("cloud", None)                 # a machine with no site of its own: only its page
+        node["node"]["preset"] = "minimal"
+        node["vpn_ip"] = "10.8.0.31"
         out = self.render("sh3-own", node)
         with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
             self.assertNotIn("return 302", f.read())                 # no status page in the network: nothing there
@@ -411,6 +414,9 @@ class TestRender(unittest.TestCase):
         block = nginx.split("server_name sh3.home;", 1)[1].split("}", 2)
         self.assertIn("return 302 https://status.papaya.home/?machine=sh3;", block[0] + block[1])
         self.assertNotIn("/.well-known/kiwi", nginx)                  # no registry named: none
+        with open(os.path.join(out, "docker-compose.yml")) as f:          # the page answers at the mesh address too
+            ports = next(l for l in f.read().splitlines() if "FIREWALL_VPN_INPUT_PORTS=" in l)
+        self.assertIn("443", ports.split("=", 1)[1].split(","))
         # the registry: at the machine's name and at its address on the LAN, for an app that scans
         node["node"]["reverse-proxy"]["machine_registry"] = "https://status.papaya.home/api/registry?machine=sh3"
         out = self.render("sh3-own-registry", node)

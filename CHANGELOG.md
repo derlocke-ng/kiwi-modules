@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.88.1 — a machine with no site of its own answers at the mesh too
+
+- The VPN client lets 80 and 443 in from the mesh also when the machine's only site is its
+  own page (`reverse-proxy.machine_page`): a minimal node at another site (kumquat, the
+  offsite drill, 18 Nov 2026) answered SSH over the mesh but not its page or registry.
+
 ## 0.88.0 — the network's registry, for the apps
 
 - **`control`** 1.2.0: the status page's names also answer `/api/registry` and
