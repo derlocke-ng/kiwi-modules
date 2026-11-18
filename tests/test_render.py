@@ -1902,7 +1902,24 @@ class TestFederation(unittest.TestCase):
         self.assertNotIn("deny all;", site)                                       # no admin page: the access rules decide
         from kiwimodules import modules
         nx = modules.discover().get("control").nginx
-        self.assertEqual([bool(e.get("admin")) for e in nx["servers"]], [False, False, False])  # status, the Internet's, the game page
+        self.assertEqual([bool(e.get("admin")) for e in nx["servers"]], [False] * 5)  # status, the Internet's, games, the website twice
+        # the website: its name and www. to the control part, which knows them from its environment
+        m["node"]["control"] = {"website_hostname": "example.org", "website_repo": "https://example.org/site.git",
+                                "website_commit": "a" * 40}
+        out = self.render("sh3-site", m)
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            conf = f.read()
+        for name in ("example.org", "www.example.org"):
+            self.assertIn("server_name %s;" % name, conf)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            env = yaml.safe_load(f)["services"]["kn-control"]["environment"]
+        self.assertIn("KIWI_SITE_HOST=example.org", env)
+        self.assertIn("KIWI_SITE_COMMIT=" + "a" * 40, env)
+        err = io.StringIO()
+        m["node"]["control"] = {"website_hostname": "example.org"}
+        with contextlib.redirect_stderr(err):                                     # no repository, no pin: refused
+            self.assertEqual(cli.main(["render", self.write("sh3-site-bad", m), "-o", self.tmp + "/sb"]), 1)
+        self.assertIn("website_repo", err.getvalue())
         m["node"]["control"] = {"status_page": False}
         with open(os.path.join(self.render("sh3-nostatus", m), "kn-nginx", "nginx.conf")) as f:
             conf = f.read()
