@@ -82,6 +82,12 @@ nginx:
             set $page http://{{ container_prefix }}-control:8740/api/registry$is_args$args;
             proxy_pass $page;
             proxy_set_header Host $host;
+        # the network's CA, which the .home names' certificates come from: for an app to trust them
+        - path: "= /api/ca"
+          config: >-
+            set $page http://{{ container_prefix }}-control:8740/api/ca;
+            proxy_pass $page;
+            proxy_set_header Host $host;
       when: status_page
       comment: Kiwi status page (no login; the control part's /start, /status and /api/registry only)
     # the same for strangers, under a public name: only what is open to the Internet, and whether it

@@ -1880,6 +1880,7 @@ class TestFederation(unittest.TestCase):
         for path in ("/api/registry", "/.well-known/kiwi"):                       # the same as data, for the apps
             part = site.split("location = %s {" % path, 1)[1].split("}", 1)[0]
             self.assertIn("set $page http://kn-control:8740/api/registry$is_args$args;", part)
+        self.assertIn("set $page http://kn-control:8740/api/ca;", site.split("location = /api/ca {", 1)[1].split("}", 1)[0])
         m["node"]["control"] = {"about": "Ours: chat, files. # and more", "brand_name": "dlhost", "contact": "a@b.org"}
         with open(os.path.join(self.render("sh3-brand", m), "docker-compose.yml")) as f:
             env = yaml.safe_load(f)["services"]["kn-control"]["environment"]

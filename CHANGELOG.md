@@ -4,7 +4,8 @@
 
 - **`control`** 1.2.0: the status page's names also answer `/api/registry` and
   `/.well-known/kiwi`: the same as the page, as data for an app (kiwi-app). At the public name
-  only what is open to the Internet.
+  only what is open to the Internet. `/api/ca` there too: the network's CA, for an app to trust
+  the `.home` names' certificates.
 - **`reverse-proxy`** 1.3.0: `https://<the machine's name>/.well-known/kiwi`, and the same at the
   machine's address on the LAN, lead to that registry (`machine_registry`, kiwi-server fills it):
   an app finds the network from a name typed in, or by asking the addresses of the LAN.
