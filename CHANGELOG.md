@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.93.0 — the public pages apart from the control part
+
+- With `public_status_hostname` or `website_hostname`, the control module runs a second container,
+  `<prefix>-control-public` (`kiwi-server serve-public`, kiwi-server 2.211.0): the website, the
+  status page for the Internet and the public registry come from there. It has no fleet and no
+  key, its root is read-only, and what it shows comes from a folder the control part writes after
+  each look (`KIWI_PUBLIC_DIR`), mounted read-only. The public names go to it, no longer to the
+  control part, which holds the network.
+
 ## 0.92.0 — the website's files from a CDN
 
 - The control module's `website_cdn_hostname` (cdn.example.org): a name a content delivery network
