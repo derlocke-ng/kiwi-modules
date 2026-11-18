@@ -3225,7 +3225,7 @@ class TestLogins(unittest.TestCase):
         from kiwimodules import modules as modmod
         ms = modmod.discover()
         self.assertEqual(sorted(m.name for m in ms.modules.values() if m.logins),
-                         ["btcpay", "cloud", "control", "dns", "downloader", "git", "immich", "opencloud", "paperless", "portainer",
+                         ["accounts", "btcpay", "cloud", "control", "dns", "downloader", "git", "immich", "opencloud", "paperless", "portainer",
                           "sftp", "vault", "vpn-server", "xmpp"])
         for mod in ms.modules.values():
             secrets = {s.key for s in mod.settings if s.type == "secret"}
