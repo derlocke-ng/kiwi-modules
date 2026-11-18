@@ -1330,6 +1330,7 @@ class TestFederation(unittest.TestCase):
         self.assertIn("51822:51822/udp", compose)
         # what it opens to the partner, for the partner's picture; and whom to ask the same
         self.assertIn("txt-record=10-10-0-0-16._kiwi-share.%s,cloud.sh3,m1:22,min,nowhere" % m["domain"], compose)
+        self.assertIn("txt-record=_kiwi-master.%s,gate.%s" % (m["domain"], m["domain"]), compose)
         with open(os.path.join(out, "kiwi", "federation-ask")) as f:
             self.assertEqual(f.read().split(), ["kiwi2", "internal", "10-8-0-0-16"])        # its own mesh, as the partner names it
 

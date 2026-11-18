@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.89.1 — a linked network names its master
+
+- A master with linked networks answers `_kiwi-master.<domain>` with its own name: the partner's
+  picture names the master its traffic goes through.
+
 ## 0.89.0 — a linked network says what it opens
 
 - A master's DNS answers each linked network what this one opens to it: a TXT record
