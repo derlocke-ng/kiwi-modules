@@ -2645,6 +2645,23 @@ class TestAccess(unittest.TestCase):
         with open(path) as f:
             return f.read()
 
+    def test_a_narrow_group_reaches_a_linked_network_only_when_named(self):
+        m = json.loads(json.dumps(MACHINES["gate"]))
+        m["master"]["vpn-server"]["groups"] = {
+            "guests": {"subnet": "10.8.1.0/24", "reach": ["nodes"]},
+            "friends": {"subnet": "10.8.2.0/24", "reach": ["nodes", "kiwi2"]},
+            "devices": {"subnet": "10.8.3.0/24", "reach": ["all"]}}
+        m["master"]["vpn-server"]["federation"] = {"kiwi2": {
+            "endpoint": "198.51.100.9", "public_key": "cGFydG5lci1wdWJsaWMta2V5LW5vdC1yZWFsLTAwMDA9", "mesh": "10.10.0.0/16",
+            "domain": "internal", "dns": "10.10.0.1", "share": [], "from": [], "as": "10.8.255.1"}}
+        m["dns_records"] = RECORDS
+        with open(os.path.join(self.render("gate-groups-fed", m), "km-vpn-server", "start.sh")) as f:
+            start = f.read()
+        self.assertIn("-A FORWARD -s 10.8.1.0/24 -d 10.10.0.0/16 -j DROP", start)       # not named: what kiwi2 opens is not theirs
+        self.assertIn("-A FORWARD -s 10.8.2.0/24 -d 10.10.0.0/16 -j ACCEPT", start)     # named
+        self.assertNotIn("-s 10.8.3.0/24 -d 10.10.0.0/16", start)                      # everything: as before
+        self.assertNotIn("reach kiwi2: no such name", start)
+
     def test_a_group_reaches_one_service_or_one_port_of_a_node(self):
         start = self.start_of("gate-access", {
             "guests": {"subnet": "10.8.1.0/24", "reach": ["cloud.sh3", "m1:22", "min", "vault.sh3.home", "nowhere"], "peers": False},

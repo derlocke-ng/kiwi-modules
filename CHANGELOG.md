@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.91.0 — a group and the linked networks
+
+- A VPN group that may reach everything reaches what the linked networks open too; a group with
+  a narrower reach only when its list names the linked network (`reach: [nodes, kiwi2]`).
+  Before, guests and pentest reached what a partner opened, as the master forwarded everything
+  not inside its own mesh.
+
 ## 0.90.1 — a linked network's names on a node's LAN
 
 - A node's Pi-hole asks the master for the linked networks' domains (`dns.partner_domains`,
