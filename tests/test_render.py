@@ -410,6 +410,16 @@ class TestRender(unittest.TestCase):
             nginx = f.read()
         block = nginx.split("server_name sh3.home;", 1)[1].split("}", 2)
         self.assertIn("return 302 https://status.papaya.home/?machine=sh3;", block[0] + block[1])
+        self.assertNotIn("/.well-known/kiwi", nginx)                  # no registry named: none
+        # the registry: at the machine's name and at its address on the LAN, for an app that scans
+        node["node"]["reverse-proxy"]["machine_registry"] = "https://status.papaya.home/api/registry?machine=sh3"
+        out = self.render("sh3-own-registry", node)
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        self.assertEqual(nginx.count("location = /.well-known/kiwi {\n            return 302 https://status.papaya.home/api/registry?machine=sh3;"), 2)
+        default = nginx.split("server_name _;", 2)[2].split("\n    }", 1)[0]          # the TLS default server
+        self.assertIn("return 444;", default)
+        self.assertIn("/.well-known/kiwi", default)
 
     def test_a_hub_on_a_node_keeps_its_data_at_home(self):
         """The master routes; the hub and its relay can live on a node like any service with data."""
@@ -1867,6 +1877,9 @@ class TestFederation(unittest.TestCase):
         self.assertIn("set $backend http://kn-control:8740/start;", site)        # whatever is asked for: the start page
         self.assertIn("location = /status {", site)                                # and the status page, nothing else
         self.assertIn("set $page http://kn-control:8740/status;", site)
+        for path in ("/api/registry", "/.well-known/kiwi"):                       # the same as data, for the apps
+            part = site.split("location = %s {" % path, 1)[1].split("}", 1)[0]
+            self.assertIn("set $page http://kn-control:8740/api/registry$is_args$args;", part)
         m["node"]["control"] = {"about": "Ours: chat, files. # and more", "brand_name": "dlhost", "contact": "a@b.org"}
         with open(os.path.join(self.render("sh3-brand", m), "docker-compose.yml")) as f:
             env = yaml.safe_load(f)["services"]["kn-control"]["environment"]

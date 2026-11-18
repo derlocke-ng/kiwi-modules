@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.88.0 — the network's registry, for the apps
+
+- **`control`** 1.2.0: the status page's names also answer `/api/registry` and
+  `/.well-known/kiwi`: the same as the page, as data for an app (kiwi-app). At the public name
+  only what is open to the Internet.
+- **`reverse-proxy`** 1.3.0: `https://<the machine's name>/.well-known/kiwi`, and the same at the
+  machine's address on the LAN, lead to that registry (`machine_registry`, kiwi-server fills it):
+  an app finds the network from a name typed in, or by asking the addresses of the LAN.
+
 ## 0.87.0 — a machine's own name leads to its page
 
 - **`reverse-proxy`** 1.2.0: `https://<the machine's name>` (papaya.home) answers when kiwi-server
