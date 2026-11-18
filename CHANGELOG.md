@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.92.0 — the website's files from a CDN
+
+- The control module's `website_cdn_hostname` (cdn.example.org): a name a content delivery network
+  fetches the website's files from; only `/assets/` answers there. kiwi-server points the pages'
+  images at it.
+
 ## 0.91.0 — a group and the linked networks
 
 - A VPN group that may reach everything reaches what the linked networks open too; a group with

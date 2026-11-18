@@ -1911,19 +1911,20 @@ class TestFederation(unittest.TestCase):
         self.assertNotIn("deny all;", site)                                       # no admin page: the access rules decide
         from kiwimodules import modules
         nx = modules.discover().get("control").nginx
-        self.assertEqual([bool(e.get("admin")) for e in nx["servers"]], [False] * 5)  # status, the Internet's, games, the website twice
+        self.assertEqual([bool(e.get("admin")) for e in nx["servers"]], [False] * 6)  # status, the Internet's, games, the website twice, its files
         # the website: its name and www. to the control part, which knows them from its environment
         m["node"]["control"] = {"website_hostname": "example.org", "website_repo": "https://example.org/site.git",
-                                "website_commit": "a" * 40}
+                                "website_commit": "a" * 40, "website_cdn_hostname": "cdn.example.org"}
         out = self.render("sh3-site", m)
         with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
             conf = f.read()
-        for name in ("example.org", "www.example.org"):
+        for name in ("example.org", "www.example.org", "cdn.example.org"):
             self.assertIn("server_name %s;" % name, conf)
         with open(os.path.join(out, "docker-compose.yml")) as f:
             env = yaml.safe_load(f)["services"]["kn-control"]["environment"]
         self.assertIn("KIWI_SITE_HOST=example.org", env)
         self.assertIn("KIWI_SITE_COMMIT=" + "a" * 40, env)
+        self.assertIn("KIWI_SITE_CDN=cdn.example.org", env)
         err = io.StringIO()
         m["node"]["control"] = {"website_hostname": "example.org"}
         with contextlib.redirect_stderr(err):                                     # no repository, no pin: refused
@@ -2700,7 +2701,7 @@ class TestAccess(unittest.TestCase):
             return [bool(e.get("admin")) for e in ([nx] if nx.get("server_name") else []) + list(nx.get("servers") or [])]
         for name in ("portainer", "dns", "vpn-server", "backup-server", "cache"):
             self.assertEqual(admin(name), [True], name)
-        self.assertEqual(admin("control"), [True] + [False] * 5)    # the control page is one; status, games and the website are not
+        self.assertEqual(admin("control"), [True] + [False] * 6)    # the control page is one; status, games and the website are not
         for name in ("cloud", "vault", "paperless", "git"):
             self.assertFalse(any(admin(name)), name)
 
