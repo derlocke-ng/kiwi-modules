@@ -1327,6 +1327,7 @@ class TestFederation(unittest.TestCase):
         with open(os.path.join(out, "docker-compose.yml")) as f:
             compose = f.read()
         self.assertIn("server=/internal/10.10.0.1", compose)
+        self.assertIn("server=/*.internal/10.10.0.1", compose)     # past Pi-hole's own local=/internal/
         self.assertIn("51822:51822/udp", compose)
         # what it opens to the partner, for the partner's picture; and whom to ask the same
         self.assertIn("txt-record=10-10-0-0-16._kiwi-share.%s,cloud.sh3,m1:22,min,nowhere" % m["domain"], compose)
