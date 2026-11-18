@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.84.1 — a hub on a node calls through the master's turn
+
+- **`hub`** 1.2.1: `ice` empty means a turn module on this host, else the master's: kiwi-server
+  (2.187.0) names it to a hub on a node, with its login.
+
 ## 0.84.0 — a hub's calls get through (a turn module, coturn)
 
 - **`turn`** (master only: it relays traffic and keeps no data): coturn 4.18 on the master's public
