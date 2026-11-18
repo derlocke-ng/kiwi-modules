@@ -2674,7 +2674,7 @@ class TestAccess(unittest.TestCase):
             return [bool(e.get("admin")) for e in ([nx] if nx.get("server_name") else []) + list(nx.get("servers") or [])]
         for name in ("portainer", "dns", "vpn-server", "backup-server", "cache"):
             self.assertEqual(admin(name), [True], name)
-        self.assertEqual(admin("control"), [True, False, False, False])    # the control page is one, its status and game pages are not
+        self.assertEqual(admin("control"), [True] + [False] * 5)    # the control page is one; status, games and the website are not
         for name in ("cloud", "vault", "paperless", "git"):
             self.assertFalse(any(admin(name)), name)
 
