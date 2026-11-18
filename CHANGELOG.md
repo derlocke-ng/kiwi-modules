@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.85.1 — Kanidm's pages really take the network's name
+
+- **`accounts`** 1.1.1: the name and logo were asked of `idm_admin`, whose rights end at the
+  accounts, and Kanidm kept "Kanidm id.quince.home". Its `admin` is taken over for those two,
+  as `idm_admin` is for the rest (a new password each time, never kept).
+
 ## 0.85.0 — the account pages look like the network's
 
 - **`accounts`** 1.1.0: Kanidm's own pages (signing in, setting a password) say the network's
