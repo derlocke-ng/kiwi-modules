@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.89.0 — a linked network says what it opens
+
+- A master's DNS answers each linked network what this one opens to it: a TXT record
+  `<the partner's mesh>._kiwi-share.<domain>` with the names from `share` (`-` for nothing).
+  The partner's master asks for it over the link, and its picture draws those machines.
+- `kiwi/federation-ask` on a master: the linked networks to ask the same, for kiwi-server's
+  status.
+
 ## 0.88.2 — the accounts page in a machine's logins
 
 - A machine with accounts lists `Accounts (Kanidm)` among its logins, and says why there is no

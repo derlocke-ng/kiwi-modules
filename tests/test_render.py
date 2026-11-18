@@ -1328,6 +1328,10 @@ class TestFederation(unittest.TestCase):
             compose = f.read()
         self.assertIn("server=/internal/10.10.0.1", compose)
         self.assertIn("51822:51822/udp", compose)
+        # what it opens to the partner, for the partner's picture; and whom to ask the same
+        self.assertIn("txt-record=10-10-0-0-16._kiwi-share.%s,cloud.sh3,m1:22,min,nowhere" % m["domain"], compose)
+        with open(os.path.join(out, "kiwi", "federation-ask")) as f:
+            self.assertEqual(f.read().split(), ["kiwi2", "internal", "10-8-0-0-16"])        # its own mesh, as the partner names it
 
     def start_of(self, name, **partner):
         m = json.loads(json.dumps(MACHINES["gate"]))
