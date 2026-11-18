@@ -1925,6 +1925,17 @@ class TestFederation(unittest.TestCase):
         self.assertIn("KIWI_SITE_HOST=example.org", env)
         self.assertIn("KIWI_SITE_COMMIT=" + "a" * 40, env)
         self.assertIn("KIWI_SITE_CDN=cdn.example.org", env)
+        # the public pages in their own container: no fleet, read-only, the public data only
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            services = yaml.safe_load(f)["services"]
+        pub = services["kn-control-public"]
+        self.assertEqual(pub["command"][:2], ["serve-public", "/public"])
+        self.assertTrue(pub["read_only"])
+        self.assertTrue(all(":ro" in v and "/fleet" not in v for v in pub["volumes"]))
+        self.assertIn("KIWI_PUBLIC_DIR=/public", services["kn-control"]["environment"])
+        site = conf.split("server_name example.org;", 1)[1].split("\n    server {", 1)[0]
+        self.assertIn("kn-control-public:8741", site)
+        self.assertNotIn("kn-control:8740", site)
         err = io.StringIO()
         m["node"]["control"] = {"website_hostname": "example.org"}
         with contextlib.redirect_stderr(err):                                     # no repository, no pin: refused
