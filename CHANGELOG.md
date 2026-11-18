@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.86.0 — the network's admins
+
+- **`accounts`** 1.2.0: a group `admins`. Each service that signs people in with the accounts
+  is told who is in it, in its own words (claims `kiwi_roles` and `immich_role`); the clients made
+  before get them at the next apply. `accounts.sh member admins NAME on|off`.
+- **`git`** 1.1.0: Forgejo makes the group's members admins at their sign-in, and takes it back
+  from those who left it (its admin group).
+- **`cloud`** 2.1.0: Nextcloud puts them in its group `admin`; only that group follows the
+  accounts, every other group stays Nextcloud's own.
+- **`immich`** 1.2.0: Immich makes them admins at their sign-in (its role claim). Leaving the
+  group does not take it back there: Immich only changes a role a sign-in names.
+
 ## 0.85.1 — Kanidm's pages really take the network's name
 
 - **`accounts`** 1.1.1: the name and logo were asked of `idm_admin`, whose rights end at the
