@@ -3393,6 +3393,20 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class TestLanGroups(unittest.TestCase):
+    setUp, tearDown, render, write = TestRender.setUp, TestRender.tearDown, TestRender.render, TestRender.write
+
+    def test_a_nodes_rules_for_the_groups_of_the_home_network_reach_kiwi_stack(self):
+        m = json.loads(json.dumps(SH3))
+        m["node"]["lan_rules"] = ["192.168.20.0/24 tcp:443,tcp:80", "192.168.30.0/24 none"]
+        out = self.render("sh3-lan", m)
+        with open(os.path.join(out, "stack.sh")) as f:
+            stack = f.read()
+        self.assertIn("KS_STACK_LAN_RULES=('192.168.20.0/24 tcp:443,tcp:80' '192.168.30.0/24 none')", stack)
+        out = self.render("sh3-nolan", json.loads(json.dumps(SH3)))
+        with open(os.path.join(out, "stack.sh")) as f:
+            self.assertIn("KS_STACK_LAN_RULES=()", f.read())
+
 class TestFedDns(unittest.TestCase):
     """The link's DNS for a partner seen under another domain or mesh (vpn-server/fed-dns.py.j2)."""
 
