@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.94.0 — a password kept in the secret store
+
+- A secret setting that nothing can generate (a VPN provider's private key, a router's password)
+  and that the machine's file leaves empty is taken from the secret store's pins
+  (`hostname/module/key`), when the renderer's secrets offer them (kiwi-server 2.214.0,
+  `kiwi-server secrets keep`). The fleet file then holds no password at all; a value written
+  there still counts first.
+
 ## 0.93.0 — the public pages apart from the control part
 
 - With `public_status_hostname` or `website_hostname`, the control module runs a second container,

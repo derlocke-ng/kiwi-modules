@@ -1291,6 +1291,23 @@ class TestRender(unittest.TestCase):
                 code = cli.main(["render", self.write("w%d" % wg, data), "-o", os.path.join(self.tmp, "w%d.bundle" % wg)])
             self.assertEqual(code, 0 if ok else 1, wg)
 
+    def test_a_kept_password_comes_from_the_secret_store(self):
+        """A secret nothing can generate (a provider's key) may live in the secret store instead of the
+        fleet file (kiwi-server secrets keep): the same value as when it was written there."""
+        from kiwimodules import modules as modmod, profiles
+        data = dict(MACHINES["hub1"], master=dict(MACHINES["hub1"]["master"], **{"vpn-client": {
+            k: v for k, v in MACHINES["hub1"]["master"]["vpn-client"].items() if k != "wireguard_private_key"}}))
+        mm = machine.load(self.write("hub1-kept", data))
+        mm.secrets.pins = lambda: {"hub1.home/vpn-client/wireguard_private_key": "kept-mullvad-key"}
+        profile = profiles.discover()[mm.role]
+        ms = modmod.discover()
+        resolver.resolve_settings(profile, mm, ms)
+        self.assertEqual(mm.module_settings["vpn-client"]["wireguard_private_key"], "kept-mullvad-key")
+        mm = machine.load(self.write("hub1-written", MACHINES["hub1"]))
+        mm.secrets.pins = lambda: {"hub1.home/vpn-client/wireguard_private_key": "kept-mullvad-key"}
+        resolver.resolve_settings(profile, mm, ms)
+        self.assertEqual(mm.module_settings["vpn-client"]["wireguard_private_key"], "golden-mullvad-key")   # written wins
+
     def test_secret_derivation_is_frozen(self):
         # kiwi-server derives the same values: a change here rotates every generated secret
         self.assertEqual(machine.derive_secret(SEED, "sh3.home", "cloud", "redis_password"),
