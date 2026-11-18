@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.85.0 — the account pages look like the network's
+
+- **`accounts`** 1.1.0: Kanidm's own pages (signing in, setting a password) say the network's
+  name and show the kiwi, set on every apply that changes them; they said "Kanidm id.quince.home".
+  The sign-up page says Kiwi when `brand` is empty, not the fleet's domain ("home").
+- **`control`** 1.1.1: `brand_name` is for the pages for the Internet; the pages on the VPN say
+  Kiwi (kiwi-server 2.188.0, where status.<host> is one page).
+
 ## 0.84.1 — a hub on a node calls through the master's turn
 
 - **`hub`** 1.2.1: `ice` empty means a turn module on this host, else the master's: kiwi-server
