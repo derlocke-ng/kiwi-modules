@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.90.0 — a website for strangers
+
+- The control module's `website_hostname`, `website_repo` and `website_commit`: the network's
+  website at a public name and its `www.`, its pages from a repository pinned to a commit
+  (kiwi-server renders them; docs/design/website.md there). Both names go to the control part.
+
 ## 0.89.2 — a partner's names under .internal
 
 - A master forwards every name under a linked network's domain to its DNS with a wildcard too
