@@ -73,7 +73,7 @@ choose; nothing that keeps data does by default.
 | `control` | node | The control node: kiwi-server with web pages, reachable from the mesh; and a status page without a login at `status.<hostname>` (`status_page: false` switches it off). |
 | `nostr-relay` | node, master | strfry, a nostr relay, behind the reverse proxy. A hub keeps its data on it. |
 | `hub` | node, master | A hub built on kiwi-framework (Armory or your own fork) as a container behind the reverse proxy. |
-| `turn` | master | coturn, a TURN server for the calls in a hub's chat when two people's networks allow no direct path. It passes the browsers' encrypted media on and keeps nothing. A hub on the same master finds it by itself; a hub on a node names it in `ice`. |
+| `turn` | master | coturn, a TURN server for the calls in a hub's chat when two people's networks allow no direct path. It passes the browsers' encrypted media on and keeps nothing. A hub on the same master finds it by itself, kiwi-server names it to a hub on a node. |
 
 ## A hub
 
