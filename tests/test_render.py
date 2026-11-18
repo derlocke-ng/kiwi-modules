@@ -3396,6 +3396,30 @@ if __name__ == "__main__":
 class TestLanGroups(unittest.TestCase):
     setUp, tearDown, render, write = TestRender.setUp, TestRender.tearDown, TestRender.render, TestRender.write
 
+    def test_the_gateway_keeps_a_group_of_the_home_network_to_what_it_was_given(self):
+        m = json.loads(json.dumps(MACHINES["m1"]))
+        m["node"]["gateway"] = dict(m["node"].get("gateway") or {}, lan_groups=[
+            "192.168.20.0/24 to 10.8.0.25 tcp:443,tcp:80", "192.168.20.0/24 drop", "192.168.30.0/24 all", "bogus"])
+        out = self.render("m1-langw", m)
+        path = os.path.join(out, "kiwi", "gw.sh")
+        if not os.path.isfile(path):
+            path = next(os.path.join(d, f) for d, _s, fs in os.walk(out) for f in fs if f == "gw.sh")
+        self.assertEqual(subprocess.run(["bash", "-n", path]).returncode, 0)
+        with open(path) as f:
+            gw = f.read()
+        self.assertIn("iptables -A KIWI_GW_LAN -s 192.168.20.0/24 -d 10.8.0.25 -p tcp --dport 443 -j RETURN", gw)
+        self.assertIn("iptables -A KIWI_GW_LAN -s 192.168.20.0/24 -j DROP", gw)
+        self.assertIn("iptables -A KIWI_GW_LAN -s 192.168.30.0/24 -j RETURN", gw)
+        self.assertIn("# lan group rule bogus: not understood, left out", gw)
+        self.assertLess(gw.index('-d "$VPN_SUBNET" -j ACCEPT'), gw.index('-d "$VPN_SUBNET" -j KIWI_GW_LAN'))   # inserted later: checked first
+        self.assertNotIn("KIWI_GW_LAN -s", self._gw_without_groups())
+
+    def _gw_without_groups(self):
+        out = self.render("m1-nolangw", json.loads(json.dumps(MACHINES["m1"])))
+        path = next(os.path.join(d, f) for d, _s, fs in os.walk(out) for f in fs if f == "gw.sh")
+        with open(path) as f:
+            return f.read()
+
     def test_a_nodes_rules_for_the_groups_of_the_home_network_reach_kiwi_stack(self):
         m = json.loads(json.dumps(SH3))
         m["node"]["lan_rules"] = ["192.168.20.0/24 tcp:443,tcp:80", "192.168.30.0/24 none"]
