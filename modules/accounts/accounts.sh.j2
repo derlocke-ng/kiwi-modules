@@ -26,6 +26,16 @@ pw=$($rt exec {{ container_prefix }}-accounts kanidmd recover-account idm_admin 
 [ -n "$pw" ] || { echo "accounts: Kanidm did not give its admin over (is it running?)" >&2; exit 1; }
 k() { $rt run --rm --network host -e KANIDM_URL=$url -e KANIDM_SKIP_HOSTNAME_VERIFICATION=true -e KANIDM_ACCEPT_INVALID_CERTS=true \
           -e KANIDM_NAME=idm_admin -e RUST_LOG=error ${KANIDM_PASSWORD:+-e KANIDM_PASSWORD} -v "$work:/root:z" "$tools" kanidm "$@" </dev/null; }
+# the network's admins (the group `admins`) are told to each service in its own words: kiwi_roles
+# [admin] (Forgejo's admin group, Nextcloud's group admin), immich_role admin (Immich's role). Only
+# the group's members get the claims; everyone else gets none of them
+admins_claims() {
+    k group get admins 2>&1 | grep -q "name: admins" || k group create admins >/dev/null 2>&1
+    k system oauth2 update-claim-map "$1" kiwi_roles admins admin >/dev/null 2>&1 || true
+    k system oauth2 update-claim-map-join "$1" kiwi_roles array >/dev/null 2>&1 || true
+    k system oauth2 update-claim-map "$1" immich_role admins admin >/dev/null 2>&1 || true
+    k system oauth2 update-claim-map-join "$1" immich_role ssv >/dev/null 2>&1 || true
+}
 KANIDM_PASSWORD=$pw; export KANIDM_PASSWORD
 k login >/dev/null 2>&1 || { echo "accounts: the admin could not log in to Kanidm" >&2; exit 1; }
 unset KANIDM_PASSWORD
@@ -62,16 +72,6 @@ SVG
 fi
 token() {   # the link's token, out of what Kanidm prints
     k person credential create-reset-token "$1" --ttl "${2:-86400}" 2>/dev/null | grep -o 'token=[A-Za-z0-9_-]*' | head -1 | cut -d= -f2
-}
-# the network's admins (the group `admins`) are told to each service in its own words: kiwi_roles
-# [admin] (Forgejo's admin group, Nextcloud's group admin), immich_role admin (Immich's role). Only
-# the group's members get the claims; everyone else gets none of them
-admins_claims() {
-    k group get admins 2>&1 | grep -q "name: admins" || k group create admins >/dev/null 2>&1
-    k system oauth2 update-claim-map "$1" kiwi_roles admins admin >/dev/null 2>&1 || true
-    k system oauth2 update-claim-map-join "$1" kiwi_roles array >/dev/null 2>&1 || true
-    k system oauth2 update-claim-map "$1" immich_role admins admin >/dev/null 2>&1 || true
-    k system oauth2 update-claim-map-join "$1" immich_role ssv >/dev/null 2>&1 || true
 }
 name_ok() { echo "$1" | grep -Eq '^[a-z][a-z0-9_-]{1,31}$' || { echo "accounts: a name is 2-32 lowercase letters, digits, - and _" >&2; exit 2; }; }
 case "${1:-}" in
