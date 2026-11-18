@@ -1361,6 +1361,55 @@ class TestFederation(unittest.TestCase):
         with open(os.path.join(out, "kiwi", "federation-ask")) as f:
             self.assertEqual(f.read().split(), ["kiwi2", "internal", "10-8-0-0-16"])        # its own mesh, as the partner names it
 
+    def test_a_partner_with_this_networks_mesh_and_domain_is_translated_at_the_link(self):
+        """docs/design/federation.md in kiwi-server: seen here under another /16 and domain; the link's
+        DNS translates its names, NETMAP its addresses, its answers go back over the link."""
+        m = json.loads(json.dumps(MACHINES["gate"]))
+        same = dict(self.PARTNER, mesh="10.8.0.0/16", domain=m["domain"], dns="10.8.0.1", **{"from": []},
+                    seen_as={"mesh": "10.208.0.0/16", "domain": "kiwi2." + m["domain"], "dns": "10.208.0.1", "link": "10.8.255.254"})
+        m["master"].setdefault("vpn-server", {})["federation"] = {"kiwi2": same}
+        m["dns_records"] = RECORDS
+        out = self.render("gate-same", m)
+        path = os.path.join(out, "km-vpn-server", "start.sh")
+        self.assertEqual(subprocess.run(["sh", "-n", path]).returncode, 0)
+        with open(path) as f:
+            start = f.read()
+        self.assertNotIn("ip route replace 10.8.0.0/16 dev wg-fed", start)          # never over this network's own mesh
+        self.assertIn("iptables -t nat -A $hook -d 10.208.0.0/16 -j NETMAP --to 10.8.0.0/16", start)
+        self.assertIn("ip rule add pref 90 fwmark 301 table 301", start)
+        self.assertIn("ip route replace 10.208.0.0/16 dev wg-fed", start)            # its own lookups find a way
+        self.assertIn("echo 1 > /proc/sys/net/ipv4/conf/wg-fed/accept_local", start)  # the partner answers from our address
+        self.assertIn("-o wg-fed -m mark --mark 301 -s 10.8.0.1 -j SNAT --to-source 10.8.255.254", start)
+        self.assertIn("-o wg0 -m connmark --mark 301 -j SNAT --to-source 10.8.255.1", start)
+        self.assertNotIn("-s 10.8.0.0/16 -o wg0 -j SNAT", start)                      # that would catch its own clients
+        self.assertIn("--dport 5353 -j DROP", start)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            compose = f.read()
+        self.assertIn("km-fed-dns:", compose)
+        self.assertIn("km-fed-dns:\n    image: docker.io/library/python:3.13-alpine\n    container_name: km-fed-dns\n    network_mode: service:km-vpn-server", compose)
+        self.assertIn("server=/kiwi2.%s/127.0.0.1#5353" % m["domain"], compose)
+        self.assertIn("server=/*.kiwi2.%s/127.0.0.1#5353" % m["domain"], compose)
+        with open(os.path.join(out, "km-vpn-server", "fed-dns", "fed-dns.json")) as f:
+            self.assertEqual(json.load(f), [{"name": "kiwi2", "alias": "kiwi2." + m["domain"], "real": m["domain"],
+                                             "upstream": "10.208.0.1", "mesh": "10.8.0.0/16", "seen_as": "10.208.0.0/16"}])
+        self.assertTrue(os.path.isfile(os.path.join(out, "km-vpn-server", "fed-dns", "fed-dns.py")))
+        with open(os.path.join(out, "kiwi", "federation-ask")) as f:
+            self.assertEqual(f.read().split()[:2], ["kiwi2", "kiwi2." + m["domain"]])     # asked under its alias
+        # a partner of another mesh and domain: no translation, no proxy
+        out = self.render("gate-other", dict(m, master=dict(m["master"], **{"vpn-server": dict(m["master"]["vpn-server"], federation={"kiwi2": self.PARTNER})})))
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            self.assertNotIn("fed-dns", f.read())
+
+    def test_a_shared_node_answers_the_name_a_partner_of_the_same_domain_gives_it(self):
+        m = json.loads(json.dumps(SH3))
+        m["node"]["reverse-proxy"] = dict(m["node"].get("reverse-proxy") or {}, federation={
+            "names": {"cloud.sh3.home": {"allow": ["10.8.255.1"], "deny": []}}, "deny": [],
+            "alias": {"domain": "home", "as": "kiwi.home"}})
+        out = self.render("sh3-alias", m)
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        self.assertIn("server_name cloud.sh3.home cloud.sh3.kiwi.home;", nginx)
+
     def start_of(self, name, **partner):
         m = json.loads(json.dumps(MACHINES["gate"]))
         m["master"].setdefault("vpn-server", {})["federation"] = {"kiwi2": dict(self.PARTNER, **partner)}
@@ -3342,3 +3391,68 @@ class TestWriteThroughLinks(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFedDns(unittest.TestCase):
+    """The link's DNS for a partner seen under another domain or mesh (vpn-server/fed-dns.py.j2)."""
+
+    @classmethod
+    def setUpClass(cls):
+        import importlib.util
+        import jinja2
+        path = os.path.join(os.path.dirname(__file__), "..", "modules", "vpn-server", "fed-dns.py.j2")
+        code = jinja2.Environment().from_string(open(path).read()).render()
+        spec = importlib.util.spec_from_loader("feddns", loader=None)
+        cls.m = importlib.util.module_from_spec(spec)
+        exec(compile(code, path, "exec"), cls.m.__dict__)
+
+    def query(self, name, qtype=1):
+        import struct
+        return struct.pack("!6H", 0x1234, 0x0100, 1, 0, 0, 0) + self.m.write_name([x.encode() for x in name.split(".")]) + \
+            struct.pack("!2H", qtype, 1)
+
+    def answer_for(self, q, records):
+        """The partner's answer, with name compression as real servers send it."""
+        import struct
+        head = struct.pack("!6H", 0x1234, 0x8180, 1, len(records), 0, 0)
+        body = q[12:]
+        out = head + body
+        for rtype, rdata in records:
+            out += b"\xc0\x0c" + struct.pack("!2HIH", rtype, 1, 60, len(rdata)) + rdata
+        return out
+
+    def test_names_and_addresses_go_through_under_the_alias(self):
+        import socket
+        link = self.m.Link({"alias": "kiwi2.home", "real": "home", "upstream": "10.209.0.1",
+                            "mesh": "10.9.0.0/16", "seen_as": "10.209.0.0/16"})
+        asked = []
+
+        def ask(upstream, data):
+            asked.append((upstream, data))
+            q = self.m.parse(data)
+            self.assertEqual(b".".join(q["qs"][0][0]), b"cloud.papaya.home")          # the real name, to the partner
+            return self.answer_for(data, [(5, b"\x06papaya\xc0\x19"), (1, socket.inet_aton("10.9.0.5"))])
+        out = self.m.parse(self.m.handle([link], self.query("cloud.papaya.kiwi2.home"), ask))
+        self.assertEqual(asked[0][0], "10.209.0.1")
+        self.assertEqual(out["id"], 0x1234)
+        self.assertEqual(b".".join(out["qs"][0][0]), b"cloud.papaya.kiwi2.home")
+        cname, a = out["rrs"]
+        self.assertEqual(b".".join(cname[5][1]), b"papaya.kiwi2.home")                 # a name inside: moved too
+        self.assertEqual(socket.inet_ntoa(a[5][1]), "10.209.0.5")                       # the address: into the alias mesh
+
+    def test_a_name_that_is_no_partners_is_refused_and_a_silent_partner_fails(self):
+        link = self.m.Link({"alias": "kiwi2.home", "real": "home", "upstream": "10.209.0.1", "mesh": "10.9.0.0/16",
+                            "seen_as": "10.209.0.0/16"})
+        out = self.m.parse(self.m.handle([link], self.query("papaya.home"), lambda u, d: self.fail("asked")))
+        self.assertEqual((out["flags"] & 0xF, out["rrs"]), (5, []))                    # REFUSED: not this link's
+        out = self.m.parse(self.m.handle([link], self.query("papaya.kiwi2.home"), lambda u, d: (_ for _ in ()).throw(OSError())))
+        self.assertEqual(out["flags"] & 0xF, 2)                                         # SERVFAIL
+        self.assertIsNone(self.m.handle([link], b"\x00\x01", lambda u, d: b""))        # not a message: no answer
+
+    def test_only_the_name_when_the_meshes_differ(self):
+        import socket
+        link = self.m.Link({"alias": "kiwi2.home", "real": "home", "upstream": "10.10.0.1", "mesh": "10.10.0.0/16"})
+        out = self.m.parse(self.m.handle([link], self.query("papaya.kiwi2.home"),
+                                         lambda u, d: self.answer_for(d, [(1, socket.inet_aton("10.10.0.5")), (16, b"\x03a,b")])))
+        self.assertEqual(socket.inet_ntoa(out["rrs"][0][5][1]), "10.10.0.5")            # its own address, as it is
+        self.assertEqual(out["rrs"][1][5][1], b"\x03a,b")                               # a TXT record untouched

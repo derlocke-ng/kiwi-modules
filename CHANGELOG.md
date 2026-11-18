@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.95.0 — a partner network translated at the link
+
+- **A linked network with this network's own mesh or domain** (kiwi-server 2.216.0,
+  federation.yaml `seen_as`): the VPN server maps the /16 it is seen as here 1:1 onto its real
+  mesh (iptables `NETMAP`), marks those connections and sends them over `wg-fed` from a table of
+  their own, so this network's own mesh stays on `wg0`; what the partner opens here is marked
+  too and answered back over the link. The master's own packets leave the link from an address
+  the partner does not have itself, and the partner's answers from this master's own address
+  are taken in (`accept_local` on `wg-fed`). Proven on a kernel with kiwi-server's
+  `tests/drills/translate-netns.py`: two masters of one mesh over real WireGuard, a client
+  reaching its own 10.9.0.5 and the partner's at 10.209.0.5, a port not shared refused, the
+  partner's names through the link's DNS.
+- **The link's DNS** (`<prefix>-fed-dns`, `fed-dns.py`, Python's standard library only, no
+  capabilities, read-only): Pi-hole sends the partner's alias domain there; it asks the
+  partner's DNS for the real name and answers under the alias, with the partner's addresses
+  moved into the alias mesh. Its port answers only inside the VPN server's namespace.
+- A shared node answers the name a partner with this network's own domain gives it
+  (`server_name cloud.papaya.home cloud.papaya.kiwi.home`).
+
 ## 0.94.0 — a password kept in the secret store
 
 - A secret setting that nothing can generate (a VPN provider's private key, a router's password)
