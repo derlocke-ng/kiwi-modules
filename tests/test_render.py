@@ -1308,6 +1308,15 @@ class TestFederation(unittest.TestCase):
                "mesh": "10.10.0.0/16", "domain": "internal", "dns": "10.10.0.1",
                "share": ["cloud.sh3", "m1:22", "min", "nowhere"], "from": ["10.10.3.0/24"], "as": "10.8.255.1"}
 
+    def test_a_nodes_pihole_asks_the_master_for_a_partners_names(self):
+        m = json.loads(json.dumps(MACHINES["m1"]))
+        m["node"]["dns"] = dict(m["node"]["dns"], partner_domains=["internal", m["domain"], ""])
+        out = self.render("m1-fed", m)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            compose = f.read()
+        self.assertRegex(compose, r"server=/internal/[0-9.]+;server=/\*\.internal/[0-9.]+")    # past Pi-hole's local=/internal/
+        self.assertEqual(compose.count("server=/%s/" % m["domain"]), 1)                       # its own domain once, as before
+
     def test_a_master_links_to_a_partner_and_lets_in_only_what_is_shared(self):
         m = json.loads(json.dumps(MACHINES["gate"]))
         m["master"].setdefault("vpn-server", {})["federation"] = {"kiwi2": self.PARTNER}

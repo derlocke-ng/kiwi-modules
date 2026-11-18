@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.90.1 — a linked network's names on a node's LAN
+
+- A node's Pi-hole asks the master for the linked networks' domains (`dns.partner_domains`,
+  filled in by kiwi-server), with a wildcard past Pi-hole 6's own `local=/internal/`. A computer
+  at home that asks papaya got NXDOMAIN for damson.internal; one on the VPN got its address.
+
 ## 0.90.0 — a website for strangers
 
 - The control module's `website_hostname`, `website_repo` and `website_commit`: the network's
