@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.87.0 — a machine's own name leads to its page
+
+- **`reverse-proxy`** 1.2.0: `https://<the machine's name>` (papaya.home) answers when kiwi-server
+  names the machine's page on the network's status page (`machine_page`): it sends the visitor
+  there. Without it the name still answers nothing.
+
 ## 0.86.1 — the admins' claims reach the clients made before
 
 - **`accounts`** 1.2.1: the setup asked for the admins' claims before the script had defined
