@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.102.0 — which module a container is of
+
+- A rendered bundle says which module each container is of (`bundle.service_modules`,
+  "km-pihole" -> "dns"), so that whoever shows a container can name it under its part.
+
 ## 0.101.1 — an empty argument stays one
 
 - **Fixed:** an empty word in a container's command vanished from its quadlet (`Exec=`), so the
