@@ -3431,6 +3431,13 @@ class TestLanGroups(unittest.TestCase):
         with open(os.path.join(out, "stack.sh")) as f:
             self.assertIn("KS_STACK_LAN_RULES=()", f.read())
 
+    def test_a_machines_vlans_reach_kiwi_stack(self):
+        m = json.loads(json.dumps(SH3))
+        m["node"]["vlans"] = ["20 192.168.20.5/24 eth0", "30 192.168.30.5/24"]
+        out = self.render("sh3-vlan", m)
+        with open(os.path.join(out, "stack.sh")) as f:
+            self.assertIn("KS_STACK_VLANS=('20 192.168.20.5/24 eth0' '30 192.168.30.5/24')", f.read())
+
 class TestFedDns(unittest.TestCase):
     """The link's DNS for a partner seen under another domain or mesh (vpn-server/fed-dns.py.j2)."""
 
