@@ -1409,6 +1409,19 @@ class TestFederation(unittest.TestCase):
         with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
             nginx = f.read()
         self.assertIn("server_name cloud.sh3.home cloud.sh3.kiwi.home;", nginx)
+        # with a certificate the partner's CA signed: the alias in a server of its own, with that certificate
+        m["node"]["reverse-proxy"]["alias_fullchain"] = TLS["tls_fullchain"]
+        out = self.render("sh3-alias-cert", m)
+        with open(os.path.join(out, "kn-nginx", "nginx.conf")) as f:
+            nginx = f.read()
+        self.assertIn("server_name cloud.sh3.home;", nginx)
+        alias = nginx.split("server_name cloud.sh3.kiwi.home;", 1)[1].split("\n    }\n", 1)[0]
+        self.assertIn("ssl_certificate     /etc/nginx/alias-fullchain.pem;", alias)
+        self.assertIn("allow 10.8.255.1;", alias)                     # the partner's rules hold there too
+        self.assertIn("location / {", alias)
+        self.assertTrue(os.path.isfile(os.path.join(out, "kn-nginx", "alias-fullchain.pem")))
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            self.assertIn("alias-fullchain.pem:/etc/nginx/alias-fullchain.pem:ro", f.read())
 
     def start_of(self, name, **partner):
         m = json.loads(json.dumps(MACHINES["gate"]))
