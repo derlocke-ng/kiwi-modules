@@ -1694,6 +1694,11 @@ class TestFederation(unittest.TestCase):
         execline = [l for l in units["x.container"].splitlines() if l.startswith("Exec=")][0]
         self.assertEqual(execline, 'Exec=serve --map "{\\"a b\\": {\\"c\\": \\"d\\"}}" --name "50%% off"')
         self.assertEqual(shlex.split(execline[5:].replace("%%", "%")), ["serve", "--map", '{"a b": {"c": "d"}}', "--name", "50% off"])
+        # an empty word stays one word (an empty --id-onion vanished and the sign-up stopped, 19 Nov 2026)
+        units, _env = quadlet.from_compose_with_env({"services": {"x": {"image": "img", "container_name": "x",
+            "command": ["serve", "--id-onion", "", "--listen", "0.0.0.0:8080"]}}}, "net")
+        execline = [l for l in units["x.container"].splitlines() if l.startswith("Exec=")][0]
+        self.assertEqual(shlex.split(execline[5:]), ["serve", "--id-onion", "", "--listen", "0.0.0.0:8080"])
 
     def test_nextcloud_signs_people_in_with_the_networks_accounts(self):
         n = json.loads(json.dumps(SH3))

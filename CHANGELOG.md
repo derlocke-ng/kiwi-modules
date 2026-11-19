@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.101.1 — an empty argument stays one
+
+- **Fixed:** an empty word in a container's command vanished from its quadlet (`Exec=`), so the
+  next word took its place. The accounts' sign-up page stopped at every start with "argument
+  --id-onion: expected one argument" once its hidden service was gone. Empty words are written
+  as `""` now, and the sign-up page gets `--id-onion=…` as one word anyway.
+- Two imports nothing used are gone.
+
 ## 0.101.0 — a service at one address only
 
 - Every module that publishes ports has the setting `listen` (Advanced, "Only at this address"):
