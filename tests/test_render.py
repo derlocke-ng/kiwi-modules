@@ -25,7 +25,8 @@ sys.path.insert(0, os.path.join(ROOT, "lib"))
 
 import yaml  # noqa: E402
 
-from kiwimodules import VERSION, cli, machine, quadlet, resolver  # noqa: E402
+from kiwimodules import VERSION, cli, machine, modules, quadlet, resolver  # noqa: E402
+from kiwimodules.util import KiwiError  # noqa: E402
 
 GOLDEN = os.path.join(HERE, "golden")
 SEED = b"kiwi-golden-seed-0123456789abcdef"      # 32 bytes, never used for a real machine
@@ -3443,6 +3444,24 @@ class TestLanGroups(unittest.TestCase):
         out = self.render("sh3-nolan", json.loads(json.dumps(SH3)))
         with open(os.path.join(out, "stack.sh")) as f:
             self.assertIn("KS_STACK_LAN_RULES=()", f.read())
+
+    def test_a_module_answers_at_one_address_only(self):
+        """listen (every module that publishes ports): its ports bound to one address, a VLAN's say."""
+        m = json.loads(json.dumps(SH3))
+        m["node"]["reverse-proxy"] = dict(m["node"]["reverse-proxy"], listen="192.168.20.5")
+        out = self.render("sh3-listen", m)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            compose = yaml.safe_load(f)
+        nginx = next(b for n, b in compose["services"].items() if n.endswith("-nginx"))
+        self.assertTrue(nginx["ports"] and all(str(p).startswith("192.168.20.5:") for p in nginx["ports"]))
+        others = [p for n, b in compose["services"].items() if not n.endswith("-nginx") for p in (b or {}).get("ports") or []]
+        self.assertFalse(any(str(p).startswith("192.168.20.5:") for p in others))     # its own setting only
+        doc = {"services": {"x": {"network_mode": "host"}}}
+        with self.assertRaises(KiwiError):
+            modules.Renderer.bind_ports("dhcp-relay", "192.168.20.5", doc)
+        doc = {"services": {"x": {"ports": ["127.0.0.1:8080:80", {"target": 80, "published": 8081}]}}}
+        modules.Renderer.bind_ports("x", "192.168.20.5", doc)
+        self.assertEqual(doc["services"]["x"]["ports"], ["127.0.0.1:8080:80", {"target": 80, "published": 8081, "host_ip": "192.168.20.5"}])
 
     def test_a_machines_vlans_reach_kiwi_stack(self):
         m = json.loads(json.dumps(SH3))

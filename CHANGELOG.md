@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.101.0 — a service at one address only
+
+- Every module that publishes ports has the setting `listen` (Advanced, "Only at this address"):
+  its published ports answer at that one address of the machine and no other, a VLAN's
+  (kiwi-server's `network.vlans`), the LAN's or 127.0.0.1. `8080:80` becomes
+  `<listen>:8080:80`; a port that names its address already stays. A service on the host's own
+  network has no ports of its own to bind: that is an error, not a silent no.
+
 ## 0.100.0 — nginx on Alpine
 
 - reverse-proxy's default image is `docker.io/library/nginx:1-alpine`: the same official nginx
