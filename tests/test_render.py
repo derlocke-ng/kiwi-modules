@@ -1687,6 +1687,17 @@ class TestFederation(unittest.TestCase):
         with open(os.path.join(self.render("alias-none", n), "kn-nginx", "nginx.conf")) as f:
             self.assertNotIn("return 301 https://git.", f.read())
 
+    def test_the_bundle_says_which_module_each_container_is_of(self):
+        from kiwimodules import machine as machmod, modules as modmod, profiles
+        mm = machmod.load(self.write("owner", SH3))
+        ms = modmod.discover()
+        profile = profiles.discover()[mm.role]
+        resolver.resolve_settings(profile, mm, ms)
+        b = modmod.Renderer(ms).render(resolver.stack_spec(mm, profile, mm.dns_records))
+        self.assertEqual(sorted(b.service_modules), sorted(b.services))       # every container, by its name
+        self.assertEqual(b.service_modules[next(s for s in b.services if s.endswith("-nginx"))], "reverse-proxy")
+        self.assertEqual(b.service_modules[next(s for s in b.services if s.endswith("-vpn-client"))], "vpn-client")
+
     def test_a_command_word_with_spaces_or_quotes_stays_one_word_in_the_quadlet(self):
         from kiwimodules import quadlet
         units, _env = quadlet.from_compose_with_env({"services": {"x": {"image": "img", "container_name": "x",
