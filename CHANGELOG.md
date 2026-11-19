@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.100.0 — nginx on Alpine
+
+- reverse-proxy's default image is `docker.io/library/nginx:1-alpine`: the same official nginx
+  (SSL, HTTP/2, real IP, the same user 101) in 64 MB instead of 167 MB. A master in RAM keeps its
+  images in memory, where crumble had 94 % of /var full; every machine gains the room. The
+  container runs `/bin/sh` only (acme.sh runs on the host). `image: docker.io/library/nginx:1`
+  keeps the Debian one.
+
 ## 0.99.0 — a partner's name with a certificate its CA signed
 
 - reverse-proxy: the generated file setting `alias_fullchain` (kiwi-server 2.226.0 `federate`):

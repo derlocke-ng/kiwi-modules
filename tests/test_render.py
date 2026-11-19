@@ -2982,7 +2982,7 @@ class TestOnion(unittest.TestCase):
         """nginx itself reads the file, where podman and its image are here (not in CI): a
         hidden service's name once kept the proxy of a real machine from starting."""
         import shutil
-        if not shutil.which("podman") or subprocess.run(["podman", "image", "exists", "docker.io/library/nginx:1"]).returncode:
+        if not shutil.which("podman") or subprocess.run(["podman", "image", "exists", "docker.io/library/nginx:1-alpine"]).returncode:
             return
         with open(conf) as f:
             text = f.read()
@@ -2994,7 +2994,7 @@ class TestOnion(unittest.TestCase):
         with open(tmp, "w") as f:
             f.write(text)
         r = subprocess.run(["podman", "run", "--rm", "--network", "none", "-v", "%s:/etc/nginx/nginx.conf:ro,z" % tmp,
-                            "docker.io/library/nginx:1", "nginx", "-t"], capture_output=True, text=True)
+                            "docker.io/library/nginx:1-alpine", "nginx", "-t"], capture_output=True, text=True)
         self.assertNotIn("server_names_hash", r.stderr)
 
 
