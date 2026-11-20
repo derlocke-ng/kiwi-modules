@@ -267,6 +267,20 @@ class TestRender(unittest.TestCase):
         mm = machmod.load(self.write("solo2", solo))
         resolver.resolve_settings(profiles.discover()[mm.role], mm, None)
         self.assertEqual((mm.role_settings["vpn_ip"], mm.role_settings["mesh_subnet"]), ("192.168.1.30", "192.168.1.0/24"))
+        # also when the fleet has a mesh of its own in mind for later (a new network gets one): this
+        # machine is on none, and its admin pages let the home in, not a mesh that does not exist
+        # (found by the starter drill, 20 Nov 2026: the control page of "No master yet" said 403 at home)
+        planned = dict(solo, node=dict(solo["node"], mesh_subnet="10.105.0.0/16", master_ip="10.105.0.1",
+                                       modules=["dns", "reverse-proxy", "control"]))
+        mm = machmod.load(self.write("solo3", planned))
+        resolver.resolve_settings(profiles.discover()[mm.role], mm, None)
+        self.assertEqual(mm.role_settings["mesh_subnet"], "192.168.1.0/24")
+        with open(os.path.join(self.render("solo3r", planned), "kn-nginx", "nginx.conf")) as f:
+            conf = f.read()
+        control = conf[conf.index("server_name control.solo.home;"):]
+        control = control[:control.index("\n    }\n")]
+        self.assertIn("allow 192.168.1.0/24;", control)
+        self.assertNotIn("10.105.", control)
         # the preset's VPN client is left out; named outright, it is refused
         bad = dict(solo, node=dict(solo["node"], modules=["vpn-client", "reverse-proxy", "cloud"]))
         ms = None

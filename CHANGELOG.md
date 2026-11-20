@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.108.0 — a network without a master lets its home in
+
+- **Fixed: on a machine off the VPN (`vpn: false`, a network without a master) the pages that
+  are only for "us" refused the home network.** The home network stands in for the mesh there,
+  but only the old default mesh was replaced: a network with a mesh of its own in mind (every
+  new one) let that future mesh in instead, and the control page answered 403 at home. Found
+  by the starter drill.
+- The help of `vpn-client.dot_providers` says what each resolver does: Cloudflare passes
+  nothing about the asker on, Google passes the asker's subnet (the exit's), quad9 filters.
+
 ## 0.107.0 — resolvers that answer every name
 
 - **The default resolvers no longer leave names out.** Quad9 does not answer names it holds
