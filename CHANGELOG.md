@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.112.0 — the copy at another place over SFTP; parts kept ready for another machine
+
+- **backup-server.offsite_url** takes `sftp://[USER@]HOST[:PORT]/FOLDER` too (a Hetzner Storage
+  Box, a friend's server): rclone's sftp with no commands run there; the place's host key is
+  taken at the first copy and kept (`offsite-known_hosts`), another key later stops the copy. A
+  Nextcloud address (`/remote.php/dav/…`) gets rclone's nextcloud kind.
+- **Parts kept ready** (`StackSpec.ready`, `resolver.stack_spec(ready=…)`): a standby renders a
+  part of another machine with that machine's settings and secrets. Its services are in the
+  compose profile `kiwi-ready` (quadlets without `[Install]`), listed as `KS_STACK_READY`, their
+  images pulled; no site, unit, port, backup or address change for the machine's own
+  containers. A part that needs a module the standby lacks is refused.
+
 ## 0.111.0 — a copy of the backup store at another place
 
 - **backup-server.offsite_url**: every night (`offsite_time`) rclone brings a copy of the store
