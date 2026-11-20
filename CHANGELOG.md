@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.113.0 — a switch in seconds: the standby's proxy and the names that move
+
+- A standby's bundle holds `<prefix>-nginx/nginx-ready.conf`, the proxy with the sites of the
+  parts it keeps ready; `kiwi-stack ready start` puts it in place, so their names answer there
+  at once.
+- `StackSpec(moving=…)`: the dns part serves the names of parts kept ready anywhere in the
+  network from `<prefix>-pihole/moving/kiwi.hosts` (a watched hosts directory) instead of its
+  settings, so kiwi-server's switch can point them at the standby in seconds.
+
 ## 0.112.0 — the copy at another place over SFTP; parts kept ready for another machine
 
 - **backup-server.offsite_url** takes `sftp://[USER@]HOST[:PORT]/FOLDER` too (a Hetzner Storage
