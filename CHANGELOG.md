@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.104.0 — a module that moved is restored from the other machine's copies
+
+- `kiwi-stack restore --from MACHINE [--at TIME] MODULE...`: the backup script restores a
+  module from the copies another machine made of it, for a module that moved here. That
+  machine's way into its backups (its repository password, its sign-in at the servers, its
+  servers) is read from standard input, kept in RAM for the run and removed; kiwi-server
+  sends it. Afterwards the module is backed up here, among this machine's own.
+
 ## 0.103.0 — a part says how it is named
 
 - Every module with a page under a name of its own says which setting holds that name and
