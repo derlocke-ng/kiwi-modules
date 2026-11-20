@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.107.0 — resolvers that answer every name
+
+- **The default resolvers no longer leave names out.** Quad9 does not answer names it holds
+  to be malicious, so a site was blocked that no blocklist of the network named. The VPN
+  client's DNS over TLS now goes to Cloudflare (`vpn-client.dot_providers`, was quad9), and
+  the resolvers reached directly are Cloudflare's too: Pi-hole's fallback while the master is
+  unreachable (`dns.fallback_dns`, now 1.1.1.1;1.0.0.1), the containers' second resolver and
+  the package cache's. gluetun's own list of malicious names was off already
+  (`BLOCK_MALICIOUS=off`). What is blocked is what the blocklist says. A fleet that set
+  `dot_providers` or `fallback_dns` itself keeps what it set.
+
 ## 0.106.0 — a relay that takes notes dated back; a certificate asked for again soon
 
 - **Fixed: the relay refused every note not dated this very second.** `keep_days: 0` (the
