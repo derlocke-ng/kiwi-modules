@@ -137,6 +137,8 @@ class TestRender(unittest.TestCase):
             f.write(WG % "10.8.0.30")
         there, there_bundle = self.stack_of(src)
         part = (there.module_settings["firefox-sync"], {k: v for k, v in there.module_files.items() if k.startswith("firefox-sync/")})
+        sync_name = "ffsync.quince.home"
+        part[0]["sync_hostname"] = sync_name             # (kiwi-server keeps the name the part has where it runs)
         for runtime in ("podman", "docker"):
             plain_m, plain = self.stack_of(MACHINES["min"], runtime=runtime)
             m, b = self.stack_of(MACHINES["min"], {"firefox-sync": part}, runtime=runtime)
@@ -154,6 +156,11 @@ class TestRender(unittest.TestCase):
             self.assertEqual(token(svc["environment"]), mine)
             nginx = b.files["kn-nginx/nginx.conf"][0] if "kn-nginx/nginx.conf" in b.files else ""
             self.assertNotIn("ffsync", nginx)                                             # no site of its own here
+            # the proxy as it is once the part runs here: its site, at its address here
+            later = b.files["kn-nginx/nginx-ready.conf"][0]
+            self.assertIn("server_name %s;" % sync_name, later)
+            self.assertIn("http://kn-ffsync:8000", later)                                 # by its container's name
+            self.assertNotIn("kn-nginx/nginx-ready.conf", plain.files)
             self.assertEqual((b.units, b.ports, b.urls), (plain.units, plain.ports, plain.urls))
             self.assertIn(svc["image"], b.images)                                        # its image is pulled
             self.assertEqual(b.vpn_dependents, plain.vpn_dependents)                     # a VPN restart starts none of it

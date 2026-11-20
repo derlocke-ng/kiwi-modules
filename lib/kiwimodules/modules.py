@@ -1045,6 +1045,14 @@ class Renderer:
         for s in servers:
             s["public"] = public and not (s["server_name"] + ".").endswith(".%s." % spec.domain)
         base["public_names"] = [s["server_name"] for s in servers if s["public"]]
+        # the proxy as it is once the parts kept ready run here: a switch puts it in place
+        # (kiwi-stack ready start) and their names answer here in seconds, before the apply
+        ready_proxy = None
+        if ready:
+            r_up, r_servers = self.nginx_blocks(spec, ordered, base)
+            for s in r_servers:
+                s["public"] = public and not (s["server_name"] + ".").endswith(".%s." % spec.domain)
+            ready_proxy = {"upstreams": r_up, "servers": r_servers}
         rp = spec.module_config.get("reverse-proxy") or {}
         # a node's public names come through the master (via: its mesh address); the master
         # knows which names and ports to hand on (exposed)
@@ -1111,6 +1119,10 @@ class Renderer:
                     continue
                 rel = self.expand(out.get("path") or "%s/%s" % (name, fname.replace(".j2", "")), ctx, where)
                 bundle.add_file(rel, text, int(out.get("mode", 0o644)))
+                if name == "reverse-proxy" and key == "nginx" and ready_proxy:
+                    text = self.render_text(mod.template(key), dict(ctx, output=key, **ready_proxy),
+                                            "modules/%s/%s" % (name, fname))
+                    bundle.add_file(re.sub(r"\.conf$", "", rel) + "-ready.conf", text, int(out.get("mode", 0o644)))
             # embedded files (file-type settings): where the module says they go
             for s in mod.settings:
                 if s.type != "file":
