@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.103.0 — a part says how it is named
+
+- Every module with a page under a name of its own says which setting holds that name and
+  what its own word is (`named_by: { setting, word, url }` in module.yaml; `Module.named_by`):
+  paste is `paste_domain` and "paste", Vaultwarden `vault_domain` (a URL) and "vault", Nextcloud
+  `nc_hostname` and "cloud". With it kiwi-server can name a part by service (`cloud.<domain>`)
+  and keep its name when the part moves to another machine. Nothing renders differently.
+
 ## 0.102.0 — which module a container is of
 
 - A rendered bundle says which module each container is of (`bundle.service_modules`,
