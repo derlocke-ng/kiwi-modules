@@ -510,6 +510,36 @@ class TestRender(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(out, "host-units", "km-acme.timer")))
         with open(os.path.join(out, "stack.sh")) as f:
             self.assertRegex(f.read(), r"KS_STACK_PORTS=\([^)]*443/tcp")
+        # a name without a certificate is asked for again soon, three times, not a day later
+        work = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, work, True)
+        os.makedirs(os.path.join(work, "bin"))
+        os.makedirs(os.path.join(work, "nginx", "acme"))
+        stub = os.path.join(work, "bin", "rt")
+        with open(stub, "w") as f:          # the container runtime: nginx answers, certbot does as $CERTBOT says
+            f.write('#!/bin/bash\n[ "$1" = run ] || exit 0\n[ "$CERTBOT" = ok ] || exit 1\n'
+                    'for n in hub relay; do mkdir -p %s/nginx/letsencrypt/live/$n.example.org; '
+                    'echo cert > %s/nginx/letsencrypt/live/$n.example.org/fullchain.pem; '
+                    'echo key > %s/nginx/letsencrypt/live/$n.example.org/privkey.pem; done\n' % (work, work, work))
+        with open(os.path.join(work, "bin", "systemd-run"), "w") as f:
+            f.write('#!/bin/bash\necho "$@" >> %s/asked\n' % work)
+        for x in ("rt", "systemd-run"):
+            os.chmod(os.path.join(work, "bin", x), 0o755)
+        script = os.path.join(work, "acme.sh")
+        with open(script, "w") as f:
+            f.write(re.sub(r"(?m)^rt=.*$", "rt=" + stub, re.sub(r"(?m)^dir=.*$", "dir=%s/nginx" % work, acme)))
+        env = dict(os.environ, PATH=os.path.join(work, "bin") + os.pathsep + os.environ["PATH"])
+        for _ in range(5):
+            r = subprocess.run(["bash", script], env=env, capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+        with open(os.path.join(work, "asked")) as f:
+            asked = f.read().splitlines()
+        self.assertEqual(asked, ["--quiet --on-active=10min systemctl start km-acme.service"] * 3)
+        self.assertNotIn("asking again", r.stdout)                               # the fourth and fifth: the daily run goes on
+        r = subprocess.run(["bash", script], env=dict(env, CERTBOT="ok"), capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse(os.path.exists(os.path.join(work, "nginx", "acme", ".tries")))      # it has them: the count starts anew
+        self.assertTrue(os.path.isfile(os.path.join(work, "nginx", "acme", "hub.example.org", "fullchain.pem")))
         if shutil.which("shellcheck"):
             r = subprocess.run(["shellcheck", "-S", "warning", os.path.join(out, "kiwi", "acme.sh"),
                                 os.path.join(out, "km-nginx", "start.sh")], capture_output=True, text=True)
