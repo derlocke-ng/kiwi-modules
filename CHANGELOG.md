@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.115.0 — renders four times faster
+
+- Compiled templates and expressions are kept by their text (one environment for every render):
+  a render compiled the same few hundred templates again and again, 5600 compiles and 70% of the
+  time of kiwi-server's `list` on a network of six machines.
+- YAML is read through libyaml where PyYAML has it (`util.yaml_load`), ten times faster.
+- kiwi-server's `list` on that network: 4.0 s before, 0.9 to 1.4 s now.
+
 ## 0.114.0 — certbot as its tag says
 
 - **Fixed: certbot's image stayed the copy pulled the first time.** The certificate script runs it
