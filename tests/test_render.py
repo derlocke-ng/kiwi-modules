@@ -404,6 +404,14 @@ class TestRender(unittest.TestCase):
             strfry = f.read()
         self.assertIn('name = "Golden relay"', strfry)
         self.assertIn("maxEventSize = 262144", strfry)
+        # keep_days 0 is "no limit": strfry reads 0 as "nothing older than now", and refused a note dated
+        # five seconds back, so a phone's slow clock or a sealed message dated back on purpose never got in
+        self.assertIn("rejectEventsOlderThanSeconds = 3153600000", strfry)
+        import copy
+        kept = copy.deepcopy(MACHINES["hub1"])
+        kept["master"]["nostr-relay"] = dict(kept["master"].get("nostr-relay") or {}, keep_days=30)
+        with open(os.path.join(self.render("hub1-kept", kept), "km-nostr-relay", "strfry.conf")) as f:
+            self.assertIn("rejectEventsOlderThanSeconds = 2592000\n", f.read())
         # a hub with nothing to name as its relay, and public mounts without public relays, are refused
         master = MACHINES["hub1"]["master"]
         norelay = {k: v for k, v in master.items() if k != "nostr-relay"}
