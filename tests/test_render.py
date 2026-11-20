@@ -942,7 +942,7 @@ class TestRender(unittest.TestCase):
             {"time": "2026-11-10T10:06:12+01:00", "tree": "t", "paths": ["/x"], "hostname": "h", "parent": "c" * 64, "id": "c" * 64, "short_id": "cccccccc"}])
 
         def pick(when):
-            prog = "set -uo pipefail\nHOST=h\nASK_LIMIT=3m\nrestic() { cat <<'J'\n%s\nJ\n}\n%s\nsnapshot_at vault frozen $(date -d '%s' +%%s%%N)" % (listing, func, when)
+            prog = "set -uo pipefail\nHOST=h\nREPO_HOST=h\nASK_LIMIT=3m\nrestic() { cat <<'J'\n%s\nJ\n}\n%s\nsnapshot_at vault frozen $(date -d '%s' +%%s%%N)" % (listing, func, when)
             r = subprocess.run(["bash", "-c", prog], capture_output=True, text=True)
             return (r.stdout.split() or [""])[-1], r.returncode       # "NANOSECONDS SHORT-ID"
         self.assertEqual(pick("2026-11-10T09:10:00Z"), ("cccccccc", 0))   # 10:06+01:00 is 09:06Z
@@ -959,7 +959,13 @@ class TestRender(unittest.TestCase):
         script = read(out, "kiwi/backup.sh")
         self.assertIn("TARGETS=(https://backup.lychee.home https://backup.papaya.home)", script)   # once each
         self.assertIn("AUTO_RESTORE=yes", script)
-        self.assertIn('-r "rest:$TARGET/$HOST/"', script)
+        self.assertIn('-r "rest:$TARGET/$REPO_HOST/"', script)
+        self.assertIn("REPO_HOST=$HOST", script)                     # its own copies, unless a module moved here
+        # a module that moved here: the other machine's copies, its way in read from standard input for one run
+        self.assertIn("restore_from() { # MACHINE [--at TIME] MODULE...", script)
+        self.assertIn('if [[ ${1:-} == --from ]]; then shift; restore_from "$@"; else restore "$@"; fi', script)
+        self.assertIn('--env-file "$ENV_FILE"', script)
+        self.assertNotIn('--env-file "$DIR/restic.env"', script)
         self.assertIn("backup.lychee.home, https://backup.papaya.home", read(out, "host-units/kn-backup.service"))
         env = read(out, "kiwi/backup/restic.env")
         self.assertTrue(env.startswith("RESTIC_REPOSITORY=rest:https://backup.lychee.home/"), env[:60])
@@ -973,6 +979,33 @@ class TestRender(unittest.TestCase):
         self.assertNotEqual(rc, 0)
         self.assertRegex(err.getvalue(), "servers or .*server is required")
 
+    def test_a_module_that_moved_here_is_restored_from_the_other_machines_copies(self):
+        """restore --from MACHINE: that machine's copies, its servers and its way in (read from
+        standard input, kept in RAM for the run and removed), and nothing of it stays."""
+        out = self.backup_node("backup7", backup={"server": "https://backup.lychee.home"})
+        script = read(out, "kiwi/backup.sh")
+        func = script[script.index("restore_from() {"):script.index("restore_all() {")]
+        prog = ("set -uo pipefail\nHOST=here.home\nREPO_HOST=$HOST\nENV_FILE=/own/restic.env\nTARGETS=(https://own.home)\nTARGET=${TARGETS[0]}\n"
+                "restore() { echo \"repo=$REPO_HOST target=$TARGET targets=${TARGETS[*]} args=$*\"; grep -c . \"$ENV_FILE\"; "
+                "grep -q KIWI_TARGETS \"$ENV_FILE\" && echo leaked; echo \"file=$ENV_FILE\"; }\n"
+                "mktemp() { command mktemp \"${TMPDIR:-/tmp}/kiwi-backup-from.XXXXXX\"; }\n" + func +
+                "\nrestore_from \"$@\"; echo \"rc=$? after: repo=$REPO_HOST env=$ENV_FILE\"\n")
+        env = "RESTIC_PASSWORD=repo-secret\nRESTIC_REST_USERNAME=there.home\nRESTIC_REST_PASSWORD=server-secret\nKIWI_TARGETS=https://a.home https://b.home\n"
+        r = subprocess.run(["bash", "-c", prog, "x", "there.home", "--at", "yesterday", "vault"], input=env, capture_output=True, text=True)
+        lines = r.stdout.splitlines()
+        self.assertIn("repo=there.home target=https://a.home targets=https://a.home https://b.home args=--at yesterday vault", lines)
+        self.assertIn("3", lines)                                             # its three lines; KIWI_TARGETS is ours, not restic's
+        self.assertNotIn("leaked", lines)
+        self.assertIn("rc=0 after: repo=here.home env=/own/restic.env", lines)    # this machine's own again
+        kept = next(x for x in lines if x.startswith("file=")).split("=", 1)[1]
+        self.assertFalse(os.path.exists(kept))                                 # the way in is gone after the run
+        self.assertNotIn("secret", r.stdout + r.stderr)
+        # nothing on standard input: refused, and nothing is restored
+        r = subprocess.run(["bash", "-c", prog, "x", "there.home", "vault"], input="", capture_output=True, text=True)
+        self.assertIn("wants there.home's way into its backups on standard input", r.stderr)
+        self.assertIn("rc=1", r.stdout)
+        self.assertNotIn("repo=there.home", r.stdout)
+
     def test_a_restore_takes_the_freshest_copy_of_any_server(self):
         script = read(self.backup_node("backup3", backup={"servers": ["https://a.home", "https://b.home"]}), "kiwi/backup.sh")
         funcs = "\n".join(re.search(r"^%s\(\) \{.*?^\}$" % f, script, re.S | re.M).group(0) for f in ("snapshot_at", "freshest"))
@@ -981,7 +1014,7 @@ class TestRender(unittest.TestCase):
             return json.dumps([{"time": t, "hostname": "h", "id": i * 8, "short_id": i * 8} for t, i in snaps])
         a = listing(("2026-11-10T08:00:00Z", "a"), ("2026-11-10T09:00:00Z", "b"))
         b = listing(("2026-11-10T08:30:00Z", "c"))           # b missed the night's second run
-        prog = ("set -uo pipefail\nHOST=h\nASK_LIMIT=3m\nTARGETS=(https://a.home https://b.home)\n"
+        prog = ("set -uo pipefail\nHOST=h\nREPO_HOST=h\nASK_LIMIT=3m\nTARGETS=(https://a.home https://b.home)\n"
                 "restic() { if [[ $TARGET == https://a.home ]]; then echo '%s'; else echo '%s'; fi; }\n%s\n"
                 "freshest m frozen $(date -d \"$1\" +%%s%%N)" % (a, b, funcs))
 
