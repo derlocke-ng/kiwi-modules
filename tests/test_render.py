@@ -1426,6 +1426,46 @@ class TestFederation(unittest.TestCase):
                "mesh": "10.10.0.0/16", "domain": "internal", "dns": "10.10.0.1",
                "share": ["cloud.sh3", "m1:22", "min", "nowhere"], "from": ["10.10.3.0/24"], "as": "10.8.255.1"}
 
+    def test_pihole_serves_the_time_and_never_sets_the_clock(self):
+        """dns.ntp: Pi-hole answers time questions on port 123 (published, open, handed out by DHCP);
+        it never sets the clock itself, which is the machine's own time service's to do."""
+        m = json.loads(json.dumps(MACHINES["m1"]))
+        out = self.render("m1-ntp", m)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            pihole = yaml.safe_load(f)["services"]["kn-pihole"]
+        self.assertIn("FTLCONF_ntp_sync_active=false", pihole["environment"])
+        self.assertNotIn("FTLCONF_ntp_ipv4_active=false", pihole["environment"])
+        self.assertIn("123:123/udp", pihole["ports"])
+        self.assertNotIn("SYS_TIME", pihole["cap_add"])
+        with open(os.path.join(out, "stack.sh")) as f:
+            stack = f.read()
+        self.assertRegex(stack, r"KS_STACK_PORTS=\([^)]*123/udp")
+        # the devices that get their address from it get the time from it too
+        dhcp = json.loads(json.dumps(m))
+        dhcp["node"]["dns"] = dict(dhcp["node"]["dns"], dhcp_enabled=True, dhcp_start="192.168.1.100",
+                                   dhcp_end="192.168.1.200", dhcp_router="192.168.1.1")
+        with open(os.path.join(self.render("m1-ntp-dhcp", dhcp), "docker-compose.yml")) as f:
+            env = yaml.safe_load(f)["services"]["kn-pihole"]["environment"]
+        self.assertIn("dhcp-option=option:ntp-server,0.0.0.0", next(e for e in env if e.startswith("FTLCONF_misc_dnsmasq_lines=")))
+        # switched off: it answers no time questions, and nothing is published for it
+        off = json.loads(json.dumps(m))
+        off["node"]["dns"] = dict(off["node"]["dns"], ntp=False)
+        out = self.render("m1-ntp-off", off)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            pihole = yaml.safe_load(f)["services"]["kn-pihole"]
+        self.assertIn("FTLCONF_ntp_ipv4_active=false", pihole["environment"])
+        self.assertIn("FTLCONF_ntp_sync_active=false", pihole["environment"])
+        self.assertNotIn("123:123/udp", pihole["ports"])
+        # the machine's own time servers (kiwi-server fills them in) reach the role library
+        from kiwimodules import machine as machmod, manifest, modules as modmod, profiles
+        mm = machmod.load(self.write("m1-ntp-servers", m))
+        profile = profiles.discover()[mm.role]
+        ms = modmod.discover()
+        resolver.resolve_settings(profile, mm, ms)
+        mm.role_settings["ntp_servers"] = ["192.168.1.5", "10.8.0.1"]
+        b = modmod.Renderer(ms).render(resolver.stack_spec(mm, profile, mm.dns_records, master_ip=mm.master_ip))
+        self.assertIn("KS_STACK_NTP=('192.168.1.5' '10.8.0.1')", manifest.stack_vars(mm, b))
+
     def test_a_nodes_pihole_goes_on_while_the_master_is_away(self):
         """A node's Pi-hole asks a small resolver in front of it, which asks the master while it
         answers and the fallbacks, over TLS, while it does not. Pi-hole's own order switched only
