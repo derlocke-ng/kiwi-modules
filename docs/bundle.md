@@ -30,3 +30,14 @@ with secrets have the mode `0600`, so only root reads them on the machine.
 
 `stack.sh` is the agreement between kiwi-modules and kiwi-stack. kiwi-stack
 does not know any module. It installs what `stack.sh` names.
+
+## Parts kept ready for another machine
+
+A machine can keep a part of another machine ready: kiwi-server's `keep_ready`
+names the standby. Its bundle then also holds that part, made with the
+settings and secrets of the machine that runs it. Its services are in the
+compose profile `kiwi-ready`, which no `up` starts, and their quadlets have no
+`[Install]` section. `stack.sh` lists them in `KS_STACK_READY`; the part gets
+no site in the proxy, no port, no host unit and no backup there, and the
+addresses of the machine's own containers stay as they were. kiwi-stack pulls
+their images with the others and starts them only with `kiwi-stack ready start`.
