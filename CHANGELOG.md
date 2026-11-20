@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.106.0 — a relay that takes notes dated back; a certificate asked for again soon
+
+- **Fixed: the relay refused every note not dated this very second.** `keep_days: 0` (the
+  default, "no limit") was handed to strfry as "nothing older than now": a note dated five
+  seconds back got "created_at too early", so a phone with a slow clock could not post and
+  sealed messages, which are dated back on purpose, never arrived. No limit is now a span
+  longer than any clock runs. Found by posting to a public relay from outside.
+- A public name that gets no certificate is asked for again ten minutes later, three times,
+  then at the daily run. A node asks at its own apply, before its master hands the name on:
+  until now the next try was a day away, and a site that had moved stayed dead that long.
+- The control node takes the machines' reports (`/api/report`) from any address: the report
+  is signed, and the control node's own machine comes from inside its stack, which the page's
+  address rule did not admit (403).
+
 ## 0.105.0 — a restore leaves SELinux labels alone
 
 - **Fixed: a copy made on a machine with SELinux could not be restored on one without it, and
