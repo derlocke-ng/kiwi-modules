@@ -2016,6 +2016,12 @@ class TestFederation(unittest.TestCase):
         self.assertIn("allow 10.8.0.0/16;", site)
         self.assertIn("allow 192.168.0.0/16;", site)
         self.assertIn("deny all;", site)
+        # the agents' reports are signed and need no address rule: the control node's own machine reports
+        # from the stack's network, which the rule above does not know
+        report = site[site.index("location = /api/report"):]
+        report = report[:report.index("}")]
+        self.assertIn("allow all;", report)
+        self.assertIn("proxy_pass", report)
         with open(os.path.join(out, "docker-compose.yml")) as f:
             svcs = yaml.safe_load(f)["services"]
         self.assertIn("/home/user/docker/kn-control:/fleet:Z", svcs["kn-control"]["volumes"])
