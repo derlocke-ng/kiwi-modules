@@ -115,6 +115,56 @@ class TestRender(unittest.TestCase):
         self.assertEqual(cli.main(["render", self.write(name, data), "-o", out]), 0)
         return out
 
+    def stack_of(self, data, ready=None, runtime="podman"):
+        """(spec, bundle) of a machine file's data, with parts kept ready ({part: (settings, files)})."""
+        from kiwimodules import machine as machinemod, profiles as profmod
+        data = dict(data)
+        data[data["role"]] = dict(data[data["role"]], runtime=runtime)
+        m = machinemod.load(self.write(data["name"], data))
+        profile = profmod.discover()[m.role]
+        ms = modules.discover()
+        resolver.resolve_settings(profile, m, ms)
+        spec = resolver.stack_spec(m, profile, m.dns_records, master_ip=m.master_ip, ca_cert=m.ca_cert, ready=ready)
+        return m, modules.Renderer(ms).render(spec)
+
+    def test_a_part_kept_ready_is_made_and_not_started(self):
+        """A standby keeps a part ready (kiwi-server keep_ready): its containers are made from the
+        settings and secrets of the machine it runs on, in a profile no apply starts; it gets no
+        site, unit, port or backup there, and moves no other container's address."""
+        src = dict(MACHINES["min"], name="quince")
+        src["node"] = dict(src["node"], modules=["vpn-client", "reverse-proxy", "firefox-sync"])
+        with open(os.path.join(self.tmp, "secrets", "quince.home.conf"), "w") as f:
+            f.write(WG % "10.8.0.30")
+        there, there_bundle = self.stack_of(src)
+        part = (there.module_settings["firefox-sync"], {k: v for k, v in there.module_files.items() if k.startswith("firefox-sync/")})
+        for runtime in ("podman", "docker"):
+            plain_m, plain = self.stack_of(MACHINES["min"], runtime=runtime)
+            m, b = self.stack_of(MACHINES["min"], {"firefox-sync": part}, runtime=runtime)
+            self.assertEqual(b.modules, plain.modules)                                    # its own parts as before
+            self.assertEqual(b.ready, ["firefox-sync"])
+            self.assertEqual(b.services, plain.services)
+            self.assertEqual(b.ready_services, ["kn-ffsync", "kn-ffsync-db"])
+            self.assertEqual({k: v for k, v in b.container_ips.items() if k != "firefox-sync"}, plain.container_ips)
+            svc = b.compose["services"]["kn-ffsync"]
+            self.assertEqual(svc["profiles"], [modules.READY])
+            # the secrets of the machine it runs on, not this one's
+            token = lambda env: [e for e in env if str(e).startswith("SYNC_MASTER_SECRET=")]    # noqa: E731
+            mine = token(there_bundle.compose["services"]["kn-ffsync"]["environment"])
+            self.assertTrue(mine)
+            self.assertEqual(token(svc["environment"]), mine)
+            nginx = b.files["kn-nginx/nginx.conf"][0] if "kn-nginx/nginx.conf" in b.files else ""
+            self.assertNotIn("ffsync", nginx)                                             # no site of its own here
+            self.assertEqual((b.units, b.ports, b.urls), (plain.units, plain.ports, plain.urls))
+            self.assertIn(svc["image"], b.images)                                        # its image is pulled
+            if runtime == "podman":
+                q = b.quadlets["kn-ffsync.container"]
+                self.assertNotIn("[Install]", q)                                         # nothing starts it
+                self.assertIn("[Install]", b.quadlets["kn-nginx.container"])
+        with self.assertRaisesRegex(KiwiError, "keeps firefox-sync ready, but has no reverse-proxy"):
+            bare = dict(MACHINES["min"], name="bare")
+            bare["node"] = {"preset": "minimal", "modules": []}
+            self.stack_of(bare, {"firefox-sync": part})
+
     def test_a_part_says_how_it_is_named(self):
         """named_by: the setting that holds a part's name and its own word (kiwi-server names a part
         by service and keeps the name when it moves)."""
