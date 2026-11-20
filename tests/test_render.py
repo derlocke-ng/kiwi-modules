@@ -1171,6 +1171,41 @@ class TestRender(unittest.TestCase):
         self.assertNotIn(client["RESTIC_REST_PASSWORD"], read(out, "kn-backup-server/htpasswd"))
         self.assertIn("--private-repos --append-only", read(out, "docker-compose.yml"))
 
+    def test_a_backup_store_keeps_an_encrypted_copy_at_another_place(self):
+        """backup-server.offsite_url: every night rclone brings a copy of the store up to date in a
+        WebDAV folder, encrypted once more (names too) with a key from the seed."""
+        node = {k: v for k, v in SH3["node"].items() if k in ("vpn_ip", "vpn-client", "reverse-proxy", "pub_iface")}
+        node["modules"] = ["vpn-client", "reverse-proxy", "backup-server"]
+        node["backup-server"] = {"clients": ["sh3.home"]}
+        out = self.render("offsite-none", dict(SH3, node=node))
+        self.assertFalse(os.path.exists(os.path.join(out, "kiwi", "backup-offsite.sh")))       # none unless asked for
+        node["backup-server"] = dict(node["backup-server"], offsite_url="https://dav.example.org/kiwi",
+                                     offsite_user="me", offsite_password="golden-dav-password", offsite_bwlimit="5M")
+        out = self.render("offsite", dict(SH3, node=node))
+        env = dict(line.split("=", 1) for line in read(out, "kn-backup-server/offsite.env").splitlines() if "=" in line and not line.startswith("#"))
+        self.assertEqual((env["OFFSITE_URL"], env["OFFSITE_USER"], env["OFFSITE_PASS"]), ("https://dav.example.org/kiwi", "me", "golden-dav-password"))
+        self.assertGreaterEqual(len(env["OFFSITE_KEY"]), 20)                                   # from the seed
+        self.assertEqual(oct(os.stat(os.path.join(out, "kn-backup-server", "offsite.env")).st_mode & 0o777), "0o600")
+        script = read(out, "kiwi/backup-offsite.sh")
+        self.assertNotIn("golden-dav-password", script)                                        # the password stays in the env file
+        self.assertIn("RCLONE_CONFIG_KIWI_TYPE=crypt", script)
+        self.assertIn("RCLONE_CONFIG_KIWI_DIRECTORY_NAME_ENCRYPTION=true", script)
+        self.assertIn('-v "$data:/data:ro,z"', script)                                           # the store is only read
+        self.assertIn('--bwlimit "5M"', script)
+        self.assertIn('--exclude "/*/locks/**"', script)
+        timer = read(out, "host-units/kn-backup-offsite.timer")
+        self.assertIn("OnCalendar=*-*-* 05:30:00", timer)
+        self.assertTrue(os.path.isfile(os.path.join(out, "host-units", "kn-backup-offsite.service")))
+        if shutil.which("shellcheck"):
+            r = subprocess.run(["shellcheck", "-S", "warning", os.path.join(out, "kiwi", "backup-offsite.sh")], capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stdout)
+        # an address without the account: refused
+        node["backup-server"] = {"clients": ["sh3.home"], "offsite_url": "https://dav.example.org/kiwi"}
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertNotEqual(cli.main(["render", self.write("offsite-bad", dict(SH3, node=node)), "-o", os.path.join(self.tmp, "ob.bundle")]), 0)
+        self.assertIn("needs offsite_user and offsite_password", err.getvalue())
+
     def tang_node(self, name, **settings):
         node = {k: v for k, v in SH3["node"].items() if k in ("vpn_ip", "vpn-client", "reverse-proxy", "pub_iface")}
         node["modules"] = ["vpn-client", "reverse-proxy", "tang"]
