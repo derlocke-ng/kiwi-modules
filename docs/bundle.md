@@ -41,3 +41,16 @@ compose profile `kiwi-ready`, which no `up` starts, and their quadlets have no
 no site in the proxy, no port, no host unit and no backup there, and the
 addresses of the machine's own containers stay as they were. kiwi-stack pulls
 their images with the others and starts them only with `kiwi-stack ready start`.
+
+Two more files make a switch fast:
+
+- `<prefix>-nginx/nginx-ready.conf` is the proxy's configuration as it is once
+  the parts kept ready run there. `kiwi-stack ready start` writes it over
+  `nginx.conf` and reloads the proxy, so the parts answer to their names at
+  once; the apply that follows writes the proxy's own configuration again.
+- On a machine with the `dns` part, the names of parts kept ready anywhere in
+  the network (`StackSpec.moving`) are not among Pi-hole's own records but in
+  `<prefix>-pihole/moving/kiwi.hosts`, a hosts file Pi-hole reads from a
+  directory it watches. kiwi-server's switch rewrites that file on every
+  machine that answers for names, so the name points at the new machine in
+  seconds without restarting Pi-hole.

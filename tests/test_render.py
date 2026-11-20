@@ -115,7 +115,7 @@ class TestRender(unittest.TestCase):
         self.assertEqual(cli.main(["render", self.write(name, data), "-o", out]), 0)
         return out
 
-    def stack_of(self, data, ready=None, runtime="podman"):
+    def stack_of(self, data, ready=None, runtime="podman", moving=None):
         """(spec, bundle) of a machine file's data, with parts kept ready ({part: (settings, files)})."""
         from kiwimodules import machine as machinemod, profiles as profmod
         data = dict(data)
@@ -124,7 +124,8 @@ class TestRender(unittest.TestCase):
         profile = profmod.discover()[m.role]
         ms = modules.discover()
         resolver.resolve_settings(profile, m, ms)
-        spec = resolver.stack_spec(m, profile, m.dns_records, master_ip=m.master_ip, ca_cert=m.ca_cert, ready=ready)
+        spec = resolver.stack_spec(m, profile, m.dns_records, master_ip=m.master_ip, ca_cert=m.ca_cert, ready=ready,
+                                   moving=moving)
         return m, modules.Renderer(ms).render(spec)
 
     def test_a_part_kept_ready_is_made_and_not_started(self):
@@ -137,6 +138,8 @@ class TestRender(unittest.TestCase):
             f.write(WG % "10.8.0.30")
         there, there_bundle = self.stack_of(src)
         part = (there.module_settings["firefox-sync"], {k: v for k, v in there.module_files.items() if k.startswith("firefox-sync/")})
+        sync_name = "ffsync.quince.home"
+        part[0]["sync_hostname"] = sync_name             # (kiwi-server keeps the name the part has where it runs)
         for runtime in ("podman", "docker"):
             plain_m, plain = self.stack_of(MACHINES["min"], runtime=runtime)
             m, b = self.stack_of(MACHINES["min"], {"firefox-sync": part}, runtime=runtime)
@@ -154,6 +157,11 @@ class TestRender(unittest.TestCase):
             self.assertEqual(token(svc["environment"]), mine)
             nginx = b.files["kn-nginx/nginx.conf"][0] if "kn-nginx/nginx.conf" in b.files else ""
             self.assertNotIn("ffsync", nginx)                                             # no site of its own here
+            # the proxy as it is once the part runs here: its site, at its address here
+            later = b.files["kn-nginx/nginx-ready.conf"][0]
+            self.assertIn("server_name %s;" % sync_name, later)
+            self.assertIn("http://kn-ffsync:8000", later)                                 # by its container's name
+            self.assertNotIn("kn-nginx/nginx-ready.conf", plain.files)
             self.assertEqual((b.units, b.ports, b.urls), (plain.units, plain.ports, plain.urls))
             self.assertIn(svc["image"], b.images)                                        # its image is pulled
             self.assertEqual(b.vpn_dependents, plain.vpn_dependents)                     # a VPN restart starts none of it
@@ -165,6 +173,26 @@ class TestRender(unittest.TestCase):
             bare = dict(MACHINES["min"], name="bare")
             bare["node"] = {"preset": "minimal", "modules": []}
             self.stack_of(bare, {"firefox-sync": part})
+
+    def test_the_names_of_parts_that_can_move_are_in_a_file_of_their_own(self):
+        """A part kept ready on another machine may be switched there: Pi-hole serves its name from a
+        hosts file of its own, which the switch rewrites in a moment (dnsmasq reloads it by itself)."""
+        m1 = dict(MACHINES["m1"], dns_records=RECORDS)
+        _m, plain = self.stack_of(m1)
+        _m, b = self.stack_of(m1, moving=["vault.sh3.home"])
+        env = lambda bundle: next(e for e in bundle.compose["services"]["kn-pihole"]["environment"]    # noqa: E731
+                                  if str(e).startswith("FTLCONF_dns_hosts="))
+        self.assertIn("vault.sh3.home", env(plain))
+        self.assertNotIn("vault.sh3.home", env(b))
+        self.assertIn("cloud.sh3.home", env(b))                                 # the others as before
+        hosts = b.files["kn-pihole/moving/kiwi.hosts"][0]
+        self.assertIn("\n10.8.0.25 vault.sh3.home\n", hosts)
+        self.assertNotIn("cloud.sh3.home", hosts)
+        lines = next(e for e in b.compose["services"]["kn-pihole"]["environment"] if str(e).startswith("FTLCONF_misc_dnsmasq_lines="))
+        self.assertIn("hostsdir=/etc/kiwi-moving", lines)
+        self.assertIn("/etc/kiwi-moving:ro", " ".join(b.compose["services"]["kn-pihole"]["volumes"]))
+        self.assertIn("kn-pihole/moving", b.dirs)
+        self.assertNotIn("kn-pihole/moving/kiwi.hosts", plain.files)
 
     def test_a_part_says_how_it_is_named(self):
         """named_by: the setting that holds a part's name and its own word (kiwi-server names a part
