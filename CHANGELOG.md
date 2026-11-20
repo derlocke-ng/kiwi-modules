@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.109.0 — a node's Pi-hole goes on while the master is away
+
+- **Fixed: while the master was away, a node's Pi-hole gave the names of the Internet no
+  answer.** Its strict order moved on to the fallback only when a client asked a second time.
+  A small resolver in front of it (CoreDNS, `{prefix}-dns-up`, in Pi-hole's network) asks the
+  master's Pi-hole while it answers and the fallbacks while it does not, over TLS by default
+  (`dns.fallback_tls_name: cloudflare-dns.com`; empty: plain text). A master is unchanged.
+- The VPN client sets gluetun's `DNS_UPSTREAM_RESOLVERS` (its old name `DOT_PROVIDERS` only
+  drew a warning).
+
 ## 0.108.0 — a network without a master lets its home in
 
 - **Fixed: on a machine off the VPN (`vpn: false`, a network without a master) the pages that
