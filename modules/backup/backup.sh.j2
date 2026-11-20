@@ -376,7 +376,7 @@ exec 9>"$DIR/lock"
 case "${1:-}" in
     due)        due ;;
     thaw)       flock -w 120 9 || exit 0; thaw_left ;;
-    backup)     flock -n 9 || { echo "backup: one is running already" >&2; exit 1; }
+    backup)     flock -n 9 || { echo "backup: a backup or a restore is running on this machine: try again when it is done" >&2; exit 1; }
                 if [[ ${2:-} == --new ]]; then rm -f "$DIR/held"; touch "$DIR/new-history"; fi
                 if held; then
                     [[ $AUTO_RESTORE == yes ]] || exit 1
@@ -385,7 +385,7 @@ case "${1:-}" in
                 fi
                 backup ;;
     snapshots)  shift; snapshots "$@" ;;
-    restore)    shift; flock -n 9 || { echo "backup: one is running already" >&2; exit 1; }
+    restore)    shift; flock -n 9 || { echo "backup: a backup or a restore is running on this machine: try again when it is done" >&2; exit 1; }
                 if [[ ${1:-} == --from ]]; then shift; restore_from "$@"; else restore "$@"; fi ;;
     *)          echo "usage: kiwi-stack backup [--new] | snapshots [--json] [MODULE...] | restore [--from MACHINE] [--at TIME] MODULE..." >&2; exit 1 ;;
 esac
