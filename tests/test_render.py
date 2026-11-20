@@ -115,6 +115,21 @@ class TestRender(unittest.TestCase):
         self.assertEqual(cli.main(["render", self.write(name, data), "-o", out]), 0)
         return out
 
+    def test_a_part_says_how_it_is_named(self):
+        """named_by: the setting that holds a part's name and its own word (kiwi-server names a part
+        by service and keeps the name when it moves)."""
+        ms = modules.discover()
+        named = {name: m.named_by for name, m in ms.modules.items() if m.named_by}
+        self.assertEqual(named["paste"], {"setting": "paste_domain", "word": "paste", "url": False})
+        self.assertEqual(named["vault"], {"setting": "vault_domain", "word": "vault", "url": True})
+        self.assertEqual(named["cloud"]["setting"], "nc_hostname")
+        for name, nb in named.items():                    # the setting exists, and the word is the default name's
+            keys = {x.key for x in ms.modules[name].settings}
+            self.assertIn(nb["setting"], keys, name)
+            self.assertIn("'%s.' ~ hostname" % nb["word"], open(os.path.join(ms.modules[name].dir, "module.yaml")).read(), name)
+        # every part with a page of its own under a name setting says so
+        self.assertGreaterEqual(len(named), 14)
+
     def test_tor_never_leaves_on_a_home_line_unless_chosen(self):
         """A master at home without a VPN exit, and a node without a VPN client: their Tor gets no
         network. A master at a hoster, a node behind its VPN client, or the owner's choice: it runs."""
