@@ -722,7 +722,8 @@ class Renderer:
         # with it (kiwi-stack vpn-restart), or they keep a namespace that is gone
         vpn = "service:%s-vpn-client" % base["container_prefix"]
         bundle.vpn_dependents = [str((body or {}).get("container_name") or svc)
-                                 for svc, body in services.items() if (body or {}).get("network_mode") == vpn]
+                                 for svc, body in services.items() if (body or {}).get("network_mode") == vpn
+                                 and svc not in bundle.ready_services]      # (a restart would start one kept ready)
         compose = {"services": services}
         if volumes:
             compose["volumes"] = volumes

@@ -156,6 +156,7 @@ class TestRender(unittest.TestCase):
             self.assertNotIn("ffsync", nginx)                                             # no site of its own here
             self.assertEqual((b.units, b.ports, b.urls), (plain.units, plain.ports, plain.urls))
             self.assertIn(svc["image"], b.images)                                        # its image is pulled
+            self.assertEqual(b.vpn_dependents, plain.vpn_dependents)                     # a VPN restart starts none of it
             if runtime == "podman":
                 q = b.quadlets["kn-ffsync.container"]
                 self.assertNotIn("[Install]", q)                                         # nothing starts it
