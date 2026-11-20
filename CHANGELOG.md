@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.110.0 — Pi-hole serves the time and never sets the clock
+
+- **dns.ntp** (default on): Pi-hole answers time questions on port 123, published and opened
+  where Pi-hole has its own address, and handed out with DHCP (option 42) where it is the DHCP
+  server. Off: it answers none.
+- Pi-hole no longer sets the machine's clock (`ntp.sync`, every hour from pool.ntp.org, with the
+  SYS_TIME capability): the machine's own time service does. Two setters of one clock is one
+  too many. SYS_TIME is gone from its capabilities.
+- The manifest passes a machine's own time servers (`KS_STACK_NTP`, from the role setting
+  `ntp_servers` that kiwi-server fills in) to kiwi-stack.
+
 ## 0.109.1 — what the fallback resolvers do, said right
 
 - The help of `dns.fallback_dns` said they were reached directly, past the tunnel. On a node
