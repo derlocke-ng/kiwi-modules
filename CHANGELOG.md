@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.111.0 — a copy of the backup store at another place
+
+- **backup-server.offsite_url**: every night (`offsite_time`) rclone brings a copy of the store
+  up to date in a WebDAV folder, encrypted once more before it leaves (rclone crypt, names
+  included) with a key from the fleet's seed (`offsite_key`). New packs first, then the rest with
+  what was pruned, so a run cut off half way leaves every earlier snapshot whole. The store is
+  only read. `offsite_bwlimit`, `offsite_ca` (a server's own CA). `kiwi/backup-offsite.sh list`
+  and `restore NAME DIR` on the store's machine.
+
 ## 0.110.0 — Pi-hole serves the time and never sets the clock
 
 - **dns.ntp** (default on): Pi-hole answers time questions on port 123, published and opened
