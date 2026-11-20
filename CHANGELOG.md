@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.109.1 — what the fallback resolvers do, said right
+
+- The help of `dns.fallback_dns` said they were reached directly, past the tunnel. On a node
+  they are (by the resolver in front of Pi-hole, 0.109.0). On the master everything leaves
+  through its exit, the fallbacks too, so they help only when the VPN client's resolver
+  fails, not while the exit is down. Found by cutting a master's exit for 40 seconds.
+
 ## 0.109.0 — a node's Pi-hole goes on while the master is away
 
 - **Fixed: while the master was away, a node's Pi-hole gave the names of the Internet no
