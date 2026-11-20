@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.114.0 — certbot as its tag says
+
+- **Fixed: certbot's image stayed the copy pulled the first time.** The certificate script runs it
+  with `run`, which pulls only a missing image, so `latest` did not follow new releases as the
+  setting's help says. The script pulls it first now; a registry that does not answer keeps the
+  copy on the machine.
+
 ## 0.113.0 — a switch in seconds: the standby's proxy and the names that move
 
 - A standby's bundle holds `<prefix>-nginx/nginx-ready.conf`, the proxy with the sites of the
