@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.105.0 — a restore leaves SELinux labels alone
+
+- **Fixed: a copy made on a machine with SELinux could not be restored on one without it, and
+  the other way round.** restic tried to set the labels (uCore to Debian: "operation not
+  permitted") or to remove them (Debian to uCore: "permission denied") and called the whole
+  restore failed. A restore now neither sets nor removes `security.selinux`; what is restored
+  takes the label of the folder it lands in. Found by moving a part between a uCore and a
+  Debian machine.
+- "backup: one is running already" says what it means: a backup or a restore is running on
+  this machine, try again when it is done.
+
 ## 0.104.0 — a module that moved is restored from the other machine's copies
 
 - `kiwi-stack restore --from MACHINE [--at TIME] MODULE...`: the backup script restores a
