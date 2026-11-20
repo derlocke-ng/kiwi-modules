@@ -1426,6 +1426,47 @@ class TestFederation(unittest.TestCase):
                "mesh": "10.10.0.0/16", "domain": "internal", "dns": "10.10.0.1",
                "share": ["cloud.sh3", "m1:22", "min", "nowhere"], "from": ["10.10.3.0/24"], "as": "10.8.255.1"}
 
+    def test_a_nodes_pihole_goes_on_while_the_master_is_away(self):
+        """A node's Pi-hole asks a small resolver in front of it, which asks the master while it
+        answers and the fallbacks, over TLS, while it does not. Pi-hole's own order switched only
+        when a client asked again: lookups took seconds or got nothing (the master-down drill)."""
+        m = json.loads(json.dumps(MACHINES["m1"]))
+        out = self.render("m1-up", m)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            svcs = yaml.safe_load(f)["services"]
+        self.assertIn("FTLCONF_dns_upstreams=127.0.0.1#5335", svcs["kn-pihole"]["environment"])
+        up = svcs["kn-dns-up"]
+        self.assertEqual((up["network_mode"], up["command"]), ("service:kn-pihole", ["-conf", "/Corefile"]))
+        self.assertTrue(up["image"].startswith("docker.io/coredns/coredns:"))
+        with open(os.path.join(out, "kn-pihole", "Corefile")) as f:
+            core = f.read()
+        master = MACHINES["m1"]["node"].get("master_ip") or "10.8.0.1"
+        self.assertIn("forward . %s tls://1.1.1.1 tls://1.0.0.1 {" % master, core)
+        self.assertIn("tls_servername cloudflare-dns.com", core)
+        self.assertIn("policy sequential", core)
+        self.assertIn("bind 127.0.0.1", core)
+        self.assertTrue(os.path.isfile(os.path.join(out, "quadlets", "kn-dns-up.container")))
+        with open(os.path.join(out, "quadlets", "kn-dns-up.container")) as f:
+            self.assertIn("Network=container:kn-pihole", f.read())
+        # the fallbacks in plain text when asked so; none without fallbacks, nor with upstreams of one's own
+        plain = json.loads(json.dumps(m))
+        plain["node"]["dns"] = dict(plain["node"]["dns"], fallback_tls_name="")
+        with open(os.path.join(self.render("m1-plain", plain), "kn-pihole", "Corefile")) as f:
+            self.assertIn("forward . %s 1.1.1.1 1.0.0.1 {" % master, f.read())
+        for name, dns in (("m1-nofb", {"fallback_dns": ""}), ("m1-own", {"upstream_dns": "9.9.9.10"})):
+            other = json.loads(json.dumps(m))
+            other["node"]["dns"] = dict(other["node"]["dns"], **dns)
+            out2 = self.render(name, other)
+            with open(os.path.join(out2, "docker-compose.yml")) as f:
+                svcs2 = yaml.safe_load(f)["services"]
+            self.assertNotIn("kn-dns-up", svcs2, name)
+            self.assertFalse(os.path.exists(os.path.join(out2, "kn-pihole", "Corefile")), name)
+            self.assertNotIn("FTLCONF_dns_upstreams=127.0.0.1#5335", svcs2["kn-pihole"]["environment"])
+        # a master asks its VPN client, which sits next to it: as before
+        with open(os.path.join(self.render("gate-up", MACHINES["gate"]), "docker-compose.yml")) as f:
+            gate = yaml.safe_load(f)["services"]
+        self.assertNotIn("km-dns-up", gate)
+
     def test_a_nodes_pihole_asks_the_master_for_a_partners_names(self):
         m = json.loads(json.dumps(MACHINES["m1"]))
         m["node"]["dns"] = dict(m["node"]["dns"], partner_domains=["internal", m["domain"], ""])
