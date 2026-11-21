@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.116.0 — parts that run by a permission
+
+- `StackSpec(leased=...)`: a machine's own parts that have a standby run only while the machine
+  holds a permission for them (kiwi-server's permissions). They keep everything else (site,
+  backup, units), but nothing starts them except that permission: their compose services are in
+  the profile `kiwi-leased`, their quadlets have no `[Install]`, and the manifest lists them as
+  `KS_STACK_LEASED` (kiwi-stack 0.9.29 starts and stops them with `kiwi-stack lease`).
+  `bundle.leased_parts` says which containers each such part has.
+
 ## 0.115.0 — renders four times faster
 
 - Compiled templates and expressions are kept by their text (one environment for every render):
