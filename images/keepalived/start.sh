@@ -44,7 +44,11 @@ vrrp_script route {
 fi
 mkdir -p /etc/keepalived
 {
-    printf 'global_defs {\n    router_id %s\n    enable_script_security\n    script_user root\n}\n' "$(hostname)"
+    # the holder says again and again whose address it is (gratuitous ARP): a device with an old entry
+    # in its table (it asked while the other one held it) learns it within half a minute at the latest
+    printf 'global_defs {\n    router_id %s\n    enable_script_security\n    script_user root\n' "$(hostname)"
+    printf '    vrrp_garp_master_delay 2\n    vrrp_garp_master_repeat 3\n    vrrp_garp_master_refresh 30\n'
+    printf '    vrrp_garp_master_refresh_repeat 2\n}\n'
     printf '%s\n' "$checks"
     cat <<CONF
 vrrp_instance kiwi {

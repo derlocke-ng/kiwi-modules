@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.117.1 — the moving address said again
+
+- vip: the machine that holds the address says again every 30 seconds whose it is (gratuitous ARP,
+  and three times when it takes it): a device that kept an old entry learns it without asking.
+  Image `ghcr.io/derlocke-ng/keepalived:2.3-kiwi2`.
+
 ## 0.117.0 — a moving address
 
 - The `vip` module: keepalived on the host's network holds an address that two machines of a site
