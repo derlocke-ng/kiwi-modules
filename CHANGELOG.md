@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.116.1 — no boot starts a part that runs by a permission
+
+- Docker: a part with a standby (`StackSpec.leased`) gets `restart: on-failure` where it had
+  `always` or `unless-stopped`. Docker restarts it when it fails, but a daemon start (a boot) does
+  not start it before its permission is asked. Podman's units had no `[Install]` already.
+
 ## 0.116.0 — parts that run by a permission
 
 - `StackSpec(leased=...)`: a machine's own parts that have a standby run only while the machine
