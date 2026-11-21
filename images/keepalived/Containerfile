@@ -1,0 +1,8 @@
+# keepalived for the vip module: the network's moving address between two machines of a site
+# (kiwi-server docs/design/basics-twice.md). Alpine's keepalived, configured from the environment
+# at start (start.sh); dig and ping for its checks.
+FROM docker.io/library/alpine:3.22
+RUN apk add --no-cache keepalived bind-tools iproute2 iputils
+LABEL org.opencontainers.image.source=https://github.com/derlocke-ng/kiwi-modules
+COPY start.sh /start.sh
+ENTRYPOINT ["/bin/sh", "/start.sh"]
