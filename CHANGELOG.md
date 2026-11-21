@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.116.2 — the master's door into a jail
+
+- fail2ban: `kiwi-nginx-door` bans an address that keeps opening more connections to the master's
+  door than its limit lets through (nginx's `kiwi_door` zone, 300 refusals in five minutes). The
+  nodes banned by address already.
+
 ## 0.116.1 — no boot starts a part that runs by a permission
 
 - Docker: a part with a standby (`StackSpec.leased`) gets `restart: on-failure` where it had
