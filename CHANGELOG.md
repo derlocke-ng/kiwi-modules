@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.117.0 — a moving address
+
+- The `vip` module: keepalived on the host's network holds an address that two machines of a site
+  share (VRRP, unicast to the other machine, a password). It gives the address up when its Pi-hole
+  does not answer a name or, with `check_ping`, when an address through the machine does not answer.
+  Its image is this repository's build (images/keepalived, `ghcr.io/derlocke-ng/keepalived:2.3-kiwi1`),
+  with a test of a pair in two containers (images/keepalived/test-pair.sh).
+
 ## 0.116.2 — the master's door into a jail
 
 - fail2ban: `kiwi-nginx-door` bans an address that keeps opening more connections to the master's

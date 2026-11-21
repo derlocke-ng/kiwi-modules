@@ -1797,6 +1797,22 @@ class TestFederation(unittest.TestCase):
         ip = server["networks"]["knet-master"]["ipv4_address"]
         self.assertIn("wg.gate.home:%s" % ip, server["extra_hosts"])     # nginx lives in this namespace
 
+    def test_a_moving_address_on_the_hosts_network(self):
+        """vip (basics-twice.md): keepalived on the host's network, configured from its environment."""
+        name = "m1"
+        m = json.loads(json.dumps(MACHINES[name]))
+        m["node"]["modules"] = ["vpn-client", "dns", "dhcp-relay", "reverse-proxy", "downloader", "gateway", "portainer",
+                                "sftp", "vip"]      # its preset's, and the moving address
+        m["node"]["vip"] = {"address": "192.168.2.70/16", "peers": ["192.168.2.30"], "priority": 150, "password": "pairpass"}
+        out = self.render(name + "-vip", m)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            svc = [v for k, v in yaml.safe_load(f)["services"].items() if k.endswith("-vip")][0]
+        self.assertEqual(svc["network_mode"], "host")
+        self.assertIn("NET_ADMIN", svc["cap_add"])
+        env = svc["environment"]
+        self.assertEqual((env["VIP_ADDRESS"], env["VIP_PEERS"], env["VIP_PRIORITY"], env["VIP_ROUTER_ID"], env["VIP_CHECK_DNS"]),
+                         ("192.168.2.70/16", "192.168.2.30", "150", "70", "1"))
+
     def test_fail2ban_watches_the_ssh_port_and_limits_new_connections(self):
         m = json.loads(json.dumps(MACHINES["gate"]))
         m["master"]["modules"] = ["vpn-client", "vpn-server", "dns", "tor", "reverse-proxy", "fail2ban"]
