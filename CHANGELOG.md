@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.119.0 — install images from the LAN
+
+- cache: `files` (on unless set false) keeps install images for the LAN at
+  `cache.<hostname>/files/<server>/<path>`, from a fixed list of servers (Fedora CoreOS's builds,
+  Debian's cdimage and archive, Fedora's downloads), over TLS checked against the system's CAs.
+  What says which image is the newest (a stream's JSON, SHA256SUMS) is asked again every time;
+  an image is kept 90 days after its last use, `files_size` (20g) at most.
+
 ## 0.118.0 — a store back from its offsite copy
 
 - backup-server: `kiwi/backup-offsite.sh bring-back [NAME...]` brings every repository the copy at
