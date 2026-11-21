@@ -115,7 +115,7 @@ class TestRender(unittest.TestCase):
         self.assertEqual(cli.main(["render", self.write(name, data), "-o", out]), 0)
         return out
 
-    def stack_of(self, data, ready=None, runtime="podman", moving=None):
+    def stack_of(self, data, ready=None, runtime="podman", moving=None, leased=None):
         """(spec, bundle) of a machine file's data, with parts kept ready ({part: (settings, files)})."""
         from kiwimodules import machine as machinemod, profiles as profmod
         data = dict(data)
@@ -125,8 +125,33 @@ class TestRender(unittest.TestCase):
         ms = modules.discover()
         resolver.resolve_settings(profile, m, ms)
         spec = resolver.stack_spec(m, profile, m.dns_records, master_ip=m.master_ip, ca_cert=m.ca_cert, ready=ready,
-                                   moving=moving)
+                                   moving=moving, leased=leased)
         return m, modules.Renderer(ms).render(spec)
+
+    def test_a_part_with_a_standby_runs_by_its_permission(self):
+        """kiwi-server's permissions (docs/design/authority.md, step 2): a part of this machine that
+        has a standby is everything it was (site, backup, units), but nothing starts it except its
+        permission: no `up`, no boot. A part named that the machine does not run is left out."""
+        src = dict(MACHINES["min"], name="quince")
+        src["node"] = dict(src["node"], modules=["vpn-client", "reverse-proxy", "firefox-sync"])
+        with open(os.path.join(self.tmp, "secrets", "quince.home.conf"), "w") as f:
+            f.write(WG % "10.8.0.30")
+        from kiwimodules import manifest
+        for runtime in ("podman", "docker"):
+            _m, plain = self.stack_of(src, runtime=runtime)
+            m, b = self.stack_of(src, runtime=runtime, leased=["firefox-sync", "gitea"])
+            self.assertEqual(b.leased_parts, {"firefox-sync": ["kn-ffsync", "kn-ffsync-db"]})
+            self.assertEqual(b.services, plain.services)                                  # still its own
+            self.assertEqual(b.compose["services"]["kn-ffsync"]["profiles"], [modules.LEASED])
+            self.assertNotIn("profiles", b.compose["services"]["kn-nginx"])
+            self.assertEqual(b.files.get("kn-nginx/nginx.conf"), plain.files.get("kn-nginx/nginx.conf"))   # its site stays
+            self.assertEqual(plain.leased_parts, {})
+            if runtime == "podman":
+                self.assertNotIn("[Install]", b.quadlets["kn-ffsync.container"])         # no boot starts it
+                self.assertIn("[Install]", plain.quadlets["kn-ffsync.container"])
+            self.assertIn("KS_STACK_LEASED=", "\n".join(manifest.stack_vars(m, b)))
+            self.assertIn("kn-ffsync-db", [x for x in manifest.stack_vars(m, b) if x.startswith("KS_STACK_LEASED=")][0])
+            self.assertFalse([x for x in manifest.stack_vars(m, plain) if x.startswith("KS_STACK_LEASED=")])
 
     def test_a_part_kept_ready_is_made_and_not_started(self):
         """A standby keeps a part ready (kiwi-server keep_ready): its containers are made from the
