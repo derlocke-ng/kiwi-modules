@@ -3100,6 +3100,19 @@ class TestFederation(unittest.TestCase):
         apt = open(os.path.join(out, "kn-cache", "apt-nginx.conf")).read()
         self.assertIn("deb.debian.org 1;", apt)
         self.assertIn("max_size=10g", apt)
+        # install images: kept for the LAN at cache.<hostname>/files/<server>/<path>, from a few servers only
+        self.assertIn("kn-cache-files", svcs)
+        self.assertIn("set $files http://kn-cache-files:8080; proxy_pass $files;", site)
+        files = open(os.path.join(out, "kn-cache", "files-nginx.conf")).read()
+        for server in ("builds.coreos.fedoraproject.org 1;", "cdimage.debian.org 1;"):
+            self.assertIn(server, files)
+        self.assertIn("proxy_ssl_verify on;", files)
+        self.assertIn("max_size=20g", files)
+        m["node"]["cache"]["files"] = False
+        out = self.render("sh3-cache-nofiles", m)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            self.assertNotIn("kn-cache-files", yaml.safe_load(f)["services"])
+        self.assertNotIn("kn-cache-files", open(os.path.join(out, "kn-nginx", "nginx.conf")).read())
 
     def test_a_node_lets_partners_open_only_the_shared_names(self):
         m = json.loads(json.dumps(SH3))
