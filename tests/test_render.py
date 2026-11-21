@@ -143,6 +143,8 @@ class TestRender(unittest.TestCase):
             self.assertEqual(b.leased_parts, {"firefox-sync": ["kn-ffsync", "kn-ffsync-db"]})
             self.assertEqual(b.services, plain.services)                                  # still its own
             self.assertEqual(b.compose["services"]["kn-ffsync"]["profiles"], [modules.LEASED])
+            self.assertEqual(b.compose["services"]["kn-ffsync"]["restart"], "on-failure")      # no daemon start starts it
+            self.assertEqual(plain.compose["services"]["kn-ffsync"]["restart"], "unless-stopped")
             self.assertNotIn("profiles", b.compose["services"]["kn-nginx"])
             self.assertEqual(b.files.get("kn-nginx/nginx.conf"), plain.files.get("kn-nginx/nginx.conf"))   # its site stays
             self.assertEqual(plain.leased_parts, {})
