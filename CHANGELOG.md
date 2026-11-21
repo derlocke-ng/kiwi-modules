@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.119.1 — install images that a server sends on to a mirror
+
+- cache files: a server that answers with a redirect to a mirror (Debian's cdimage does for every
+  ISO) is followed by the cache itself, and the image is kept under the address that was asked;
+  before, the client fetched the mirror itself and nothing was kept. Only the cache's own lifetimes
+  count, never a server's cache headers (a redirect it marked cacheable was kept without its
+  address). Tried: the netinst from the Internet once (80 s), then from the cache in half a second.
+
 ## 0.119.0 — install images from the LAN
 
 - cache: `files` (on unless set false) keeps install images for the LAN at
