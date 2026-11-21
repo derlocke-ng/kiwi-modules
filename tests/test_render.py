@@ -1299,6 +1299,34 @@ class TestRender(unittest.TestCase):
         self.assertIn('-v "$data:/data:ro,z"', script)                                           # the store is only read
         self.assertIn('--bwlimit "5M"', script)
         self.assertIn('--exclude "/*/locks/**"', script)
+        # a store installed anew: what the copy holds and the store has not comes back; what it has stays
+        fake = os.path.join(self.tmp, "fakert")
+        here = os.path.join(self.tmp, "store")
+        os.makedirs(os.path.join(here, "data", "lime.home"))
+        with open(os.path.join(here, "data", "lime.home", "config"), "w") as f:
+            f.write("x")
+        with open(os.path.join(here, "offsite.env"), "w") as f:
+            f.write("OFFSITE_URL=https://dav.example.org/kiwi\nOFFSITE_USER=me\nOFFSITE_PASS=p\nOFFSITE_KEY=k\n")
+        with open(fake, "w") as f:
+            f.write('#!/bin/bash\necho "$*" >> "%s/calls"\ncase "$*" in *lsf*) printf "lime.home/\\nquince.home/\\n" ;; '
+                    '*obscure*) echo obscured ;; esac\nexit 0\n' % here)
+        os.chmod(fake, 0o755)
+        test = script
+        for line in test.splitlines():
+            if line.startswith(("dir=", "data=", "rt=")):
+                test = test.replace(line, {"dir": "dir=" + here, "data": "data=" + os.path.join(here, "data"),
+                                           "rt": "rt=" + fake}[line.split("=", 1)[0]], 1)
+        path = os.path.join(self.tmp, "offsite-test.sh")
+        with open(path, "w") as f:
+            f.write(test.replace("/run/kiwi-offsite.XXXXXX", os.path.join(self.tmp, "run.XXXXXX")))
+        r = subprocess.run(["bash", path, "bring-back"], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("lime.home: here already, left as it is", r.stdout)
+        self.assertIn("quince.home: from the copy", r.stdout)
+        with open(os.path.join(here, "calls")) as f:
+            calls = f.read()
+        self.assertIn("copy kiwi:quince.home /back", calls)
+        self.assertNotIn("copy kiwi:lime.home", calls)
         timer = read(out, "host-units/kn-backup-offsite.timer")
         self.assertIn("OnCalendar=*-*-* 05:30:00", timer)
         self.assertTrue(os.path.isfile(os.path.join(out, "host-units", "kn-backup-offsite.service")))
