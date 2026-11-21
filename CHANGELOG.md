@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.118.0 — a store back from its offsite copy
+
+- backup-server: `kiwi/backup-offsite.sh bring-back [NAME...]` brings every repository the copy at
+  the other place holds, and this store has not, back into the store (a store installed anew after
+  its machine was lost). A repository the store has already is left as it is.
+
 ## 0.117.1 — the moving address said again
 
 - vip: the machine that holds the address says again every 30 seconds whose it is (gratuitous ARP,
