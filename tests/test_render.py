@@ -2217,6 +2217,10 @@ class TestFederation(unittest.TestCase):
         self.assertIn("from <HOST>", git[:400])
         limit = jail[jail.index("[nginx-limit-req]"):jail.index("[kiwi-nginx-refused]")]
         self.assertIn("findtime = 5m\nmaxretry = 600", limit)                   # floods, not page loads
+        # the master's door: an address that keeps on opening more connections than it lets through
+        door = jail[jail.index("[kiwi-nginx-door]"):]
+        self.assertIn('limiting connections by zone "kiwi_door", client: <HOST>,', door[:700])
+        self.assertIn("maxretry = 300", door[:700])
         # gentle, as others ship it (fail2ban, Debian, YunoHost, mailcow): no ban for a 400, sshd's
         # failed logins only, never a home address, short bans that grow, Forgejo's own count
         self.assertNotIn("[nginx-bad-request]", jail)
