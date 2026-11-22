@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.120.0 — one Pi-hole at a time hands out leases
+
+- dhcp-relay `follow`: with the site's moving address (vip) filled in, only the machine that holds
+  it relays the LAN's DHCP to its Pi-hole (follow.sh checks every 2 seconds). Both Pi-holes keep
+  the whole range; the one that takes over gives a device the address it asks for again, since
+  Pi-hole's DHCP is authoritative. Halves of the range on both at once gave a device another
+  address at nearly every restart, each Pi-hole refusing the other's leases (kiwi-server's
+  tests/drills/dhcp-pair.sh). Without `follow` the relay runs as before.
+
 ## 0.119.1 — install images that a server sends on to a mirror
 
 - cache files: a server that answers with a redirect to a mirror (Debian's cdimage does for every

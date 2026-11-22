@@ -1841,6 +1841,33 @@ class TestFederation(unittest.TestCase):
         self.assertEqual((env["VIP_ADDRESS"], env["VIP_PEERS"], env["VIP_PRIORITY"], env["VIP_ROUTER_ID"], env["VIP_CHECK_DNS"]),
                          ("192.168.2.70/16", "192.168.2.30", "150", "70", "1"))
 
+    def test_dhcp_follows_the_moving_address(self):
+        """dhcp-relay with `follow` (filled in by kiwi-server beside vip): only the holder of the moving
+        address relays, so one Pi-hole at a time hands out leases (tests/drills/dhcp-pair.sh in
+        kiwi-server: halves on both gave devices new addresses). Without it, it relays as before."""
+        name = "m1"
+        m = json.loads(json.dumps(MACHINES[name]))
+        m["node"]["modules"] = ["vpn-client", "dns", "dhcp-relay", "reverse-proxy", "downloader", "gateway", "portainer",
+                                "sftp", "vip"]
+        m["node"]["vip"] = {"address": "192.168.2.70/16", "peers": ["192.168.2.30"], "priority": 150, "password": "pairpass"}
+        m["node"]["dhcp-relay"] = {"follow": "192.168.2.70"}
+        out = self.render(name + "-follow", m)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            svc = [v for k, v in yaml.safe_load(f)["services"].items() if k.endswith("-dhcphelper")][0]
+        self.assertEqual((svc["entrypoint"], svc["command"]), (["/bin/sh"], ["/kiwi/follow.sh"]))
+        script = [os.path.join(r, f) for r, _d, fs in os.walk(out) for f in fs if f == "follow.sh"]
+        self.assertEqual(len(script), 1)
+        with open(script[0]) as f:
+            text = f.read()
+        self.assertIn('VIP="192.168.2.70"', text)
+        self.assertIn("dhcp-helper -n -s", text)
+        del m["node"]["dhcp-relay"]
+        out = self.render(name + "-always", m)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            svc = [v for k, v in yaml.safe_load(f)["services"].items() if k.endswith("-dhcphelper")][0]
+        self.assertNotIn("entrypoint", svc)
+        self.assertFalse([f for _r, _d, fs in os.walk(out) for f in fs if f == "follow.sh"])
+
     def test_fail2ban_watches_the_ssh_port_and_limits_new_connections(self):
         m = json.loads(json.dumps(MACHINES["gate"]))
         m["master"]["modules"] = ["vpn-client", "vpn-server", "dns", "tor", "reverse-proxy", "fail2ban"]
