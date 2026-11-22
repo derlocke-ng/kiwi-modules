@@ -1803,6 +1803,25 @@ class TestFederation(unittest.TestCase):
         # the kill switch: with the link down, not out by this master's own connection
         self.assertRegex(start, r"iptables -I FORWARD 1 -i wg0 -o eth0 ! -d [0-9./]+ -j DROP")
 
+    def test_only_some_groups_leave_through_the_partner(self):
+        """exit: [groups]: those groups' clients leave over the link, with their own kill switch;
+        the others leave by this master's own way. A group the VPN does not have is refused."""
+        start = self.start_of("gate-fed-groups", exit=["family", "devices"])
+        self.assertIn("allowed-ips 10.10.0.0/16,0.0.0.0/0 persistent-keepalive 25", start)
+        self.assertNotIn("ip rule add iif wg0 table 202", start)
+        self.assertIn("ip rule add iif wg0 from 10.8.5.0/24 table 202", start)
+        self.assertIn("ip rule add iif wg0 from 10.8.3.0/24 table 202", start)
+        self.assertNotIn("from 10.8.1.0/24 table 202", start)
+        self.assertRegex(start, r"iptables -I FORWARD 1 -i wg0 -s 10.8.5.0/24 -o eth0 ! -d [0-9./]+ -j DROP")
+        self.assertNotRegex(start, r"iptables -I FORWARD 1 -i wg0 -o eth0 ")
+        m = json.loads(json.dumps(MACHINES["gate"]))
+        m["master"].setdefault("vpn-server", {})["federation"] = {"kiwi2": dict(self.PARTNER, exit=["family", "nobody"])}
+        m["dns_records"] = RECORDS
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertNotEqual(cli.main(["render", self.write("gate-fed-bad", m), "-o", os.path.join(self.tmp, "bad")]), 0)
+        self.assertIn("exit names groups this VPN does not have: nobody", err.getvalue())
+
     def test_a_partner_may_leave_through_this_master_and_only_to_the_internet(self):
         plain = self.start_of("gate-fed-plain2")
         self.assertNotIn("KIWI_FED_OUT", plain)
