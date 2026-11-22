@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.122.0 — another exit every day
+
+- vpn-client `reconnect: "07:00"`: a daily timer runs `kiwi-stack vpn-restart`; with
+  `server_countries` or `server_cities` the provider gives a random server of those at every
+  connect, so the exit changes every day (as the owner's v1 master does with a 07:00 restart and
+  six Mullvad cities). Empty: as before.
+
 ## 0.121.1 — a ring on a 32-bit board
 
 - tang: the image is built for 32-bit ARM too (linux/arm/v7: Banana Pi M1/M2 and other Allwinner

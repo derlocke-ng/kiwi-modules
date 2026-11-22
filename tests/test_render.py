@@ -1887,6 +1887,28 @@ class TestFederation(unittest.TestCase):
         self.assertNotIn("entrypoint", svc)
         self.assertFalse([f for _r, _d, fs in os.walk(out) for f in fs if f == "follow.sh"])
 
+    def test_the_vpn_client_connects_anew_every_day(self):
+        """vpn-client reconnect: a daily timer runs kiwi-stack vpn-restart; with server cities a
+        provider gives another random server each time (v1's master: docker restart at 07:00)."""
+        m = json.loads(json.dumps(MACHINES["gate"]))
+        m["master"]["vpn-client"] = dict(m["master"].get("vpn-client") or {}, reconnect="07:00")
+        out = self.render("gate-reconnect", m)
+        units = [os.path.join(r, f) for r, _d, fs in os.walk(out) for f in fs if "vpn-reconnect" in f]
+        timer = [u for u in units if u.endswith(".timer")]
+        self.assertEqual(len(timer), 1, units)
+        with open(timer[0]) as f:
+            self.assertIn("OnCalendar=*-*-* 07:00:00", f.read())
+        with open([u for u in units if u.endswith(".service")][0]) as f:
+            self.assertIn("ExecStart=/usr/local/bin/kiwi-stack vpn-restart", f.read())
+        m["master"]["vpn-client"]["reconnect"] = "7 Uhr"
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertNotEqual(cli.main(["render", self.write("gate-reconnect-bad", m), "-o", os.path.join(self.tmp, "rb")]), 0)
+        self.assertIn("vpn-client.reconnect is a time of day like 07:00", err.getvalue())
+        del m["master"]["vpn-client"]["reconnect"]
+        out = self.render("gate-reconnect-none", m)
+        self.assertFalse([f for _r, _d, fs in os.walk(out) for f in fs if "vpn-reconnect" in f])
+
     def test_fail2ban_watches_the_ssh_port_and_limits_new_connections(self):
         m = json.loads(json.dumps(MACHINES["gate"]))
         m["master"]["modules"] = ["vpn-client", "vpn-server", "dns", "tor", "reverse-proxy", "fail2ban"]
