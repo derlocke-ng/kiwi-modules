@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.121.0 — a way out per group
+
+- vpn-server: a partner's `exit` can be a list of the VPN's groups (`exit: [family, phones]`):
+  only those groups' clients leave to the internet over the link, each with its own kill switch;
+  the other clients leave by this master's own way. A group the VPN does not have is refused at
+  the render. `exit: true` stays the whole network.
+
 ## 0.120.0 — one Pi-hole at a time hands out leases
 
 - dhcp-relay `follow`: with the site's moving address (vip) filled in, only the machine that holds
