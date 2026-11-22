@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.121.1 — a ring on a 32-bit board
+
+- tang: the image is built for 32-bit ARM too (linux/arm/v7: Banana Pi M1/M2 and other Allwinner
+  boards), as `ghcr.io/derlocke-ng/tang:15-kiwi7`. A small board on a battery holds a ring that
+  comes up by itself after a power cut.
+
 ## 0.121.0 — a way out per group
 
 - vpn-server: a partner's `exit` can be a list of the VPN's groups (`exit: [family, phones]`):
