@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.124.0 — stopped rings
+
+- **tang**: `stopped`, the rings that answer nobody now (kiwi-server's switched rings: auto-unlock off
+  for the machines whose own ring it is). kiwi-server stops them and keeps them stopped.
+
 ## 0.123.4 — the local AI's login is listed
 
 - **ai**: Studio's login (user `unsloth`, its password from the seed) is in `kiwi-server logins`,
