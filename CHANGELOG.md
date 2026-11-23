@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.123.3 — the local AI starts
+
+- **ai**: `gpu: amd` takes `unsloth-rocm:studio` (the `latest` tag starts only Python, with Studio
+  half installed). Studio starts alone, not through the image's launcher, which also starts
+  JupyterLab: `--no-cloudflare` always (not even its page's "Remote access" opens a tunnel) and
+  `--disable-tools` unless `tools: true`. The initial password only while none is stored.
+  Tried on an RX 9070 XT: Studio up, tunnel off, tools off, the API refuses a request without a key.
+
 ## 0.123.2 — a lean gateway
 
 - The `node-gw` profile and the node's `gateway` preset no longer carry `downloader` and `sftp`:
