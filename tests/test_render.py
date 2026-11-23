@@ -53,6 +53,7 @@ MACHINES = {
              "seed": "secrets/seed"},
     "m1": {"name": "m1", "domain": "home", "role": "node", "node": {
                "preset": "gateway", "pub_iface": "eth0", "dns": {"pihole_password": "golden-pihole-m1"},
+               "modules": ["vpn-client", "dns", "dhcp-relay", "reverse-proxy", "downloader", "gateway", "portainer", "sftp"],
                "downloader": {"download_dir": "/mnt/dl", "transmission_password": "golden-transmission"},
                "sftp": {"sftp_password": "golden-sftp"}, "reverse-proxy": dict(TLS)},
            "master_ip": "10.8.0.1", "seed": "secrets/seed"},
