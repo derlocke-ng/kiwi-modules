@@ -1920,10 +1920,13 @@ class TestFederation(unittest.TestCase):
         out = self.render("m1-ai", m)
         with open(os.path.join(out, "docker-compose.yml")) as f:
             svc = yaml.safe_load(f)["services"]["kn-ai"]
-        self.assertEqual(svc["image"], "docker.io/unsloth/unsloth-rocm:latest")
+        self.assertEqual(svc["image"], "docker.io/unsloth/unsloth-rocm:studio")
         self.assertEqual(svc["devices"], ["/dev/kfd", "/dev/dri"])
         self.assertEqual((svc["ipc"], svc["ulimits"]), ("host", {"memlock": -1, "stack": 67108864}))
         self.assertIn("UNSLOTH_STUDIO_PORT=8000", svc["environment"])
+        cmd = svc["command"][-1]
+        self.assertIn("--no-cloudflare --disable-tools", cmd)            # no tunnel, no tools; no JupyterLab
+        self.assertIn("unsloth-studio-run --stored", cmd)                # the initial password only once
         nginx = "".join(open(os.path.join(r, f)).read() for r, _d, fs in os.walk(out) for f in fs if f == "nginx.conf")
         self.assertIn("allow 192.168.2.0/24; allow 10.9.0.0/16; deny all;", nginx)
         m["node"]["runtime"] = "podman"
@@ -1932,7 +1935,8 @@ class TestFederation(unittest.TestCase):
         self.assertTrue(quad, out)
         with open(quad[0]) as f:
             text = f.read()
-        for want in ("AddDevice=/dev/kfd", "PodmanArgs=--ipc=host", "Ulimit=memlock=-1:-1", "Ulimit=stack=67108864:67108864"):
+        for want in ("AddDevice=/dev/kfd", "PodmanArgs=--ipc=host", "Ulimit=memlock=-1:-1", "Ulimit=stack=67108864:67108864",
+                     "--disable-tools"):
             self.assertIn(want, text)
         m["node"]["ai"] = {"gpu": "amd", "allow": []}
         err = io.StringIO()
