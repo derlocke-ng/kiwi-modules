@@ -1927,6 +1927,8 @@ class TestFederation(unittest.TestCase):
         cmd = svc["command"][-1]
         self.assertIn("--no-cloudflare --disable-tools", cmd)            # no tunnel, no tools; no JupyterLab
         self.assertIn("unsloth-studio-run --stored", cmd)                # the initial password only once
+        meta = yaml.safe_load(open(os.path.join(ROOT, "modules", "ai", "module.yaml")))
+        self.assertEqual([(x["user"], x["password"]) for x in meta["logins"]], [("unsloth", "studio_password")])
         nginx = "".join(open(os.path.join(r, f)).read() for r, _d, fs in os.walk(out) for f in fs if f == "nginx.conf")
         self.assertIn("allow 192.168.2.0/24; allow 10.9.0.0/16; deny all;", nginx)
         m["node"]["runtime"] = "podman"
@@ -3876,7 +3878,7 @@ class TestLogins(unittest.TestCase):
         from kiwimodules import modules as modmod
         ms = modmod.discover()
         self.assertEqual(sorted(m.name for m in ms.modules.values() if m.logins),
-                         ["accounts", "btcpay", "cloud", "control", "dns", "downloader", "git", "immich", "opencloud", "paperless", "portainer",
+                         ["accounts", "ai", "btcpay", "cloud", "control", "dns", "downloader", "git", "immich", "opencloud", "paperless", "portainer",
                           "sftp", "vault", "vpn-server", "xmpp"])
         for mod in ms.modules.values():
             secrets = {s.key for s in mod.settings if s.type == "secret"}

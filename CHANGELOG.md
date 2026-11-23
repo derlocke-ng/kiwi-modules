@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.123.4 — the local AI's login is listed
+
+- **ai**: Studio's login (user `unsloth`, its password from the seed) is in `kiwi-server logins`,
+  the control page and the app. It was missing.
+
 ## 0.123.3 — the local AI starts
 
 - **ai**: `gpu: amd` takes `unsloth-rocm:studio` (the `latest` tag starts only Python, with Studio
