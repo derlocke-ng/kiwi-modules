@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.123.2 — a lean gateway
+
+- The `node-gw` profile and the node's `gateway` preset no longer carry `downloader` and `sftp`:
+  a gateway does not need them (the owner, 23 Nov 2026). Add the modules where wanted; a machine
+  with its own module list keeps it.
+
 ## 0.123.1 — the cache serves no empty layers
 
 - **cache**: the registry mirrors run without their in-memory descriptor cache. When a layer
