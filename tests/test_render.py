@@ -1909,6 +1909,36 @@ class TestFederation(unittest.TestCase):
         out = self.render("gate-reconnect-none", m)
         self.assertFalse([f for _r, _d, fs in os.walk(out) for f in fs if "vpn-reconnect" in f])
 
+    def test_a_local_ai_on_the_lan_and_the_vpn_only(self):
+        """ai (Unsloth Studio): the GPU into the container, the page and the API only for the
+        addresses kiwi-server fills in, ipc and ulimits as Unsloth asks, for docker and podman."""
+        m = json.loads(json.dumps(MACHINES["m1"]))
+        m["node"]["modules"] = ["vpn-client", "dns", "dhcp-relay", "reverse-proxy", "downloader", "gateway", "portainer",
+                                "sftp", "ai"]
+        m["node"]["ai"] = {"gpu": "amd", "allow": ["192.168.2.0/24", "10.9.0.0/16"]}
+        out = self.render("m1-ai", m)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            svc = yaml.safe_load(f)["services"]["kn-ai"]
+        self.assertEqual(svc["image"], "docker.io/unsloth/unsloth-rocm:latest")
+        self.assertEqual(svc["devices"], ["/dev/kfd", "/dev/dri"])
+        self.assertEqual((svc["ipc"], svc["ulimits"]), ("host", {"memlock": -1, "stack": 67108864}))
+        self.assertIn("UNSLOTH_STUDIO_PORT=8000", svc["environment"])
+        nginx = "".join(open(os.path.join(r, f)).read() for r, _d, fs in os.walk(out) for f in fs if f == "nginx.conf")
+        self.assertIn("allow 192.168.2.0/24; allow 10.9.0.0/16; deny all;", nginx)
+        m["node"]["runtime"] = "podman"
+        out = self.render("m1-ai-podman", m)
+        quad = [os.path.join(r, f) for r, _d, fs in os.walk(out) for f in fs if f == "kn-ai.container"]
+        self.assertTrue(quad, out)
+        with open(quad[0]) as f:
+            text = f.read()
+        for want in ("AddDevice=/dev/kfd", "PodmanArgs=--ipc=host", "Ulimit=memlock=-1:-1", "Ulimit=stack=67108864:67108864"):
+            self.assertIn(want, text)
+        m["node"]["ai"] = {"gpu": "amd", "allow": []}
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertNotEqual(cli.main(["render", self.write("m1-ai-closed", m), "-o", os.path.join(self.tmp, "closed")]), 0)
+        self.assertIn("ai.allow: nobody may reach it", err.getvalue())
+
     def test_fail2ban_watches_the_ssh_port_and_limits_new_connections(self):
         m = json.loads(json.dumps(MACHINES["gate"]))
         m["master"]["modules"] = ["vpn-client", "vpn-server", "dns", "tor", "reverse-proxy", "fail2ban"]

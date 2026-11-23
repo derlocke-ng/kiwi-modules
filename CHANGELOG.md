@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.123.0 — a local AI
+
+- **ai**: Unsloth Studio, its page and its OpenAI-compatible API (`/v1/...`) at `ai.<hostname>`, for
+  the addresses kiwi-server fills in from `ai.listen` (the LAN, the VPN; never public). `gpu: amd`
+  (the ROCm image, `/dev/kfd` and `/dev/dri`) or `nvidia` (the CUDA image, CDI). The models in a
+  folder of their own (not backed up), Studio's data in a volume (backed up). Studio's own tools
+  cannot be switched off in its container: they run inside it.
+- podman: `ipc` and `ulimits` of a service become `PodmanArgs=--ipc=` and `Ulimit=`.
+
 ## 0.122.0 — another exit every day
 
 - vpn-client `reconnect: "07:00"`: a daily timer runs `kiwi-stack vpn-restart`; with
