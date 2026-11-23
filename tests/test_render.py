@@ -3190,6 +3190,8 @@ class TestFederation(unittest.TestCase):
             svcs = yaml.safe_load(f)["services"]
         self.assertIn("REGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io", svcs["kn-cache-docker"]["environment"])
         self.assertIn("REGISTRY_PROXY_REMOTEURL=https://ghcr.io", svcs["kn-cache-ghcr"]["environment"])
+        # a layer whose data expired is fetched again, not served empty (no in-memory descriptor cache)
+        self.assertIn("REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR=off", svcs["kn-cache-docker"]["environment"])
         self.assertNotIn("kn-cache-quay", svcs)
         self.assertEqual(svcs["kn-cache-apt"]["ports"], ["3142:3142"])
         nginx = open(os.path.join(out, "kn-nginx", "nginx.conf")).read()

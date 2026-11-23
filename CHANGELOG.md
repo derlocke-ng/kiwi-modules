@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.123.1 — the cache serves no empty layers
+
+- **cache**: the registry mirrors run without their in-memory descriptor cache. When a layer
+  that several images share expired, the registry deleted its data for all of them while that
+  cache still said it was there: the mirror answered 200 with an empty body, and a new machine
+  could not pull nginx. Now it looks on its disk and fetches a missing layer again (tried with
+  registry 2.8.3: served empty with the cache, fetched again without it).
+
 ## 0.123.0 — a local AI
 
 - **ai**: Unsloth Studio, its page and its OpenAI-compatible API (`/v1/...`) at `ai.<hostname>`, for
