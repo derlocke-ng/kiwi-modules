@@ -1924,6 +1924,7 @@ class TestFederation(unittest.TestCase):
         self.assertEqual(svc["devices"], ["/dev/kfd", "/dev/dri"])
         self.assertEqual((svc["ipc"], svc["ulimits"]), ("host", {"memlock": -1, "stack": 67108864}))
         self.assertIn("UNSLOTH_STUDIO_PORT=8000", svc["environment"])
+        self.assertFalse([e for e in svc["environment"] if e.startswith("UNSLOTH_SAMPLING_")])   # nothing fixed unless asked
         cmd = svc["command"][-1]
         self.assertIn("--no-cloudflare --disable-tools", cmd)            # no tunnel, no tools; no JupyterLab
         self.assertIn("unsloth-studio-run --stored", cmd)                # the initial password only once
@@ -1941,6 +1942,17 @@ class TestFederation(unittest.TestCase):
         for want in ("AddDevice=/dev/kfd", "PodmanArgs=--ipc=host", "Ulimit=memlock=-1:-1", "Ulimit=stack=67108864:67108864",
                      "--disable-tools"):
             self.assertIn(want, text)
+        self.assertNotIn("UNSLOTH_SAMPLING_TOP_K", text)
+        m["node"]["ai"] = {"gpu": "amd", "allow": ["192.168.2.0/24"], "top_k": 20}       # Top-K fixed for every request
+        out = self.render("m1-ai-topk", m)
+        quad = [os.path.join(r, f) for r, _d, fs in os.walk(out) for f in fs if f == "kn-ai.container"]
+        with open(quad[0]) as f:
+            self.assertIn("UNSLOTH_SAMPLING_TOP_K=20", f.read())
+        m["node"]["ai"] = {"gpu": "amd", "allow": ["192.168.2.0/24"], "top_k": 500}
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertNotEqual(cli.main(["render", self.write("m1-ai-topk-bad", m), "-o", os.path.join(self.tmp, "topk-bad")]), 0)
+        self.assertIn("ai.top_k: 0 (not fixed) to 100", err.getvalue())
         m["node"]["ai"] = {"gpu": "amd", "allow": []}
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
