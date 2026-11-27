@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.129.0 — health checks for the caches and five more services
+
+- A health check for **cache** (each registry cache, the package cache, the file cache),
+  **downloader** (Transmission), the databases of **firefox-sync** and **btcpay**, the learning
+  part of **immich** and the converter of **paperless** (Gotenberg). Each command was tried in
+  the running containers first. These containers restart once with the apply that brings them.
+
 ## 0.128.0 — thirteen parts say whether they work
 
 - A health check for the services of **reverse-proxy**, **dns** (Pi-hole), **vault**,
