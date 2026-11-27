@@ -3134,7 +3134,9 @@ class TestFederation(unittest.TestCase):
         self.assertEqual(mc["ports"], ["25565:25565/tcp"])
         for e in ("EULA=TRUE", "MEMORY=4G", "MOTD=Our world", "UID=1000"):
             self.assertIn(e, mc["environment"])
-        self.assertEqual(mc["volumes"], ["/home/user/docker/kn-games/survival/data:/data:z"])
+        # the world, backed up; and a folder for a server pack's archive (a modded server), not backed up
+        self.assertEqual(mc["volumes"], ["/home/user/docker/kn-games-files/survival/modpacks:/modpacks:z",
+                                         "/home/user/docker/kn-games/survival/data:/data:z"])
         self.assertEqual(doom["command"], "zandronum-server -port 10666 -iwad /data/freedoom2.wad +sv_hostname doom +deathmatch 1 +map MAP01")
         self.assertEqual(doom["ports"], ["10666:10666/udp"])
         # another first port: every port of the server moves with it, inside it stays the game's own

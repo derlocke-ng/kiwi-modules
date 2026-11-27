@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.130.0 — a modded Minecraft has a place for its server pack; three more health checks
+
+- **games** 1.2.0: the catalog's Minecraft (Java) mounts
+  `<docker folder>/kn-games-files/<server>/modpacks` at `/modpacks`. A modded server names its
+  pack there: `env: {TYPE: NEOFORGE, VERSION: "1.21.1", GENERIC_PACK: /modpacks/pack.zip}`. A
+  server of an older setup that ran the same image with `data` and `modpacks` beside each other
+  is taken over by moving the two folders (kiwi-server's tests/drills/minecraft-takeover.sh).
+  Minecraft servers restart once with the apply that brings this.
+- A health check for **xmpp** (both servers: they take clients' connections), **hub** and
+  **opencloud** (their pages answer). Tried in the running containers first.
+
 ## 0.129.0 — health checks for the caches and five more services
 
 - A health check for **cache** (each registry cache, the package cache, the file cache),
