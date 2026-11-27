@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.134.0 — a node's tunnel stays up while the master's way out is away
+
+- **vpn-client** with one fixed server (`vpn_provider: custom`, a node's tunnel to its master):
+  gluetun no longer sets the tunnel up anew when its own check fails (`HEALTH_RESTART_VPN=off`).
+  That check asks names on the Internet through the tunnel. While the master's way out was
+  away, every node set its tunnel up anew every six seconds (27 Nov 2026: 76 times in eleven
+  minutes on each of six machines), and a few times every morning when the way out reconnects,
+  and each time everything that used the tunnel was cut. A tunnel set up anew reaches the same
+  server with the same keys: nothing was gained. Tried on two machines with the way to the
+  Internet cut inside the tunnel: before, 23 restarts in a minute and the mesh broke off;
+  now none, and 230 of 230 pings to the master answered. `extra_env: {HEALTH_RESTART_VPN:
+  "on"}` brings the old behaviour back. The container restarts once with the apply.
+
 ## 0.133.0 — Satisfactory's game lies outside the backup
 
 - **games** 1.4.0, Satisfactory: the image keeps the game inside its one folder (`/config`),
