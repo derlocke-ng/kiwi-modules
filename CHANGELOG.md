@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.132.0 — Minecraft servers and Firefox Sync say whether they work
+
+- **games** 1.3.0: a game of the catalog may name `health`, a command in its image that ends
+  with 0 while the server takes players. Minecraft (Java) has it (`mc-health`). A server asleep
+  is not asked; one that still loads its mods is not counted for fifteen minutes.
+- **firefox-sync**: the sync server's own heartbeat as its health check.
+
 ## 0.131.0 — the accounts and the sign-up pages say whether they work
 
 - A health check for **accounts**: Kanidm's own (`kanidmd scripting healthcheck`; Kanidm 1.12

@@ -3137,6 +3137,10 @@ class TestFederation(unittest.TestCase):
         # the world, backed up; and a folder for a server pack's archive (a modded server), not backed up
         self.assertEqual(mc["volumes"], ["/home/user/docker/kn-games-files/survival/modpacks:/modpacks:z",
                                          "/home/user/docker/kn-games/survival/data:/data:z"])
+        # the image's own word that it takes players (the catalog's `health`); a game without one has no check
+        self.assertEqual(mc["healthcheck"]["test"], ["CMD", "mc-health"])
+        self.assertEqual(mc["healthcheck"]["start_period"], "900s")
+        self.assertNotIn("healthcheck", doom)
         self.assertEqual(doom["command"], "zandronum-server -port 10666 -iwad /data/freedoom2.wad +sv_hostname doom +deathmatch 1 +map MAP01")
         self.assertEqual(doom["ports"], ["10666:10666/udp"])
         # another first port: every port of the server moves with it, inside it stays the game's own
