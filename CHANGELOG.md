@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.128.0 — thirteen parts say whether they work
+
+- A health check for the services of **reverse-proxy**, **dns** (Pi-hole), **vault**,
+  **fail2ban**, **backup-server**, **vpn-server**, **control** (the page and the public pages),
+  **tang** (every ring), **git**, **paste**, **authenticator**, **immich** (server, database,
+  cache) and **paperless** (server, database, cache). Podman does not take over the check an
+  image brings: on the machines of one network 88 of 107 containers had none, so the status,
+  the runbook and a careful apply saw "running" and no more. Each command was tried in the
+  running containers first. Nothing acts on an unhealthy service by itself; it is named.
+  These containers restart once with the apply that brings the checks.
+
 ## 0.127.0 — the proxy is asked before its new config is written
 
 - **module.yaml `preflight`**: a list of `{service, run}`. Before an apply writes the stack,
