@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.126.3 — the golden bundle's list of folders
+
+- Tests only: the golden bundle's `meta.txt` lacked the folder `kiwi`, which the cloud module's
+  new script (0.126.1) brought. kiwi-server compares that line too.
+
 ## 0.126.2 — an apply of the machine with the accounts no longer waits two minutes
 
 - **accounts**: the setup that runs with every apply waited for Kanidm with `kanidmd healthcheck`,
