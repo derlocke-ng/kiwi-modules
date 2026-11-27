@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.135.0 — the accounts are asked before their new config is written
+
+- **accounts**: a `preflight` with Kanidm's own config test (`kanidmd configtest`), asked on the
+  machine before an apply writes anything (kiwi-stack 0.9.42, which runs a program directly
+  where an image has no shell: `run: "exec PROGRAM ARGS"`). A Kanidm that does not start means
+  no sign-in at any service that uses the accounts.
+
 ## 0.134.0 — a node's tunnel stays up while the master's way out is away
 
 - **vpn-client** with one fixed server (`vpn_provider: custom`, a node's tunnel to its master):

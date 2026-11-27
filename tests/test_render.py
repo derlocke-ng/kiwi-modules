@@ -622,6 +622,9 @@ class TestRender(unittest.TestCase):
             start = f.read()
         self.assertLess(start.index("cp /etc/nginx/fullchain.pem"), start.index('[ -z "${KIWI_CHECK:-}" ] || exec nginx -t'))
         self.assertLess(start.index("exec nginx -t"), start.index("exec nginx -g"))
+        # the accounts: Kanidm's own config test, the program itself (its image has no shell)
+        self.assertIn(("kn-accounts", "exec /sbin/kanidmd configtest -c /config/server.toml"),
+                      [(a["service"].replace("{{ container_prefix }}", "kn"), a["run"]) for a in modules.discover().get("accounts").preflight])
         # what a module may write there
         self.assertEqual(modules.load_preflight("modules/x", [{"service": "a", "run": "b -t"}]), [{"service": "a", "run": "b -t"}])
         for bad, word in (([{"service": "a"}], "run is required"), ([{"service": "a", "run": "b", "when": "x"}], "unknown key(s): when"),
