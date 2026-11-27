@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.133.0 — Satisfactory's game lies outside the backup
+
+- **games** 1.4.0, Satisfactory: the image keeps the game inside its one folder (`/config`),
+  and so it went into every backup. Now `/config/gamefiles` is a folder of its own,
+  `kn-games-files/<server>/gamefiles`, as for the other games. A server that exists downloads
+  the game once more at its next start, or move `kn-games/<server>/config/gamefiles` there
+  before the apply. Its health check is the server's own answer on its API port.
+
 ## 0.132.0 — Minecraft servers and Firefox Sync say whether they work
 
 - **games** 1.3.0: a game of the catalog may name `health`, a command in its image that ends

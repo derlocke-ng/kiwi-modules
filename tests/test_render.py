@@ -3141,6 +3141,14 @@ class TestFederation(unittest.TestCase):
         self.assertEqual(mc["healthcheck"]["test"], ["CMD", "mc-health"])
         self.assertEqual(mc["healthcheck"]["start_period"], "900s")
         self.assertNotIn("healthcheck", doom)
+        # Satisfactory: the game apart from the folder that is backed up, and the server's own answer as its check
+        factory = self.render("sh3-factory", self.games_machine(servers={"factory": {"game": "satisfactory"}}))
+        with open(os.path.join(factory, "docker-compose.yml")) as f:
+            sat = yaml.safe_load(f)["services"]["kn-game-factory"]
+        self.assertEqual(sat["volumes"], ["/home/user/docker/kn-games-files/factory/gamefiles:/config/gamefiles:z",
+                                          "/home/user/docker/kn-games/factory/config:/config:z"])
+        self.assertEqual(sat["healthcheck"]["test"][:3], ["CMD", "sh", "-c"])
+        self.assertIn('"function":"HealthCheck"', sat["healthcheck"]["test"][3])
         self.assertEqual(doom["command"], "zandronum-server -port 10666 -iwad /data/freedoom2.wad +sv_hostname doom +deathmatch 1 +map MAP01")
         self.assertEqual(doom["ports"], ["10666:10666/udp"])
         # another first port: every port of the server moves with it, inside it stays the game's own
