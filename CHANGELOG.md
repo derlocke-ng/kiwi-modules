@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.126.0 — the local AI: one Top-K for every request
+
+- **ai**: `top_k` fixes Studio's Top-K for every request, whatever the page or a program asks
+  (`UNSLOTH_SAMPLING_TOP_K`). 0, the default, fixes nothing. Studio runs a model it has no preset
+  for without a limit, and the sampling then holds the card back. Tried on an RX 9070 XT with
+  `top_k: 20`: a request without Top-K writes 47.4 tokens per second instead of 44.8
+  (Tiel-Coder 35B `UD-Q4_K_S`), and 127 instead of 91 with the quant that fits the card whole
+  (`UD-Q2_K_XL`); a request that asks for Top-K 0 is as fast.
+
 ## 0.125.0 — a lean local AI
 
 - **ai**: `engine: llama` runs llama.cpp's server alone in place of Unsloth Studio: the same API
