@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.127.0 — the proxy is asked before its new config is written
+
+- **module.yaml `preflight`**: a list of `{service, run}`. Before an apply writes the stack,
+  kiwi-stack (0.9.40) runs the command in a throwaway container made like the service's new
+  one, with the new files; a command that fails stops the apply while everything on the machine
+  is as before. In the bundle: `KS_STACK_CHECKS`.
+- **reverse-proxy** 1.4.0 asks `nginx -t`. An nginx that refused its config was found until now
+  when it did not start again, with every site of the machine gone. With public names its start
+  script answers (`KIWI_CHECK`), after the stand-in certificates it also makes at a real start.
+
 ## 0.126.3 — the golden bundle's list of folders
 
 - Tests only: the golden bundle's `meta.txt` lacked the folder `kiwi`, which the cloud module's

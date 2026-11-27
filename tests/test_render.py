@@ -608,6 +608,28 @@ class TestRender(unittest.TestCase):
         master["nostr-relay"] = dict(master["nostr-relay"], relay_domain="relay.example.org")
         return dict(MACHINES["hub1"], master=master)
 
+    def test_the_proxy_is_asked_before_its_files_are_written(self):
+        """module.yaml `preflight`: kiwi-stack asks nginx about its new config in a throwaway
+        container before the stack is written (KS_STACK_CHECKS). With public names its own start
+        script answers, after the stand-in certificates it also makes at a real start."""
+        out = self.render("sh3-ask", json.loads(json.dumps(SH3)))
+        with open(os.path.join(out, "stack.sh")) as f:
+            self.assertIn("KS_STACK_CHECKS=('kn-nginx|nginx -t')", f.read())
+        out = self.render("hub-ask", self.public_hub())
+        with open(os.path.join(out, "stack.sh")) as f:
+            self.assertIn("KS_STACK_CHECKS=('km-nginx|/bin/sh /etc/nginx/start.sh')", f.read())
+        with open(os.path.join(out, "km-nginx", "start.sh")) as f:
+            start = f.read()
+        self.assertLess(start.index("cp /etc/nginx/fullchain.pem"), start.index('[ -z "${KIWI_CHECK:-}" ] || exec nginx -t'))
+        self.assertLess(start.index("exec nginx -t"), start.index("exec nginx -g"))
+        # what a module may write there
+        self.assertEqual(modules.load_preflight("modules/x", [{"service": "a", "run": "b -t"}]), [{"service": "a", "run": "b -t"}])
+        for bad, word in (([{"service": "a"}], "run is required"), ([{"service": "a", "run": "b", "when": "x"}], "unknown key(s): when"),
+                          (["a|b"], "each entry is a mapping")):
+            with self.assertRaises(KiwiError) as cm:
+                modules.load_preflight("modules/x", bad)
+            self.assertIn(word, str(cm.exception))
+
     def test_a_public_hub_opens_only_its_own_sites(self):
         out = self.render("hub2", self.public_hub())
         with open(os.path.join(out, "km-nginx", "nginx.conf")) as f:
