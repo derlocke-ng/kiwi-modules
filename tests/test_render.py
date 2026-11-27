@@ -1050,6 +1050,45 @@ class TestRender(unittest.TestCase):
         for path in ("/mnt/data/shared/Photos", "/mnt/data/pl/archive"):
             self.assertIn(path, read(out, "stack.sh"))      # made before a container mounts them
 
+    def test_talk_drops_the_servers_under_a_name_the_nextcloud_no_longer_has(self):
+        """After a change of its name (cloud.nc_hostname, or data taken over from an installation
+        under another name) Talk keeps the old signalling, STUN and TURN servers beside the new
+        ones, the old ones first (rehearsed 27 Nov 2026). A unit takes them out after every start."""
+        data = self.folders_data()
+        data["node"]["cloud"] = dict(data["node"].get("cloud") or {}, talk=True, nc_hostname="cloud.new.home")
+        out = self.render("talk1", data)
+        self.assertIn("kiwi/cloud-talk.sh", read(out, "host-units/kn-cloud-talk.service"))
+        script = os.path.join(out, "kiwi", "cloud-talk.sh")
+        # a stand-in for the container runtime: occ's answers as Talk gives them, and what is deleted
+        bin_dir, log = os.path.join(self.tmp, "talk-bin"), os.path.join(self.tmp, "talk-deleted")
+        os.makedirs(bin_dir)
+        rt = "podman" if "podman exec" in read(out, "kiwi/cloud-talk.sh") else "docker"
+        with open(os.path.join(bin_dir, rt), "w") as f:
+            f.write("""#!/bin/bash
+shift 6                                   # exec --user 33 nextcloud-aio-nextcloud php /var/www/html/occ
+case "$1" in
+  status) echo '{"installed":true,"version":"35.0.3.2","maintenance":false,"needsDbUpgrade":false}' ;;
+  talk:stun:list) printf '  - cloud.old.kiwi:3478\n  - cloud.new.home:3478\n' ;;
+  talk:turn:list) printf '0:\n  schemes: turn\n  server: cloud.old.kiwi:3478\n  secret: s3cret\n  protocols: udp,tcp\n1:\n  schemes: turn\n  server: cloud.new.home:3478\n  secret: s3cret\n  protocols: udp,tcp\n' ;;
+  talk:signaling:list) printf 'servers:\n  0:\n    server: https://cloud.old.kiwi/standalone-signaling/\n    verify: true\n  1:\n    server: https://cloud.new.home/standalone-signaling/\n    verify: true\nsecret: s3cret\n' ;;
+  talk:*:delete) echo "$*" >> %s ;;
+esac
+""" % shlex.quote(log))
+        os.chmod(os.path.join(bin_dir, rt), 0o755)
+        r = subprocess.run(["bash", script], env=dict(os.environ, PATH=bin_dir + ":" + os.environ["PATH"]),
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        with open(log) as f:
+            self.assertEqual(f.read().splitlines(), ["talk:stun:delete cloud.old.kiwi:3478",
+                                                     "talk:turn:delete turn cloud.old.kiwi:3478 udp,tcp",
+                                                     "talk:signaling:delete https://cloud.old.kiwi/standalone-signaling/"])
+        self.assertIn("3 server(s)", r.stdout)
+        self.assertNotIn("s3cret", r.stdout + r.stderr)
+        # without Talk there is no such unit
+        out = self.render("talk2", self.folders_data(talk=False))
+        self.assertFalse(os.path.exists(os.path.join(out, "host-units", "kn-cloud-talk.service")))
+        self.assertFalse(os.path.exists(os.path.join(out, "kiwi", "cloud-talk.sh")))
+
     def test_without_shared_folders_there_is_no_unit(self):
         out = self.render("folders2", SH3)
         self.assertFalse(os.path.exists(os.path.join(out, "host-units", "kn-cloud-folders.service")))

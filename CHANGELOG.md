@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.126.1 — Talk forgets a name the Nextcloud no longer has
+
+- **cloud**: after a change of its name (`nc_hostname`, or data taken over from an installation
+  under another name) Talk kept the old signalling, STUN and TURN servers beside the new ones,
+  the old ones first, so a call tried a server that is gone. With `talk: true` a unit
+  (`kn-cloud-talk.service`) takes out, after every start of the stack, what is not under the
+  Nextcloud's present name. Found when a v1 Nextcloud's data was taken over in a rehearsal.
+
 ## 0.126.0 — the local AI: one Top-K for every request
 
 - **ai**: `top_k` fixes Studio's Top-K for every request, whatever the page or a program asks
