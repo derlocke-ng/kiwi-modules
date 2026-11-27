@@ -3234,8 +3234,14 @@ class TestFederation(unittest.TestCase):
             return False
         knock(0, 0)
         open(os.path.join(state, "kn-game-survival"), "w").close()          # it runs; lab was stopped by hand
+        # who knocked last, as the kernel lists it for the counting rule (xt_recent): the log names the address
+        recent = os.path.join(self.tmp, "recent")
+        os.makedirs(recent)
+        with open(os.path.join(recent, "kn-game-survival"), "w") as f:
+            f.write("src=198.51.100.7 ttl: 52 last_seen: 4295000100 oldest_pkt: 1 4295000100\n"
+                    "src=203.0.113.9 ttl: 51 last_seen: 4295000900 oldest_pkt: 2 4295000800, 4295000900\n")
         env = dict(os.environ, PATH=bin_ + ":" + os.environ["PATH"], KS_SLEEPING=sleeping, KIWI_SLEEP_STEP="0.2",
-                   KIWI_SLEEP_MINUTE="1")
+                   KIWI_SLEEP_MINUTE="1", KS_RECENT=recent)
         proc = subprocess.Popen(["bash", path, "watch"], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         try:
             time.sleep(3)
@@ -3253,7 +3259,9 @@ class TestFederation(unittest.TestCase):
             proc.kill()
             log = proc.communicate()[0]
         self.assertIn("kn-game-survival: nobody played for 5 minutes, it sleeps", log)
-        self.assertIn("kn-game-survival: a player knocked, it wakes up", log)
+        self.assertIn("kn-game-survival: a player knocked, it wakes up (the knock came from 203.0.113.9)", log)
+        self.assertRegex(script, r"(?m)^MASTER=10\.\d+\.\d+\.\d+ ")             # the master's own address means "from outside"
+        self.assertIn('from="outside the home, through the master"', script)
         with open(said) as f:
             self.assertEqual(f.read().split(), ["stop", "kn-game-survival", "start", "kn-game-survival"])
         self.assertIn('systemctl reset-failed "$1.service"', script)          # a game that ends with an error code: not failed

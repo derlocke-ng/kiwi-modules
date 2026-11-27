@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.136.0 — the log says who woke a sleeping game server
+
+- **games** 1.5.0: when a sleeping server wakes, the sleep service's log names where the knock
+  came from: an address at home or on the VPN, or "outside the home, through the master" for
+  what the master hands on (`journalctl -u kn-games-sleep`). A public server on a well-known
+  port is knocked on by the Internet's scanners all day and hardly sleeps (seen on a public
+  Minecraft server, 28 Nov 2026); until now the log only said "a player knocked".
+
 ## 0.135.0 — the accounts are asked before their new config is written
 
 - **accounts**: a `preflight` with Kanidm's own config test (`kanidmd configtest`), asked on the
