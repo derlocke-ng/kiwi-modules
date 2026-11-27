@@ -1928,7 +1928,8 @@ class TestFederation(unittest.TestCase):
         self.assertIn("--no-cloudflare --disable-tools", cmd)            # no tunnel, no tools; no JupyterLab
         self.assertIn("unsloth-studio-run --stored", cmd)                # the initial password only once
         meta = yaml.safe_load(open(os.path.join(ROOT, "modules", "ai", "module.yaml")))
-        self.assertEqual([(x["user"], x["password"]) for x in meta["logins"]], [("unsloth", "studio_password")])
+        self.assertEqual([(x.get("user", ""), x["password"], x["when"]) for x in meta["logins"]],
+                         [("unsloth", "studio_password", "studio"), ("", "api_key", "lean")])
         nginx = "".join(open(os.path.join(r, f)).read() for r, _d, fs in os.walk(out) for f in fs if f == "nginx.conf")
         self.assertIn("allow 192.168.2.0/24; allow 10.9.0.0/16; deny all;", nginx)
         m["node"]["runtime"] = "podman"
@@ -1945,6 +1946,73 @@ class TestFederation(unittest.TestCase):
         with contextlib.redirect_stderr(err):
             self.assertNotEqual(cli.main(["render", self.write("m1-ai-closed", m), "-o", os.path.join(self.tmp, "closed")]), 0)
         self.assertIn("ai.allow: nobody may reach it", err.getvalue())
+
+    def test_a_lean_local_ai_is_llama_cpp_alone(self):
+        """ai with engine: llama: llama.cpp's server in place of Studio, for a small graphics chip
+        (Vulkan, /dev/dri) or the processor alone; its models in a file, one in memory at a time,
+        asleep when idle; a key from the seed; no Studio volume, nothing of Studio's to back up."""
+        m = json.loads(json.dumps(MACHINES["m1"]))
+        m["node"]["modules"] = ["vpn-client", "dns", "dhcp-relay", "reverse-proxy", "downloader", "gateway", "portainer",
+                                "sftp", "backup", "ai"]
+        m["node"]["ai"] = {"engine": "llama", "gpu": "vulkan", "allow": ["192.168.2.0/24"],
+                           "models": ["ggml-org/gemma-3-4b-it-GGUF:Q4_K_M", "unsloth/Qwen3-8B-GGUF"]}
+        m["node"]["backup"] = {"server": "https://backup.lychee.home"}
+        out = self.render("m1-lean", m)
+        with open(os.path.join(out, "docker-compose.yml")) as f:
+            compose = yaml.safe_load(f)
+        svc = compose["services"]["kn-ai"]
+        self.assertEqual(svc["image"], "ghcr.io/ggml-org/llama.cpp:server-vulkan")
+        self.assertEqual(svc["devices"], ["/dev/dri"])
+        self.assertEqual(svc["command"], ["--host", "0.0.0.0", "--port", "8000", "--models-preset", "/etc/llama/models.ini",
+                                          "--models-max", "1", "--sleep-idle-seconds", "600"])
+        for off in ("--tools", "--agent", "--connect", "--ui-mcp-proxy", "--allow-unauthenticated-tools"):
+            self.assertNotIn(off, svc["command"])
+        env = dict(e.split("=", 1) for e in svc["environment"])
+        self.assertEqual(env["LLAMA_CACHE"], "/models/hub")                 # where Studio keeps its models too
+        self.assertRegex(env["LLAMA_API_KEY"], r"^[A-Za-z0-9]{16,}$")       # from the seed
+        self.assertNotIn("ipc", svc)
+        self.assertNotIn("unsloth_studio", compose.get("volumes") or {})
+        self.assertIn("/kn-ai/models.ini:/etc/llama/models.ini:ro,z", " ".join(svc["volumes"]))
+        ini = [read(r, f) for r, _d, fs in os.walk(out) for f in fs if f == "models.ini"]
+        self.assertEqual(len(ini), 1, out)
+        self.assertIn("[*]\nctx-size = 8192\n", ini[0])
+        self.assertIn("[ggml-org/gemma-3-4b-it-GGUF:Q4_K_M]\nhf-repo = ggml-org/gemma-3-4b-it-GGUF:Q4_K_M\nload-on-startup = true\n",
+                      ini[0])
+        self.assertIn("[unsloth/Qwen3-8B-GGUF]\nhf-repo = unsloth/Qwen3-8B-GGUF\n", ini[0])
+        self.assertEqual(ini[0].count("load-on-startup"), 1)                # the first one only
+        self.assertNotIn("threads", ini[0])
+        everything = "".join(open(os.path.join(r, f), errors="replace").read() for r, _d, fs in os.walk(out) for f in fs)
+        self.assertNotIn("unsloth_studio", everything)                      # no volume, no backup of one
+        self.assertIn("allow 192.168.2.0/24; deny all;", everything)
+        # the processor alone, always loaded, with fewer threads; NVIDIA takes the CUDA image
+        m["node"]["ai"].update(gpu="none", idle_minutes=0, threads=4, context=0)
+        m["node"]["runtime"] = "podman"
+        out = self.render("m1-lean-cpu", m)
+        quad = [os.path.join(r, f) for r, _d, fs in os.walk(out) for f in fs if f == "kn-ai.container"]
+        text = read(os.path.dirname(quad[0]), "kn-ai.container")
+        self.assertIn("Image=ghcr.io/ggml-org/llama.cpp:server\n", text)
+        self.assertNotIn("AddDevice", text)
+        self.assertNotIn("sleep-idle", text)
+        ini = [read(r, f) for r, _d, fs in os.walk(out) for f in fs if f == "models.ini"][0]
+        self.assertIn("threads = 4", ini)
+        self.assertNotIn("ctx-size", ini)
+        self.assertFalse([f for _r, _d, fs in os.walk(out) for f in fs if f == "unsloth_studio.volume"])
+        m["node"]["ai"].update(gpu="nvidia")
+        out = self.render("m1-lean-nvidia", m)
+        text = "".join(read(r, f) for r, _d, fs in os.walk(out) for f in fs if f == "kn-ai.container")
+        self.assertIn("Image=ghcr.io/ggml-org/llama.cpp:server-cuda\n", text)
+        self.assertIn("nvidia.com/gpu=all", text)
+        # what is refused: Studio without a graphics card, no model, a name that is not one
+        for ai, want in (({"engine": "studio", "gpu": "vulkan"}, "Unsloth Studio needs a graphics card"),
+                         ({"engine": "llama", "gpu": "none", "models": []}, "llama.cpp needs at least one model"),
+                         ({"engine": "llama", "gpu": "none", "models": ["gemma]\nagent = true"]}, "named as on Hugging Face"),
+                         ({"engine": "llama", "gpu": "none", "models": ["../x/y"]}, "named as on Hugging Face"),
+                         ({"engine": "ollama", "gpu": "none"}, "ai.engine must be one of studio, llama")):
+            m["node"]["ai"] = dict(ai, allow=["192.168.2.0/24"])
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                self.assertNotEqual(cli.main(["render", self.write("m1-lean-bad", m), "-o", os.path.join(self.tmp, "bad")]), 0)
+            self.assertIn(want, err.getvalue())
 
     def test_fail2ban_watches_the_ssh_port_and_limits_new_connections(self):
         m = json.loads(json.dumps(MACHINES["gate"]))
@@ -3760,7 +3828,7 @@ class TestRotateAttribute(unittest.TestCase):
         changed_in_place = sorted("%s.%s" % (m.name, s.key) for m in ms.modules.values() for s in m.settings if s.rotate == "exec")
         self.assertEqual(changed_in_place, ["cloud.database_password", "immich.db_password", "paperless.db_password"])
         self.assertEqual(marked, [
-            "backup.server_password", "cloud.imaginary_secret", "cloud.onlyoffice_secret", "cloud.redis_password", "cloud.talk_internal_secret",
+            "ai.api_key", "backup.server_password", "cloud.imaginary_secret", "cloud.onlyoffice_secret", "cloud.redis_password", "cloud.talk_internal_secret",
             "cloud.whiteboard_secret", "dns.pihole_password", "downloader.transmission_password", "git.admin_password",
             "paperless.secret_key", "sftp.sftp_password", "vpn-server.wg_password", "xmpp.admin_password"])
 

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.125.0 — a lean local AI
+
+- **ai**: `engine: llama` runs llama.cpp's server alone in place of Unsloth Studio: the same API
+  and a small chat page, from an image under 1 GB, for a machine with a small graphics chip or
+  none. `gpu` takes `vulkan` (any chip with a Vulkan driver, `/dev/dri` goes into the container;
+  `amd` means the same here) and `none` (the processor alone); `nvidia` takes the CUDA image.
+  `models` names them as on Hugging Face (`user/model:quant`): the first is loaded at the start,
+  another with the request that names it, one in memory at a time. A model nobody asked for
+  `idle_minutes` (10) leaves the memory and comes back with the next request. `context` and
+  `threads` bound what it takes. Its key comes from the fleet's seed (`api_key`) and is among the
+  logins. llama.cpp's tools, agent mode, MCP proxy and tunnel stay off. The models are kept where
+  Studio keeps them, in Hugging Face's layout. A machine with Studio renders as before.
+  Tried: a 270M model on a Debian node's processor (key, page, API, sleep and wake through the
+  reverse proxy); the Vulkan image under Podman with SELinux on a Radeon RX 9070 XT; on a
+  Ryzen 7 PRO 5750G's graphics chip a 4B model writes 17 tokens per second, an 8B one 9.5.
+  Not tried: `gpu: nvidia`.
+
 ## 0.124.0 — stopped rings
 
 - **tang**: `stopped`, the rings that answer nobody now (kiwi-server's switched rings: auto-unlock off
