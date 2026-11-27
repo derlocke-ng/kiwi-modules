@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.131.0 — the accounts and the sign-up pages say whether they work
+
+- A health check for **accounts**: Kanidm's own (`kanidmd scripting healthcheck`; Kanidm 1.12
+  moved it there from `kanidmd healthcheck`), run directly, as the image has no shell. And for
+  the sign-up pages of **accounts** and **xmpp** (their `/join/healthz`). Tried in the running
+  containers, then applied on two machines: healthy.
+
 ## 0.130.0 — a modded Minecraft has a place for its server pack; three more health checks
 
 - **games** 1.2.0: the catalog's Minecraft (Java) mounts
