@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.136.1 — the changelog of 0.134.0 put right
+
+- Words only. The entry of 0.134.0 and a comment in the vpn-client's template said the nodes'
+  tunnels were set up anew on 27 Nov 2026 because the master's way out was away. The logs say
+  otherwise: the provider renumbered the home's Internet line. Both texts are corrected. The
+  comment also lies in the compose file on a machine: that file changes with the next apply,
+  and nothing restarts.
+
 ## 0.136.0 — the log says who woke a sleeping game server
 
 - **games** 1.5.0: when a sleeping server wakes, the sleep service's log names where the knock
@@ -15,18 +23,21 @@
   where an image has no shell: `run: "exec PROGRAM ARGS"`). A Kanidm that does not start means
   no sign-in at any service that uses the accounts.
 
-## 0.134.0 — a node's tunnel stays up while the master's way out is away
+## 0.134.0 — a node's tunnel stays up when its check of the Internet fails
 
 - **vpn-client** with one fixed server (`vpn_provider: custom`, a node's tunnel to its master):
   gluetun no longer sets the tunnel up anew when its own check fails (`HEALTH_RESTART_VPN=off`).
-  That check asks names on the Internet through the tunnel. While the master's way out was
-  away, every node set its tunnel up anew every six seconds (27 Nov 2026: 76 times in eleven
-  minutes on each of six machines), and a few times every morning when the way out reconnects,
-  and each time everything that used the tunnel was cut. A tunnel set up anew reaches the same
-  server with the same keys: nothing was gained. Tried on two machines with the way to the
-  Internet cut inside the tunnel: before, 23 restarts in a minute and the mesh broke off;
-  now none, and 230 of 230 pings to the master answered. `extra_env: {HEALTH_RESTART_VPN:
-  "on"}` brings the old behaviour back. The container restarts once with the apply.
+  That check asks names on the Internet through the tunnel, and a failed one set the tunnel up
+  anew every six seconds, cutting everything that used it. A tunnel set up anew reaches the
+  same server with the same keys: nothing was gained. Seen on 27 Nov 2026, when the provider
+  renumbered a home's Internet line at 03:01: six machines set their tunnels up anew 76 times
+  each; the line was back at 03:09, the mesh only at 03:14, and the master's backup of that
+  night failed at its first try. (Corrected in 0.136.1: this entry first named the master's way
+  out as the cause of that night.) The same happens when only the master's way out is away and
+  the mesh itself is fine. Tried on two machines with the way to the Internet cut inside the
+  tunnel: before, 23 restarts in a minute and the mesh broke off; now none, and 230 of 230
+  pings to the master answered. `extra_env: {HEALTH_RESTART_VPN: "on"}` brings the old
+  behaviour back. The container restarts once with the apply.
 
 ## 0.133.0 — Satisfactory's game lies outside the backup
 
