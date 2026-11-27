@@ -2162,6 +2162,11 @@ class TestFederation(unittest.TestCase):
         self.assertIn("/home/user/docker/kn-accounts/signup:/state:z", su["volumes"])
         self.assertTrue(os.path.isfile(os.path.join(out, "kn-accounts", "signup", "terms.txt")))
         self.assertTrue(os.path.isfile(os.path.join(out, "host-units", "kn-accounts-setup.service")))
+        # it waits for Kanidm's own page, not for a command Kanidm 1.12 no longer has (the wait never
+        # ended early and every apply of the machine took two minutes more, quince, 27 Nov 2026)
+        unit = read(out, "host-units/kn-accounts-setup.service")
+        self.assertRegex(unit, r"curl -fsk -m 3 -o /dev/null https://172\.\d+\.\d+\.\d+:8443/status && exit 0")
+        self.assertNotIn("kanidmd healthcheck", unit.split("ExecStartPre=", 1)[1])
         with open(os.path.join(out, "kiwi", "accounts.sh")) as f:
             sh = f.read()
         self.assertIn("allow-primary-cred-fallback jabber true", sh)               # Jabber takes the same password

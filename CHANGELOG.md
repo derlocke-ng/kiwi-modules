@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.126.2 — an apply of the machine with the accounts no longer waits two minutes
+
+- **accounts**: the setup that runs with every apply waited for Kanidm with `kanidmd healthcheck`,
+  a command Kanidm 1.12 no longer has. The wait never ended early: two minutes at every apply of
+  that machine, 139 of 177 seconds on quince. It asks Kanidm's status page now
+  (`https://<its address>:8443/status`) and goes on as soon as it answers.
+
 ## 0.126.1 — Talk forgets a name the Nextcloud no longer has
 
 - **cloud**: after a change of its name (`nc_hostname`, or data taken over from an installation
