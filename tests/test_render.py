@@ -2057,6 +2057,15 @@ class TestFederation(unittest.TestCase):
         self.assertIn("[unsloth/Qwen3-8B-GGUF]\nhf-repo = unsloth/Qwen3-8B-GGUF\n", ini[0])
         self.assertEqual(ini[0].count("load-on-startup"), 1)                # the first one only
         self.assertNotIn("threads", ini[0])
+        # with a card: llama.cpp's own margin (1024 MiB) unless the fleet names another, and a log that
+        # says where each model went (beside a card another program holds, it went to the processor
+        # without a word: lemonaide, 28 Nov 2026)
+        self.assertIn("fit-target = 1024\n", ini[0])
+        self.assertIn("log-verbosity = 4\n", ini[0])
+        m2 = json.loads(json.dumps(m))
+        m2["node"]["ai"]["card_free_mb"] = 256
+        ini2 = [read(r, f) for r, _d, fs in os.walk(self.render("m1-lean-256", m2)) for f in fs if f == "models.ini"][0]
+        self.assertIn("fit-target = 256\n", ini2)
         everything = "".join(open(os.path.join(r, f), errors="replace").read() for r, _d, fs in os.walk(out) for f in fs)
         self.assertNotIn("unsloth_studio", everything)                      # no volume, no backup of one
         self.assertIn("allow 192.168.2.0/24; deny all;", everything)
@@ -2072,6 +2081,8 @@ class TestFederation(unittest.TestCase):
         ini = [read(r, f) for r, _d, fs in os.walk(out) for f in fs if f == "models.ini"][0]
         self.assertIn("threads = 4", ini)
         self.assertNotIn("ctx-size", ini)
+        self.assertNotIn("fit-target", ini)                                 # no card: nothing to leave free
+        self.assertNotIn("log-verbosity", ini)
         self.assertFalse([f for _r, _d, fs in os.walk(out) for f in fs if f == "unsloth_studio.volume"])
         m["node"]["ai"].update(gpu="nvidia")
         out = self.render("m1-lean-nvidia", m)
@@ -2083,6 +2094,7 @@ class TestFederation(unittest.TestCase):
                          ({"engine": "llama", "gpu": "none", "models": []}, "llama.cpp needs at least one model"),
                          ({"engine": "llama", "gpu": "none", "models": ["gemma]\nagent = true"]}, "named as on Hugging Face"),
                          ({"engine": "llama", "gpu": "none", "models": ["../x/y"]}, "named as on Hugging Face"),
+                         ({"engine": "llama", "gpu": "vulkan", "card_free_mb": -1}, "ai.card_free_mb: 0 to 65536"),
                          ({"engine": "ollama", "gpu": "none"}, "ai.engine must be one of studio, llama")):
             m["node"]["ai"] = dict(ai, allow=["192.168.2.0/24"])
             err = io.StringIO()
