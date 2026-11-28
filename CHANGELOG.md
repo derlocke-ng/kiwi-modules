@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.138.0 — the lean AI says when it left the card
+
+- **ai** 1.1.0, `engine: llama` with a graphics card: llama.cpp plans where a model goes and
+  leaves 1024 MiB of the card free for other programs. On a card another program holds, a
+  model then went to the processor without a word (lemonaide beside Studio, 28 Nov 2026: 210
+  tokens/s instead of 436). New setting `ai.card_free_mb` (default 1024, llama.cpp's own):
+  less, like 256, lets a small model onto such a card. And the log of `kn-ai` now says where
+  each model went: "offloaded 19/19 layers to GPU", or 0 of them for the processor (one step
+  more detail in llama.cpp's log, about 30 lines more per request, no request's text). Tried
+  on lemonaide beside Studio with both values. The AI container of a lean machine restarts
+  once with the apply that brings it.
+
 ## 0.137.0 — three quieter logs
 
 Found by reading the machines' own logs of a day (28 Nov 2026).
