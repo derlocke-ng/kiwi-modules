@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.143.0 — everything of a person's computer through the control page
+
+- **control**: every path under `/api/client/` is open to every VPN group and to home, as
+  `/api/client-report` is: kiwi-server's client agent (docs/design/clients.md) reports, fetches
+  its profile (the network's CA, its VPN) and joins there, each request signed with its key or
+  holding a one-time code.
+
 ## 0.142.0 — the lean AI answers to the fleet's model name
 
 - **ai** (1.1.1, engine llama): llama.cpp lists a model by the quant at the end of its file's
