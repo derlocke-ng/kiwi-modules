@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.142.0 — the lean AI answers to the fleet's model name
+
+- **ai** (1.1.1, engine llama): llama.cpp lists a model by the quant at the end of its file's
+  name, in capitals: `user/model:UD-Q4_K_S` as `user/model:Q4_K_S`, `q8_0` as `Q8_0`. A request
+  with the fleet's own name found no model, and kiwi-server loaded the first one in the list
+  instead (on lemonaide an audio model it could not load, 28 Nov 2026). `models.ini` now gives
+  such a model the fleet's name as an alias: both names work, and `/v1/models` shows the
+  fleet's under `aliases`. Tried with llama.cpp's own image: a model named `…:UD-Q4_K_XL`
+  answers by that name and by `…:Q4_K_XL`, and its `UD-` file is the one downloaded.
+
 ## 0.141.0 — a person's computer reports to the control node
 
 - **control**: `/api/client-report` is open to every VPN group, as `/api/report` is: a person's
