@@ -2047,7 +2047,8 @@ class TestFederation(unittest.TestCase):
         m["node"]["modules"] = ["vpn-client", "dns", "dhcp-relay", "reverse-proxy", "downloader", "gateway", "portainer",
                                 "sftp", "backup", "ai"]
         m["node"]["ai"] = {"engine": "llama", "gpu": "vulkan", "allow": ["192.168.2.0/24"],
-                           "models": ["ggml-org/gemma-3-4b-it-GGUF:Q4_K_M", "unsloth/Qwen3-8B-GGUF"]}
+                           "models": ["ggml-org/gemma-3-4b-it-GGUF:Q4_K_M", "unsloth/Qwen3-8B-GGUF",
+                                      "unsloth/Qwen3-8B-GGUF:UD-Q4_K_XL", "ggml-org/Qwen3-0.6B-GGUF:q8_0"]}
         m["node"]["backup"] = {"server": "https://backup.lychee.home"}
         out = self.render("m1-lean", m)
         with open(os.path.join(out, "docker-compose.yml")) as f:
@@ -2072,6 +2073,13 @@ class TestFederation(unittest.TestCase):
                       ini[0])
         self.assertIn("[unsloth/Qwen3-8B-GGUF]\nhf-repo = unsloth/Qwen3-8B-GGUF\n", ini[0])
         self.assertEqual(ini[0].count("load-on-startup"), 1)                # the first one only
+        # llama.cpp lists UD-Q4_K_XL as Q4_K_XL and q8_0 as Q8_0: the fleet's name is an alias, so
+        # that a request with it finds the model (lemonaide, 28 Nov 2026: "model not found")
+        self.assertIn("[unsloth/Qwen3-8B-GGUF:UD-Q4_K_XL]\nhf-repo = unsloth/Qwen3-8B-GGUF:UD-Q4_K_XL\n"
+                      "; llama.cpp lists it as unsloth/Qwen3-8B-GGUF:Q4_K_XL; asked for by this name too\n"
+                      "alias = unsloth/Qwen3-8B-GGUF:UD-Q4_K_XL\n", ini[0])
+        self.assertIn("alias = ggml-org/Qwen3-0.6B-GGUF:q8_0\n", ini[0])
+        self.assertEqual(ini[0].count("alias ="), 2)                        # not for a name it lists as it is
         self.assertNotIn("threads", ini[0])
         # with a card: llama.cpp's own margin (1024 MiB) unless the fleet names another, and a log that
         # says where each model went (beside a card another program holds, it went to the processor
