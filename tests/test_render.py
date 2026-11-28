@@ -2626,6 +2626,11 @@ class TestFederation(unittest.TestCase):
         report = report[:report.index("}")]
         self.assertIn("allow all;", report)
         self.assertIn("proxy_pass", report)
+        # and so are a person's computer's, from any VPN group it is in (a pentest system's has no admin pages)
+        client = site[site.index("location = /api/client-report"):]
+        client = client[:client.index("}")]
+        self.assertIn("allow all;", client)
+        self.assertIn("proxy_pass", client)
         with open(os.path.join(out, "docker-compose.yml")) as f:
             svcs = yaml.safe_load(f)["services"]
         self.assertIn("/home/user/docker/kn-control:/fleet:Z", svcs["kn-control"]["volumes"])

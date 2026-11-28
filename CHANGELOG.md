@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.141.0 — a person's computer reports to the control node
+
+- **control**: `/api/client-report` is open to every VPN group, as `/api/report` is: a person's
+  computer (kiwi-server's client agent, docs/design/clients.md) reports there, signed with its
+  own key, also from a group without the admin pages, like a pentest system's.
+
 ## 0.140.0 — a new site no longer restarts Pi-hole
 
 - **dns**: the fleet's names are a hosts file of their own (`kn-pihole/names/kiwi.hosts`, at
