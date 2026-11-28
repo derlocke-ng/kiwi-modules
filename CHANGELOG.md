@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.137.0 — three quieter logs
+
+Found by reading the machines' own logs of a day (28 Nov 2026).
+
+- **downloader**: Transmission shares the VPN client's network, where no router answers a
+  request to open a port, and it went on asking every eight seconds: two lines in the machine's
+  log each time, twenty thousand a day. Its setting for that is switched off before it starts
+  (a small script the image runs, `kiwi/transmission/10-kiwi.sh`). Transmission restarts once.
+- **control**: a machine's report is bigger than nginx keeps in memory, so each one went
+  through a file on the disk, with a warning in the log, three a minute. The reports' address
+  keeps up to 256 kB in memory.
+- **tang**: a ring's health check asks every five minutes, not every minute. tang writes each
+  request into the log as an error line.
+
 ## 0.136.1 — the changelog of 0.134.0 put right
 
 - Words only. The entry of 0.134.0 and a comment in the vpn-client's template said the nodes'
