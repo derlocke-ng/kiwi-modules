@@ -208,8 +208,7 @@ class TestRender(unittest.TestCase):
         m1 = dict(MACHINES["m1"], dns_records=RECORDS)
         _m, plain = self.stack_of(m1)
         _m, b = self.stack_of(m1, moving=["vault.sh3.home"])
-        env = lambda bundle: next(e for e in bundle.compose["services"]["kn-pihole"]["environment"]    # noqa: E731
-                                  if str(e).startswith("FTLCONF_dns_hosts="))
+        env = lambda bundle: bundle.files["kn-pihole/names/kiwi.hosts"][0]     # noqa: E731  the fleet's names
         self.assertIn("vault.sh3.home", env(plain))
         self.assertNotIn("vault.sh3.home", env(b))
         self.assertIn("cloud.sh3.home", env(b))                                 # the others as before
@@ -220,7 +219,24 @@ class TestRender(unittest.TestCase):
         self.assertIn("hostsdir=/etc/kiwi-moving", lines)
         self.assertIn("/etc/kiwi-moving:ro", " ".join(b.compose["services"]["kn-pihole"]["volumes"]))
         self.assertIn("kn-pihole/moving", b.dirs)
+        self.assertIn("kn-pihole/moving/kiwi.hosts", b.live)                    # a switch or an apply restarts nothing
         self.assertNotIn("kn-pihole/moving/kiwi.hosts", plain.files)
+
+    def test_a_new_name_restarts_no_pi_hole(self):
+        """The fleet's names are a hosts file in a folder dnsmasq watches, marked live: an apply that
+        brings a new site rewrites the file, and kiwi-stack restarts nothing for it. Before (0.140.0)
+        they were an env var, and every new or removed site restarted Pi-hole on every DNS machine."""
+        m1 = dict(MACHINES["m1"], dns_records=RECORDS)
+        _m, b = self.stack_of(m1)
+        _m, more = self.stack_of(dict(m1, dns_records=RECORDS + [["10.8.0.25", "paste.sh3.home"]]))
+        self.assertEqual(b.compose, more.compose)                               # the container stays as it is
+        self.assertIn("\n10.8.0.25 paste.sh3.home\n", more.files["kn-pihole/names/kiwi.hosts"][0])
+        self.assertIn("kn-pihole/names/kiwi.hosts", more.live)
+        svc = b.compose["services"]["kn-pihole"]
+        self.assertFalse([e for e in svc["environment"] if str(e).startswith("FTLCONF_dns_hosts=")])
+        self.assertIn("hostsdir=/etc/kiwi-names", next(e for e in svc["environment"] if str(e).startswith("FTLCONF_misc_dnsmasq_lines=")))
+        self.assertIn("/etc/kiwi-names:ro", " ".join(svc["volumes"]))
+        self.assertIn("kn-pihole/names", b.dirs)
 
     def test_a_part_says_how_it_is_named(self):
         """named_by: the setting that holds a part's name and its own word (kiwi-server names a part
@@ -367,8 +383,8 @@ class TestRender(unittest.TestCase):
             svcs = yaml.safe_load(f)["services"]
         self.assertNotIn("kn-vpn-client", svcs)
         self.assertIn("80:80", svcs["kn-nginx"]["ports"])                       # the sites answer at home
-        hosts = next(e for e in svcs["kn-pihole"]["environment"] if e.startswith("FTLCONF_dns_hosts="))
-        self.assertIn("192.168.1.30 cloud.solo.home", hosts)
+        with open(os.path.join(out, "kn-pihole", "names", "kiwi.hosts")) as f:
+            self.assertIn("192.168.1.30 cloud.solo.home", f.read())
         # the home network stands in for the mesh: what is only for "us" lets the home in
         from kiwimodules import machine as machmod, profiles
         mm = machmod.load(self.write("solo2", solo))
@@ -1490,7 +1506,7 @@ esac
         data = dict(MACHINES["m1"], dns_records=[["10.8.0.1", "gate.home"], ["10.8.0.25", "sh3.home"], ["10.8.0.25", "cloud.sh3.home"]],
                     lan_addresses={"10.8.0.25": "192.168.1.25"})
         out = self.render("lan1", data)
-        with open(os.path.join(out, "docker-compose.yml")) as f:
+        with open(os.path.join(out, "kn-pihole", "names", "kiwi.hosts")) as f:
             compose = f.read()
         self.assertIn("192.168.1.25 sh3.home", compose)
         self.assertIn("192.168.1.25 cloud.sh3.home", compose)
@@ -1503,7 +1519,7 @@ esac
         # a name whose service answers at the mesh address only keeps it, also on this LAN
         data = dict(data, dns_records=data["dns_records"] + [["10.8.0.25", "jabber.sh3.home"]], mesh_only=["jabber.sh3.home"])
         out = self.render("lan2", data)
-        with open(os.path.join(out, "docker-compose.yml")) as f:
+        with open(os.path.join(out, "kn-pihole", "names", "kiwi.hosts")) as f:
             compose = f.read()
         self.assertIn("10.8.0.25 jabber.sh3.home", compose)
         self.assertIn("192.168.1.25 cloud.sh3.home", compose)

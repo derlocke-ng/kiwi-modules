@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.140.0 — a new site no longer restarts Pi-hole
+
+- **dns**: the fleet's names are a hosts file of their own (`kn-pihole/names/kiwi.hosts`, at
+  `/etc/kiwi-names` in the container) that dnsmasq watches. A new or removed site rewrites the
+  file, and the running Pi-hole reads it again within a second. Before, the names went in as
+  `FTLCONF_dns_hosts`, and every such change restarted Pi-hole on every DNS machine of the
+  network: a moment without names for the whole home. The first apply with this release
+  restarts Pi-hole once (its settings change); the names it had from the variable go with it.
+  Pi-hole's admin page no longer lists them under "Local DNS records".
+- **module.yaml**: an output can say `live: true`: its part reads the file again by itself, so
+  kiwi-stack (0.9.46, `KS_STACK_LIVE`) restarts nothing when it changes. The names of parts
+  that can move (`kn-pihole/moving/kiwi.hosts`) are marked so too.
+- Tried by hand in a Pi-hole 6 container: the file replaced and the file changed in place were
+  both read at once, a removed name was gone, and the names of the old variable did not stay
+  in `pihole.toml` once it was left out.
+
 ## 0.139.0 — the moving address stays when both machines see the same fault
 
 - **vip** (keepalived image 2.3-kiwi3): a check that fails (the Pi-hole here answers no name;
