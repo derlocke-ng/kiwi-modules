@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.139.0 — the moving address stays when both machines see the same fault
+
+- **vip** (keepalived image 2.3-kiwi3): a check that fails (the Pi-hole here answers no name;
+  the master does not answer through this machine) no longer puts the machine into FAULT. It
+  lowers its priority by more than the pair's gap, so the other machine takes the address, as
+  before. When both fail the same check at the same moment, the one that holds the address
+  keeps it. Until now both gave it up: when the master's VPN server restarted (28 Nov 2026),
+  both gateways lost their route to it in the same second and the home had neither DNS nor a
+  gateway for 17 seconds, though both Pi-holes answered all the time. The image's pair test
+  shows both cases (images/keepalived/test-pair.sh). The vip container restarts once with the
+  apply.
+
 ## 0.138.0 — the lean AI says when it left the card
 
 - **ai** 1.1.0, `engine: llama` with a graphics card: llama.cpp plans where a model goes and

@@ -9,6 +9,11 @@
 #   VIP_CHECK_DNS 1: the address goes when the Pi-hole here does not answer a name
 #   VIP_CHECK_PING an address that must answer through this machine (the master on the VPN): the
 #                 gateway works; empty: no such check
+# A check that fails lowers this machine's priority by more than the pair's gap: the other one takes
+# the address. When both fail the same check (the master's VPN restarts: both lose the route at the
+# same second), the one that holds the address keeps it. Until kiwi2 a failed check put the machine
+# into FAULT, and then both gave the address up: the home had no DNS and no gateway for 17 seconds
+# (28 Nov 2026), though both Pi-holes answered all the time.
 set -eu
 iface=${VIP_INTERFACE:-}
 [ -n "$iface" ] || iface=$(ip -4 route show default | sed -n 's/.* dev \([^ ]*\).*/\1/p' | head -n 1)
@@ -27,6 +32,7 @@ vrrp_script dns {
     interval 3
     fall 2
     rise 2
+    weight -120
 }"
     track="$track        dns
 "
@@ -38,6 +44,7 @@ vrrp_script route {
     interval 5
     fall 3
     rise 2
+    weight -120
 }"
     track="$track        route
 "
