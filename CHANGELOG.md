@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.144.0 — the network's accounts log in to its managed computers
+
+- **accounts**: Kanidm gets the groups `computers` (who may log in to the network's managed
+  computers) and `admins` with Unix attributes; a login there takes the person's password (a
+  passkey does not reach a login screen). `accounts.sh desktop NAME on|off` lets a person log in
+  there; making someone an admin gives them a Unix account too (sudo on those computers). The
+  computers themselves are set up by kiwi-server's client agent (kanidm-unixd), 2.332.0.
+
 ## 0.143.0 — everything of a person's computer through the control page
 
 - **control**: every path under `/api/client/` is open to every VPN group and to home, as
