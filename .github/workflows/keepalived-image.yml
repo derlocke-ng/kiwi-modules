@@ -16,7 +16,7 @@ permissions:
   packages: write
 
 env:
-  TAG: 2.3-kiwi2
+  TAG: 2.3-kiwi3
 
 jobs:
   image:
